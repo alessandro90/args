@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <expected>
+#include <optional>
 #include <span>
 #include <string_view>
 #include <variant>
@@ -47,7 +48,8 @@ struct [[nodiscard]] Error {
     std::string_view chars;
 };
 
-[[nodiscard]] auto tokenize(std::span<char *> src) -> std::expected<std::vector<Token>, Error>;
+// [[nodiscard]] auto tokenize(std::span<char *> src) -> std::expected<std::vector<Token>, Error>;
+[[nodiscard]] auto tokenize(std::span<char *> src) -> std::optional<std::vector<Token>>;
 
 }  // namespace args::tokenizer
 
