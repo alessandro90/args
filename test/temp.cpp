@@ -7,7 +7,11 @@ TEST_CASE("Factorials are computed", "[factorial]") {  // NOLINT
     static constexpr auto option = args::Required<args::Flag{
         .long_form = args::Str{"an_option"},
     }>{};
-    static constexpr auto rules = args::Rules<option>{};
+    static constexpr auto option_x = args::Required<args::FlagWithValue{
+        .long_form = args::Str{"an_option"},
+        .default_value = 10,
+    }>{};
+    static constexpr auto rules = args::Rules<option, option_x>{};
     auto f = args::try_parse(0, nullptr, rules);
     (void)f;
 }

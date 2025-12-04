@@ -45,7 +45,7 @@ Str(char const (&s)[N]) -> Str<N - 1>;  // NOLINT
 template <std::size_t N>
 struct [[nodiscard]] Flag {
     Str<N> long_form;
-    PlainOptional<char> short_form{.has_value = false, .value = {}};
+    PlainOptional<char> short_form{PlainOptional<char>::empty()};
     bool default_value{};
     static constexpr bool is_spec = true;
     using value_t = bool;
@@ -53,10 +53,10 @@ struct [[nodiscard]] Flag {
     [[nodiscard]] constexpr auto operator==(Flag const &) const -> bool = default;
 };
 
-template <typename V>
+template <typename V, std::size_t N>
 struct [[nodiscard]] FlagWithValue {
-    std::string_view long_form;
-    std::optional<char> short_form{.has_value = false, .value = V{}};
+    Str<N> long_form;
+    PlainOptional<char> short_form{PlainOptional<char>::empty()};
     V default_value{};
     static constexpr bool is_spec = true;
     using value_t = V;
@@ -66,7 +66,6 @@ struct [[nodiscard]] FlagWithValue {
 
 template <typename P>
 struct [[nodiscard]] Positional {
-    std::size_t index{};
     static constexpr bool is_spec = true;
     using value_t = P;
 
@@ -85,26 +84,25 @@ struct Required {
     [[nodiscard]] constexpr auto operator==(Required const &) const -> bool = default;
 };
 
-template <typename>
+template <Spec>
 struct IsRequired: std::false_type {};
 
 template <Spec auto S>
 struct IsRequired<Required<S>>: std::true_type {};
 
-template <typename T>
-inline constexpr bool IsRequired_v = IsRequired<T>::value;
+template <Spec S>
+inline constexpr bool IsRequired_v = IsRequired<S>::value;
 
-template <typename>
+template <Spec>
 struct IsFlag: std::false_type {};
 
 template <std::size_t N>
 struct IsFlag<Flag<N>>: std::true_type {};
 
 template <Spec auto S>
-struct IsFlag<Required<S>>
-    : std::conditional_t<IsFlag<decltype(S)>::value, std::true_type, std::false_type> {};
+struct IsFlag<Required<S>>: IsFlag<decltype(S)> {};
 
-template <typename T>
+template <Spec T>
 inline constexpr bool IsFlag_v = IsFlag<T>::value;
 
 template <Spec auto... Specs>
