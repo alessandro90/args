@@ -15,11 +15,11 @@
 namespace args::compiler {
 
 template <typename T>
-struct PlainOptional {
+struct [[nodiscard]] PlainOptional {
     bool has_value;
     T value;
 
-    [[nodiscard]] constexpr bool operator==(PlainOptional const &) const = default;
+    [[nodiscard]] constexpr auto operator==(PlainOptional const &) const -> bool = default;
 
     static consteval auto empty() -> PlainOptional {
         return PlainOptional{.has_value = false, .value = T{}};
@@ -31,28 +31,74 @@ struct PlainOptional {
 };
 
 template <std::size_t N>
-struct StrView {
-    std::array<char, N + 1> view;
+struct [[nodiscard]] Str {
+    std::array<char, N + 1> chars{};
 
-    consteval StrView(char const (&s)[N + 1]) {  // NOLINT
-        std::ranges::copy(s, view.begin());
+    consteval Str(char const (&s)[N + 1]) {  // NOLINT
+        std::ranges::copy(s, chars.begin());
     }
 
-    [[nodiscard]] constexpr bool operator==(StrView const &) const = default;
+    [[nodiscard]] constexpr auto as_string_view() const -> std::string_view {
+        return std::string_view{chars.data()};
+    }
+
+    [[nodiscard]] constexpr auto operator==(Str const &) const -> bool = default;
 };
 
 template <std::size_t N>
-StrView(char const (&s)[N]) -> StrView<N - 1>;  // NOLINT
+Str(char const (&s)[N]) -> Str<N - 1>;  // NOLINT
 
 template <std::size_t N>
 struct [[nodiscard]] FlagSpec {
-    StrView<N> long_form;
-    PlainOptional<char> short_form;
+    Str<N> long_form;
+    PlainOptional<char> short_form{.has_value = false, .value = {}};
+    bool default_value{};
     static constexpr bool is_spec = true;
     using value_t = bool;
 
-    [[nodiscard]] constexpr bool operator==(FlagSpec const &) const = default;
+    [[nodiscard]] constexpr auto operator==(FlagSpec const &) const -> bool = default;
 };
+
+template <typename V>
+struct [[nodiscard]] FlagWithValue {
+    std::string_view long_form;
+    std::optional<char> short_form{.has_value = false, .value = V{}};
+    V default_value{};
+    static constexpr bool is_spec = true;
+    using value_t = V;
+
+    [[nodiscard]] constexpr auto operator==(FlagWithValue const &) const -> bool = default;
+};
+
+template <typename P>
+struct [[nodiscard]] Positional {
+    std::size_t index{};
+    static constexpr bool is_spec = true;
+    using value_t = P;
+
+    [[nodiscard]] constexpr auto operator==(Positional const &) const -> bool = default;
+};
+
+// Cheap way to define a Spec. Not very sound
+template <typename S>
+concept Spec = S::is_spec;
+
+template <Spec auto S>
+struct Required {
+    static constexpr bool is_spec = true;
+    using value_t = decltype(S)::value_t;
+
+    [[nodiscard]] constexpr auto operator==(Required const &) const -> bool = default;
+};
+
+template <typename>
+struct IsRequired: std::false_type {};
+
+template <Spec auto S>
+struct IsRequired<Required<S>>: std::true_type {};
+
+template <typename T>
+inline constexpr bool IsRequired_v = IsRequired<T>::value;
 
 template <typename>
 struct IsFlagSpec: std::false_type {};
@@ -60,31 +106,12 @@ struct IsFlagSpec: std::false_type {};
 template <std::size_t N>
 struct IsFlagSpec<FlagSpec<N>>: std::true_type {};
 
+template <Spec auto S>
+struct IsFlagSpec<Required<S>>
+    : std::conditional_t<IsFlagSpec<decltype(S)>::value, std::true_type, std::false_type> {};
+
 template <typename T>
 inline constexpr bool IsFlagSpec_v = IsFlagSpec<T>::value;
-
-template <typename V>
-struct [[nodiscard]] FlagWithValue {
-    std::string_view long_form;
-    std::optional<char> short_form;
-    static constexpr bool is_spec = true;
-    using value_t = V;
-
-    [[nodiscard]] constexpr bool operator==(FlagWithValue const &) const = default;
-};
-
-template <typename P>
-struct [[nodiscard]] Positional {
-    std::optional<P> default_value;
-    std::size_t index;
-    static constexpr bool is_spec = true;
-    using value_t = P;
-
-    [[nodiscard]] constexpr bool operator==(Positional const &) const = default;
-};
-
-template <typename S>
-concept Spec = S::is_spec;
 
 template <Spec auto... Specs>
 struct Rules {};
@@ -92,7 +119,8 @@ struct Rules {};
 template <Spec auto S>
 struct [[nodiscard]] ResultValue {
     decltype(S)::value_t value;
-    static constexpr auto spec = S;
+    bool m_is_used{false};
+    static constexpr auto spec = S;  // maybe not needed
 };
 
 template <Spec auto... Specs>
@@ -100,10 +128,21 @@ struct [[nodiscard]] Result {
     std::tuple<ResultValue<Specs>...> results;
 
     template <Spec auto S>
-    auto get() -> ResultValue<S> const & {
+    [[nodiscard]] constexpr auto get_with_info() -> ResultValue<S> const & {
         return std::get<ResultValue<S>>(results);
     }
+
+    template <Spec auto S>
+    [[nodiscard]] constexpr auto get() -> decltype(S)::value_t const & {
+        return get_with_info<S>().value;
+    }
 };
+
+// TODO: how to assert that all required args have been parsed?
+// should add 'required' and 'Option default' to the spec?
+// may implement wrappers to Specs for Optional/Required. For example
+// Optional<ShortFlag>, Required otherwise. Optional has an additional
+// field, the default field if not never parsed
 
 template <Spec auto... Specs>
 struct TokenVisitor {
@@ -115,8 +154,12 @@ struct TokenVisitor {
                 if constexpr (IsFlagSpec_v<
                                   std::tuple_element_t<Is, std::tuple<decltype(Specs)...>>>) {
                     auto &item = std::get<Is>(results);
-                    if (!item.spec.short_form.has_value) { return false; }
-                    if (item.spec.short_form.value != short_flag.flag) { return false; }
+                    if (!item.spec.short_form.has_value) {
+                        return false;
+                    }
+                    if (item.spec.short_form.value != short_flag.flag) {
+                        return false;
+                    }
                     item.value = true;
                     return true;
                 } else {
@@ -126,15 +169,25 @@ struct TokenVisitor {
         }(std::make_index_sequence<sizeof...(Specs)>());
     }
 
-    [[nodiscard]] auto operator()(tokenizer::ShortFlagWithValue) const -> bool { return false; }
+    [[nodiscard]] auto operator()(tokenizer::ShortFlagWithValue) const -> bool {
+        return false;
+    }
 
-    [[nodiscard]] auto operator()(tokenizer::LongFlagWithValue) const -> bool { return false; }
+    [[nodiscard]] auto operator()(tokenizer::LongFlagWithValue) const -> bool {
+        return false;
+    }
 
-    [[nodiscard]] auto operator()(tokenizer::LongFlag) const -> bool { return false; }
+    [[nodiscard]] auto operator()(tokenizer::LongFlag) const -> bool {
+        return false;
+    }
 
-    [[nodiscard]] auto operator()(tokenizer::FlagGroup) const -> bool { return false; }
+    [[nodiscard]] auto operator()(tokenizer::FlagGroup) const -> bool {
+        return false;
+    }
 
-    [[nodiscard]] auto operator()(tokenizer::Argument) const -> bool { return false; }
+    [[nodiscard]] auto operator()(tokenizer::Argument) const -> bool {
+        return false;
+    }
 };
 
 template <Spec auto... Specs>
@@ -144,7 +197,9 @@ template <Spec auto... Specs>
     auto results = std::tuple<ResultValue<Specs>...>{};
     for (auto const token : tokens) {
         bool const ok = std::visit(TokenVisitor{results}, token);
-        if (!ok) { return std::nullopt; }
+        if (!ok) {
+            return std::nullopt;
+        }
     }
     return Result{results};
 }

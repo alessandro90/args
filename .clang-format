@@ -11,35 +11,37 @@ AlignTrailingComments:
   Kind: Always
   OverEmptyLines: 1
 AllowAllParametersOfDeclarationOnNextLine: true
-AllowShortLoopsOnASingleLine: true
-AllowShortBlocksOnASingleLine: Always
-AllowShortCaseLabelsOnASingleLine: true
-AllowShortFunctionsOnASingleLine: All
-AllowShortIfStatementsOnASingleLine: AllIfsAndElse
-AlwaysBreakAfterReturnType: None
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Empty
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortEnumsOnASingleLine: false
+AllowShortLambdasOnASingleLine: Inline
+BreakAfterReturnType: Automatic
 AlwaysBreakBeforeMultilineStrings: true
 BinPackArguments: false
 BinPackParameters: false
-BreakBeforeBraces: Custom
-BraceWrapping:
-  AfterCaseLabel: false
-  AfterClass: false
-  AfterControlStatement: Never
-  AfterEnum: false
-  AfterFunction: false
-  AfterNamespace: false
-  AfterObjCDeclaration: false
-  AfterStruct: false
-  AfterUnion: false
-  AfterExternBlock: false
-  BeforeCatch: false
-  BeforeElse: false
-  BeforeLambdaBody: false
-  BeforeWhile: false
-  IndentBraces: false
-  SplitEmptyFunction: false
-  SplitEmptyNamespace: false
-  SplitEmptyRecord: false
+BreakBeforeBraces: Attach
+# BraceWrapping:
+#   AfterCaseLabel: false
+#   AfterClass: false
+#   AfterControlStatement: Never
+#   AfterEnum: false
+#   AfterFunction: false
+#   AfterNamespace: false
+#   AfterObjCDeclaration: false
+#   AfterStruct: false
+#   AfterUnion: false
+#   AfterExternBlock: false
+#   BeforeCatch: false
+#   BeforeElse: false
+#   BeforeLambdaBody: false
+#   BeforeWhile: false
+#   IndentBraces: false
+#   SplitEmptyFunction: false
+#   SplitEmptyNamespace: false
+#   SplitEmptyRecord: false
 BreakAfterJavaFieldAnnotations: true
 BreakBeforeBinaryOperators: NonAssignment
 BreakBeforeInheritanceComma: false
@@ -58,13 +60,18 @@ FixNamespaceComments: true
 ForEachMacros:
   - Q_FOREACH
   - BOOST_FOREACH
+# IncludeCategories:
+#   - Priority: 2
+#     Regex: ^"(llvm|llvm-c|clang|clang-c)/
+#   - Priority: 3
+#     Regex: ^(<|"(gtest|gmock|isl|json)/)
+#   - Priority: 1
+#     Regex: .*
 IncludeCategories:
-  - Priority: 2
-    Regex: ^"(llvm|llvm-c|clang|clang-c)/
-  - Priority: 3
-    Regex: ^(<|"(gtest|gmock|isl|json)/)
-  - Priority: 1
-    Regex: .*
+  - Regex: '^<[^"]+>$'   # system/STL
+    Priority: 1
+  - Regex: '^"[^"]+"$'   # local includes
+    Priority: 2
 IndentCaseLabels: false
 IndentWidth: 4
 IndentWrappedFunctionNames: false
@@ -111,8 +118,6 @@ SpaceBeforeSquareBrackets: false
 SpaceInEmptyBlock: false
 AlignArrayOfStructures: Left
 AllowAllArgumentsOnNextLine: true
-AllowShortEnumsOnASingleLine: true
-AllowShortLambdasOnASingleLine: All
 BitFieldColonSpacing: None
 BreakAfterAttributes: Never
 BreakBeforeConceptDeclarations: Always
@@ -136,8 +141,8 @@ PackConstructorInitializers: Never
 PenaltyBreakBeforeFirstCallParameter: 1000
 PenaltyReturnTypeOnItsOwnLine: 1000
 ReferenceAlignment: Right
-# Unrecognized for some reason
-# AllowBreakBeforeNoexceptSpecifier: Never
-# AllowShortCompoundRequirementOnASingleLine: true
-# BreakAdjacentStringLiterals: false
-# QualifierOrder: [ 'inline', 'static', 'constexpr', 'volatile', 'restrict', 'type', 'const' ]
+AllowBreakBeforeNoexceptSpecifier: Never
+AllowShortCompoundRequirementOnASingleLine: true
+BreakAdjacentStringLiterals: false
+QualifierAlignment: Custom
+QualifierOrder: [ 'inline', 'static', 'constexpr', 'volatile', 'restrict', 'type', 'const' ]

@@ -2,7 +2,6 @@
 #define CPP_ARGS_TOKENIZER_HEADER
 
 #include <cstddef>
-#include <expected>
 #include <optional>
 #include <span>
 #include <string_view>
@@ -40,10 +39,6 @@ using Token =
     std::variant<ShortFlag, ShortFlagWithValue, LongFlag, LongFlagWithValue, FlagGroup, Argument>;
 
 struct [[nodiscard]] Error {
-    constexpr Error(std::size_t nr, std::string_view s)
-        : argv_nr{nr}
-        , chars{s} {}
-
     std::size_t argv_nr;
     std::string_view chars;
 };
