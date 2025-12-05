@@ -1,6 +1,11 @@
-# clang-format: 16
 AccessModifierOffset: -4
-AlignAfterOpenBracket: Align
+AlignAfterOpenBracket: AlwaysBreak
+# Wait for clang-format 22
+# BreakAfterOpenBracketBracedList: true
+# BreakAfterOpenBracketFunction: true
+# BreakBeforeCloseBracketFunction: true
+# BreakBeforeCloseBracketBracedList: true
+# ###
 AlignConsecutiveAssignments: None
 AlignConsecutiveBitFields: None
 AlignConsecutiveDeclarations: None
@@ -17,31 +22,12 @@ AllowShortCaseLabelsOnASingleLine: false
 AllowShortFunctionsOnASingleLine: Empty
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortEnumsOnASingleLine: false
-AllowShortLambdasOnASingleLine: Inline
+AllowShortLambdasOnASingleLine: Empty
 BreakAfterReturnType: Automatic
 AlwaysBreakBeforeMultilineStrings: true
 BinPackArguments: false
 BinPackParameters: false
 BreakBeforeBraces: Attach
-# BraceWrapping:
-#   AfterCaseLabel: false
-#   AfterClass: false
-#   AfterControlStatement: Never
-#   AfterEnum: false
-#   AfterFunction: false
-#   AfterNamespace: false
-#   AfterObjCDeclaration: false
-#   AfterStruct: false
-#   AfterUnion: false
-#   AfterExternBlock: false
-#   BeforeCatch: false
-#   BeforeElse: false
-#   BeforeLambdaBody: false
-#   BeforeWhile: false
-#   IndentBraces: false
-#   SplitEmptyFunction: false
-#   SplitEmptyNamespace: false
-#   SplitEmptyRecord: false
 BreakAfterJavaFieldAnnotations: true
 BreakBeforeBinaryOperators: NonAssignment
 BreakBeforeInheritanceComma: false
@@ -60,13 +46,6 @@ FixNamespaceComments: true
 ForEachMacros:
   - Q_FOREACH
   - BOOST_FOREACH
-# IncludeCategories:
-#   - Priority: 2
-#     Regex: ^"(llvm|llvm-c|clang|clang-c)/
-#   - Priority: 3
-#     Regex: ^(<|"(gtest|gmock|isl|json)/)
-#   - Priority: 1
-#     Regex: .*
 IncludeCategories:
   - Regex: '^<[^"]+>$'   # system/STL
     Priority: 1

@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <concepts>
 #include <cstddef>
 #include <string_view>
 #include <type_traits>
@@ -23,6 +24,9 @@ struct [[nodiscard]] PlainOptional {
         return PlainOptional{.has_value = true, .value = value};
     }
 };
+
+template <typename T>
+concept Trivial = std::is_trivial_v<T>;
 
 template <std::size_t N>
 struct [[nodiscard]] Str {
@@ -47,24 +51,47 @@ struct [[nodiscard]] Flag {
     Str<N> long_form;
     PlainOptional<char> short_form{PlainOptional<char>::empty()};
     bool default_value{};
+    bool required{};
     static constexpr bool is_spec = true;
     using value_t = bool;
 
     [[nodiscard]] constexpr auto operator==(Flag const &) const -> bool = default;
 };
 
-template <typename V, std::size_t N>
+template <Trivial V, std::size_t N>
 struct [[nodiscard]] FlagWithValue {
     Str<N> long_form;
     PlainOptional<char> short_form{PlainOptional<char>::empty()};
     V default_value{};
+    bool required{};
     static constexpr bool is_spec = true;
     using value_t = V;
 
     [[nodiscard]] constexpr auto operator==(FlagWithValue const &) const -> bool = default;
 };
 
-template <typename P>
+template <std::size_t N>
+struct [[nodiscard]] FlagWithValueArgs {
+    Str<N> long_form;
+    PlainOptional<char> short_form{PlainOptional<char>::empty()};
+    bool required{};
+};
+
+/// If you want a specific default value, use FlagWithValue directly. This function is meant
+/// to be used to specify the type of the attached value in case you do not want to manually set
+/// a default. For example if the flag is requried
+///
+/// This is a workaround because all the specs must be literal types
+template <Trivial V1, std::size_t N>
+constexpr auto default_flag_with_value(FlagWithValueArgs<N> flag_args) -> FlagWithValue<V1, N> {
+    return FlagWithValue{
+        .long_form = flag_args.long_form,
+        .short_form = flag_args.short_form,
+        .default_value = V1{},
+        .required = flag_args.required};
+}
+
+template <std::default_initializable P>
 struct [[nodiscard]] Positional {
     static constexpr bool is_spec = true;
     using value_t = P;
@@ -76,37 +103,18 @@ struct [[nodiscard]] Positional {
 template <typename S>
 concept Spec = S::is_spec;
 
-template <Spec auto S>
-struct Required {
-    static constexpr bool is_spec = true;
-    using value_t = decltype(S)::value_t;
-
-    [[nodiscard]] constexpr auto operator==(Required const &) const -> bool = default;
-};
-
-template <Spec>
-struct IsRequired: std::false_type {};
-
-template <Spec auto S>
-struct IsRequired<Required<S>>: std::true_type {};
-
-template <Spec S>
-inline constexpr bool IsRequired_v = IsRequired<S>::value;
-
 template <Spec>
 struct IsFlag: std::false_type {};
 
 template <std::size_t N>
 struct IsFlag<Flag<N>>: std::true_type {};
 
-template <Spec auto S>
-struct IsFlag<Required<S>>: IsFlag<decltype(S)> {};
-
 template <Spec T>
 inline constexpr bool IsFlag_v = IsFlag<T>::value;
 
 template <Spec auto... Specs>
-struct Rules {};
+requires(sizeof...(Specs) > 0)
+struct Rules {};  // TODO: add static validation (e.g. check duplicate flags)
 
 template <Spec auto S>
 struct [[nodiscard]] ResultValue {
