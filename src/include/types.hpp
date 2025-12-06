@@ -10,18 +10,18 @@
 
 namespace args {
 template <typename T>
-struct [[nodiscard]] PlainOptional {
+struct [[nodiscard]] Opt {
     bool has_value;
     T value;
 
-    [[nodiscard]] constexpr auto operator==(PlainOptional const &) const -> bool = default;
+    [[nodiscard]] constexpr auto operator==(Opt const &) const -> bool = default;
 
-    static consteval auto empty() -> PlainOptional {
-        return PlainOptional{.has_value = false, .value = T{}};
+    static consteval auto empty() -> Opt {
+        return Opt{.has_value = false, .value = T{}};
     }
 
-    static consteval auto with(T value) -> PlainOptional {
-        return PlainOptional{.has_value = true, .value = value};
+    static consteval auto with(T value) -> Opt {
+        return Opt{.has_value = true, .value = value};
     }
 };
 
@@ -49,7 +49,7 @@ Str(char const (&s)[N]) -> Str<N - 1>;  // NOLINT
 template <std::size_t N>
 struct [[nodiscard]] Flag {
     Str<N> long_form;
-    PlainOptional<char> short_form{PlainOptional<char>::empty()};
+    Opt<char> short_form{Opt<char>::empty()};
     bool default_value{};
     bool required{};
     static constexpr bool is_spec = true;
@@ -61,8 +61,12 @@ struct [[nodiscard]] Flag {
 template <Trivial V, std::size_t N>
 struct [[nodiscard]] FlagWithValue {
     Str<N> long_form;
-    PlainOptional<char> short_form{PlainOptional<char>::empty()};
+    Opt<char> short_form{Opt<char>::empty()};
+    /// Used if the flag is missing
     V default_value{};
+    bool allow_missing_value{};
+    /// Used if the flag is present, but without any value
+    V value_if_not_specified{};
     bool required{};
     static constexpr bool is_spec = true;
     using value_t = V;
@@ -73,7 +77,8 @@ struct [[nodiscard]] FlagWithValue {
 template <std::size_t N>
 struct [[nodiscard]] FlagWithValueArgs {
     Str<N> long_form;
-    PlainOptional<char> short_form{PlainOptional<char>::empty()};
+    Opt<char> short_form{Opt<char>::empty()};
+    bool allow_missing_value{};
     bool required{};
 };
 
@@ -88,6 +93,7 @@ constexpr auto default_flag_with_value(FlagWithValueArgs<N> flag_args) -> FlagWi
         .long_form = flag_args.long_form,
         .short_form = flag_args.short_form,
         .default_value = V1{},
+        .allow_missing_value = flag_args.allow_missing_value,
         .required = flag_args.required};
 }
 
@@ -110,7 +116,16 @@ template <std::size_t N>
 struct IsFlag<Flag<N>>: std::true_type {};
 
 template <Spec T>
-inline constexpr bool IsFlag_v = IsFlag<T>::value;
+inline constexpr bool is_flag_v = IsFlag<T>::value;
+
+template <Spec>
+struct IsFlagWithValue: std::false_type {};
+
+template <Trivial V, std::size_t N>
+struct IsFlagWithValue<FlagWithValue<V, N>>: std::true_type {};
+
+template <Spec T>
+inline constexpr bool is_flag_with_value_v = IsFlagWithValue<T>::value;
 
 template <Spec auto... Specs>
 requires(sizeof...(Specs) > 0)

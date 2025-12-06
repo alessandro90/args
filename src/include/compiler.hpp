@@ -5,88 +5,49 @@
 #include <optional>
 #include <span>
 #include <type_traits>
+#include <utility>
 #include "tokenizer.hpp"
 #include "types.hpp"
 
 namespace args::compiler {
-// TODO: how to assert that all required args have been parsed?
-// should add 'required' and 'Option default' to the spec?
-// may implement wrappers to Specs for Optional/Required. For example
-// Optional<ShortFlag>, Required otherwise. Optional has an additional
-// field, the default field if not never parsed
-
 namespace detail {
 
-template <std::size_t N, typename F, typename Arg, typename... Args>
-[[nodiscard]] constexpr auto tuple_find_impl(std::tuple<Arg, Args...> &t, F selector) {
-    static constexpr bool is_last = N == sizeof...(Args) - 1;
-    if constexpr (std::is_invocable_v<F, Arg const &>) {
-        auto const &item = std::get<N>(t);
-        if (selector(item)) {
-            return &item;
-        }
-        if constexpr (is_last) {
-            return nullptr;
-        } else {
-            return tuple_find_impl<N + 1>(t, selector);
-        }
-    } else {
-        if constexpr (is_last) {
-            static_assert(false, "invalid selector match");
-        } else {
-            return tuple_find_impl<N + 1>(t, selector);
-        }
-    }
-}
-
-template <typename F, typename... Args>
-[[nodiscard]] constexpr auto tuple_find(std::tuple<Args...> &t, F selector) {
-    return tuple_find_impl<0>(t, selector);
-}
-}  // namespace detail
+template <auto S>
+concept ShortFlagCompatible =
+    Spec<decltype(S)>
+    && (is_flag_v<decltype(S)> || (is_flag_with_value_v<decltype(S)> && S.allow_missing_value));
 
 template <Spec auto... Specs>
-struct TokenVisitor {
+struct [[nodiscard]] TokenVisitor {
     std::tuple<ResultValue<Specs>...> &results;
 
     [[nodiscard]] auto operator()(tokenizer::ShortFlag short_flag) const -> bool {
         auto const selector = [&]<Spec auto S>(ResultValue<S> const &x)
-                                  requires IsFlag_v<decltype(S)>
+                                  requires detail::ShortFlagCompatible<S>
         {
-            if (!x.spec.short_form.has_value) {
-                return false;
-            }
-            if (x.spec.short_form.value != short_flag.flag) {
-                return false;
-            }
-            return false;
+            return x.spec.short_form.has_value && x.spec.short_form.value == short_flag.flag;
         };
-        auto *item = detail::tuple_find(results, selector);
-        if (item == nullptr) {
-            return false;
-        }
-        item->value = true;
-        return true;
-        // return [&]<std::size_t... Is>(std::index_sequence<Is...>) {  // TODO: use
-        // use tuple_find
-        //     return (... || [&]() {
-        //         if constexpr (IsFlag_v<std::tuple_element_t<Is,
-        //         std::tuple<decltype(Specs)...>>>)
-        //         {
-        //             auto &item = std::get<Is>(results);
-        //             if (!item.spec.short_form.has_value) {
-        //                 return false;
-        //             }
-        //             if (item.spec.short_form.value != short_flag.flag) {
-        //                 return false;
-        //             }
-        //             item.value = true;
-        //             return true;
-        //         } else {
-        //             return false;
-        //         }
-        //     }());
-        // }(std::make_index_sequence<sizeof...(Specs)>());
+        return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+            return (... || [&]() {  // 'or' will execute until the first 'true'
+                using ArgType = std::tuple_element_t<Is, std::tuple<ResultValue<Specs>...>>;
+                if constexpr (std::is_invocable_v<decltype(selector), ArgType const &>) {
+                    auto &item = std::get<Is>(results);
+                    if (!selector(item)) {
+                        return false;  // no match, keep looping
+                    }
+                    // match found, do side effects and return 'true' to stop iteration
+                    item.m_is_used = true;
+                    if constexpr (is_flag_with_value_v<decltype(item.spec)>) {
+                        item.value = item.spec.value_if_not_specified;
+                    } else {
+                        item.value = true;
+                    }
+                    return true;
+                } else {
+                    return false;  // not callable, keep looping
+                }
+            }());
+        }(std::make_index_sequence<sizeof...(Specs)>());
     }
 
     [[nodiscard]] auto operator()(tokenizer::ShortFlagWithValue) const -> bool {
@@ -110,14 +71,17 @@ struct TokenVisitor {
     }
 };
 
+}  // namespace detail
+
 template <Spec auto... Specs>
 [[nodiscard]] auto compile(
     std::span<tokenizer::Token> tokens,
-    Rules<Specs...>)  // note span may be just a range
+    Rules<Specs...>)  // NOTE: span may be just a range. Would allow to process tokes as a stream
+                      // without dynamic allocation
     -> std::optional<Result<Specs...>> {
     auto results = std::tuple<ResultValue<Specs>...>{};
-    for (auto const token : tokens) {
-        bool const ok = std::visit(TokenVisitor{results}, token);
+    for (auto const &token : tokens) {
+        bool const ok = std::visit(detail::TokenVisitor{results}, token);
         if (!ok) {
             return std::nullopt;
         }

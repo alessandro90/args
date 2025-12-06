@@ -10,7 +10,7 @@ FetchContent_MakeAvailable(catch2)
 
 add_executable(cpp_args_test
     tokenizer.cpp
-#     temp.cpp
+    temp.cpp
 )
 
 target_include_directories(cpp_args_test PRIVATE "${PROJECT_SOURCE_DIR}/src")
