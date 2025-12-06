@@ -14,7 +14,7 @@ namespace detail {
 
 template <auto S>
 concept ShortFlagCompatible =
-    Spec<decltype(S)>
+    Spec<decltype(S)> && S.short_form.has_value
     && (is_flag_v<decltype(S)> || (is_flag_with_value_v<decltype(S)> && S.allow_missing_value));
 
 template <Spec auto... Specs>
@@ -25,7 +25,7 @@ struct [[nodiscard]] TokenVisitor {
         auto const selector = [&]<Spec auto S>(ResultValue<S> const &x)
                                   requires detail::ShortFlagCompatible<S>
         {
-            return x.spec.short_form.has_value && x.spec.short_form.value == short_flag.flag;
+            return x.spec.short_form.value == short_flag.flag;
         };
         return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
             return (... || [&]() {  // 'or' will execute until the first 'true'
