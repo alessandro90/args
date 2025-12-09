@@ -65,9 +65,6 @@ struct [[nodiscard]] FlagWithValue {
     Opt<char> short_form{Opt<char>::empty()};
     /// Used if the flag is missing
     V default_value{};
-    bool allow_missing_value{};
-    /// Used if the flag is present, but without any value
-    V value_if_not_specified{};
     bool required{};
     static constexpr bool is_spec = true;
     using value_t = V;
@@ -79,7 +76,6 @@ template <std::size_t N>
 struct [[nodiscard]] FlagWithValueArgs {
     Str<N> long_form;
     Opt<char> short_form{Opt<char>::empty()};
-    bool allow_missing_value{};
     bool required{};
 };
 
@@ -94,7 +90,6 @@ constexpr auto default_flag_with_value(FlagWithValueArgs<N> flag_args) -> FlagWi
         .long_form = flag_args.long_form,
         .short_form = flag_args.short_form,
         .default_value = V1{},
-        .allow_missing_value = flag_args.allow_missing_value,
         .required = flag_args.required};
 }
 

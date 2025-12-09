@@ -14,8 +14,7 @@ namespace detail {
 
 template <auto S>
 concept ShortFlagCompatible =
-    Spec<decltype(S)> && S.short_form.has_value
-    && (is_flag_v<decltype(S)> || (is_flag_with_value_v<decltype(S)> && S.allow_missing_value));
+    Spec<decltype(S)> && S.short_form.has_value && (is_flag_v<decltype(S)>);
 
 template <Spec auto... Specs>
 struct [[nodiscard]] TokenCompiler {
