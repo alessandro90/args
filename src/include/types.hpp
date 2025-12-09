@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <string_view>
 #include <type_traits>
+#include <utility>
 
 namespace args {
 template <typename T>
@@ -97,6 +98,7 @@ constexpr auto default_flag_with_value(FlagWithValueArgs<N> flag_args) -> FlagWi
         .required = flag_args.required};
 }
 
+// TODO: add a size_t index to any positional in order to track the order?
 template <std::default_initializable P>
 struct [[nodiscard]] Positional {
     static constexpr bool is_spec = true;
@@ -129,28 +131,34 @@ inline constexpr bool is_flag_with_value_v = IsFlagWithValue<T>::value;
 
 template <Spec auto... Specs>
 requires(sizeof...(Specs) > 0)
-struct Rules {};  // TODO: add static validation (e.g. check duplicate flags)
+struct Rules {
+};  // TODO: add static validation (e.g. check duplicate flags, check duplicate positional indexes)
 
 template <Spec auto S>
-struct [[nodiscard]] ResultValue {
+struct [[nodiscard]] ArgValue {
     decltype(S)::value_t value;
-    bool m_is_used{false};
-    static constexpr auto spec = S;  // maybe not needed
+    bool is_used{false};
+    static constexpr auto spec = S;
 };
 
 template <Spec auto... Specs>
-struct [[nodiscard]] Result {
-    std::tuple<ResultValue<Specs>...> results;
+class [[nodiscard]] Args {
+public:
+    explicit Args(std::tuple<ArgValue<Specs>...> results)
+        : m_results{std::move(results)} {}
 
     template <Spec auto S>
-    [[nodiscard]] constexpr auto get_with_info() -> ResultValue<S> const & {
-        return std::get<ResultValue<S>>(results);
+    [[nodiscard]] constexpr auto get_with_info() -> ArgValue<S> const & {
+        return std::get<ArgValue<S>>(m_results);
     }
 
     template <Spec auto S>
     [[nodiscard]] constexpr auto get() -> decltype(S)::value_t const & {
         return get_with_info<S>().value;
     }
+
+private:
+    std::tuple<ArgValue<Specs>...> m_results;
 };
 
 }  // namespace args
