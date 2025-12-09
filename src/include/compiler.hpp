@@ -39,14 +39,6 @@ struct [[nodiscard]] TokenCompiler {
         return handle_token(selector, action);
     }
 
-    [[nodiscard]] auto operator()(tokenizer::ShortFlagWithValue) -> bool {
-        return false;
-    }
-
-    [[nodiscard]] auto operator()(tokenizer::LongFlagWithValue) -> bool {
-        return false;
-    }
-
     [[nodiscard]] auto operator()(tokenizer::LongFlag) -> bool {
         return false;
     }

@@ -17,16 +17,6 @@ struct [[nodiscard]] ShortFlag {
     char flag;
 };
 
-struct [[nodiscard]] ShortFlagWithValue {
-    char flag;
-    std::string_view value;
-};
-
-struct [[nodiscard]] LongFlagWithValue {
-    std::string_view flag;
-    std::string_view value;
-};
-
 struct [[nodiscard]] LongFlag {
     std::string_view flag;
 };
@@ -35,8 +25,7 @@ struct [[nodiscard]] FlagGroup {
     std::string_view group;
 };
 
-using Token =
-    std::variant<ShortFlag, ShortFlagWithValue, LongFlag, LongFlagWithValue, FlagGroup, Argument>;
+using Token = std::variant<ShortFlag, LongFlag, FlagGroup, Argument>;
 
 struct [[nodiscard]] Error {
     std::size_t argv_nr;
