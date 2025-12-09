@@ -17,6 +17,7 @@ Checks: >
   -altera-id-dependent-backward-branch,
   -hicpp-uppercase-literal-suffix,
   -readability-uppercase-literal-suffix,
+  -readability-redundant-member-init,
   -cppcoreguidelines-avoid-const-or-ref-data-members
 CheckOptions:
   - key: hicpp-special-member-functions.AllowSoleDefaultDtor
