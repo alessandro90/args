@@ -2,22 +2,20 @@
 #define CPP_ARGS_HEADER
 
 #include <cstddef>
+#include <expected>
 #include <iterator>
-#include <optional>
-#include <variant>
+#include <string>
 #include "compiler.hpp"
 #include "tokenizer.hpp"
 #include "types.hpp"
 
 namespace args {
 
-using Error = std::variant<tokenizer::Error>;
-
 template <Spec auto... Specs>
 [[nodiscard]] auto try_parse(int argc, char **argv, Rules<Specs...> rules)
-    -> std::optional<Args<Specs...>> {
+    -> std::expected<Args<Specs...>, std::string> {
     if (argc == 0) {
-        return std::nullopt;
+        return std::unexpected("No command line arguments provided");
     }
     // Skip the program name
     auto const s = std::span{std::next(argv), static_cast<std::size_t>(argc - 1)};

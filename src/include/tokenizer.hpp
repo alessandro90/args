@@ -1,9 +1,9 @@
 #ifndef CPP_ARGS_TOKENIZER_HEADER
 #define CPP_ARGS_TOKENIZER_HEADER
 
-#include <cstddef>
-#include <optional>
+#include <expected>
 #include <span>
+#include <string>
 #include <string_view>
 #include <variant>
 #include <vector>
@@ -27,13 +27,8 @@ struct [[nodiscard]] FlagGroup {
 
 using Token = std::variant<ShortFlag, LongFlag, FlagGroup, Argument>;
 
-struct [[nodiscard]] Error {
-    std::size_t argv_nr;
-    std::string_view chars;
-};
-
-// [[nodiscard]] auto tokenize(std::span<char *> src) -> std::expected<std::vector<Token>, Error>;
-[[nodiscard]] auto tokenize(std::span<char *> src) -> std::optional<std::vector<Token>>;
+[[nodiscard]] auto tokenize(std::span<char *> src)
+    -> std::expected<std::vector<Token>, std::string>;
 
 }  // namespace args::tokenizer
 
