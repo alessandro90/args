@@ -130,9 +130,41 @@ struct IsFlagWithValue<FlagWithValue<V, N>>: std::true_type {};
 template <Spec T>
 inline constexpr bool is_flag_with_value_v = IsFlagWithValue<T>::value;
 
+namespace detail {
+template <auto S>
+concept IsAnyFlag = is_flag_v<decltype(S)> || is_flag_with_value_v<decltype(S)>;
+
+template <Spec auto S1, Spec auto S2, Spec auto...>
+[[nodiscard]] consteval auto have_different_flag_names() -> bool {
+    if constexpr (!IsAnyFlag<S1> || !IsAnyFlag<S2>) {
+        return true;
+    } else {
+        if (S1.long_form.as_string_view() == S2.long_form.as_string_view()) {
+            return false;
+        }
+        return !S1.short_form.has_value || !S2.short_form.has_value
+               || S1.short_form != S2.short_form;
+    }
+}
+
+template <Spec auto S1, Spec auto... Ss>
+[[nodiscard]] consteval auto check_all_different_names() -> bool {
+    if constexpr (sizeof...(Ss) == 0) {
+        return true;
+    } else {
+        if (!have_different_flag_names<S1, Ss...>()) {
+            return false;
+        }
+        return check_all_different_names<Ss...>();
+    }
+}
+}  // namespace detail
+
 template <Spec auto... Specs>
 requires(sizeof...(Specs) > 0)
 struct Rules {
+    static_assert(
+        detail::check_all_different_names<Specs...>(), "All flags must have unique identifiers");
 };  // TODO: add static validation (e.g. check duplicate flags, check duplicate positional indexes)
 
 template <Spec auto S>
