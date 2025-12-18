@@ -59,12 +59,13 @@ struct [[nodiscard]] Flag {
     [[nodiscard]] constexpr auto operator==(Flag const &) const -> bool = default;
 };
 
+// TODO: Trivial is the function, but value_t is its return type
 template <Trivial V, std::size_t N>
 struct [[nodiscard]] FlagWithValue {
     Str<N> long_form;
     Opt<char> short_form{Opt<char>::empty()};
     /// Used if the flag is missing
-    V default_value{};
+    V default_value{};  // TODO: this can be a function for non trivial types, e.g. vector
     bool required{};
     static constexpr bool is_spec = true;
     using value_t = V;
@@ -91,6 +92,11 @@ constexpr auto default_flag_with_value(FlagWithValueArgs<N> flag_args) -> FlagWi
         .short_form = flag_args.short_form,
         .default_value = V1{},
         .required = flag_args.required};
+}
+
+template <Str X>
+consteval auto operator""_flag() -> decltype(X) {
+    return X;
 }
 
 // TODO: add a size_t index to any positional in order to track the order?

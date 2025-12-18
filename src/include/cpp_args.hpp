@@ -14,7 +14,7 @@ namespace args {
 template <Spec auto... Specs>
 [[nodiscard]] auto try_parse(int argc, char **argv, Rules<Specs...> rules)
     -> std::expected<Args<Specs...>, std::string> {
-    if (argc == 0) {
+    if (argc <= 1) {
         return std::unexpected("No command line arguments provided");
     }
     // Skip the program name

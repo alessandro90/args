@@ -39,11 +39,11 @@ struct [[nodiscard]] ParsingShortFlag {
 };
 
 struct [[nodiscard]] ParsingLongFlag {
-    tokenizer::LongFlag flag;
+    tokenizer::LongFlag long_flag;
 };
 
 template <typename... F>
-struct overload: F... {
+struct [[nodiscard]] Overload: F... {
     using F::operator()...;
 };
 
@@ -53,7 +53,7 @@ struct [[nodiscard]] TokenCompiler {
 
     [[nodiscard]] auto operator()(tokenizer::ShortFlag short_flag) -> std::optional<std::string> {
         if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
-            return std::format("Cannot parse short flag: {}", short_flag.flag);
+            return std::format("Cannot parse short flag: '{}'", short_flag.flag);
         }
         auto const short_flag_selector = [&]<Spec auto S>(ArgValue<S> const &x)
                                              requires detail::ShortFlagCompatible<S>
@@ -82,7 +82,7 @@ struct [[nodiscard]] TokenCompiler {
             handle_token(short_flag_selector, short_flag_action)
             || handle_token(short_flag_with_value_selector, short_flag_with_value_action);
         if (!handled) {
-            return std::format("Cannot find match for flag: {}", short_flag.flag);
+            return std::format("Cannot find match for flag: '{}'", short_flag.flag);
         }
         return {};
     }
@@ -96,7 +96,7 @@ struct [[nodiscard]] TokenCompiler {
     }
 
     [[nodiscard]] auto operator()(tokenizer::Argument argument) -> std::optional<std::string> {
-        auto compile_argument = overload{
+        auto compile_argument = Overload{
             [&](std::monostate) -> std::optional<std::string> {
                 // TODO: compile single argument
                 m_compiler_state = ParsingPositional{};
@@ -124,13 +124,12 @@ struct [[nodiscard]] TokenCompiler {
                         item.value = value;
                         m_compiler_state = std::monostate{};
                     } else {
-                        error = std::format("Cannot parse {} into int", argument.value);
+                        error = std::format("Cannot parse '{}' into int", argument.value);
                     }
                 };
-                bool const handled = handle_token(selector, action);
-                if (!handled) {
-                    return std::
-                        format("Cannot find match for flag: {}", short_flag_state.short_flag.flag);
+                if (!handle_token(selector, action)) {
+                    return std::format(
+                        "Cannot find match for flag: '{}'", short_flag_state.short_flag.flag);
                 }
                 return error;
             },
@@ -138,6 +137,7 @@ struct [[nodiscard]] TokenCompiler {
                 return "not implemented yet";
             },
             [this](ParsingPositional) -> std::optional<std::string> {
+                // TODO: signal error
                 return "not implemented yet";
             },
         };
@@ -171,11 +171,11 @@ private:
 
 }  // namespace detail
 
+// NOTE: span may be just a range. Would allow to process tokens as a stream without dynamic
+// allocation
+
 template <Spec auto... Specs>
-[[nodiscard]] auto compile(
-    std::span<tokenizer::Token> tokens,
-    Rules<Specs...>)  // NOTE: span may be just a range. Would allow to process tokes as a stream
-                      // without dynamic allocation
+[[nodiscard]] auto compile(std::span<tokenizer::Token> tokens, Rules<Specs...>)
     -> std::expected<Args<Specs...>, std::string> {
     auto token_compiler = detail::TokenCompiler<Specs...>{};
     for (auto const token : tokens) {
