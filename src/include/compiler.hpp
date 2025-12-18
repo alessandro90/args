@@ -174,8 +174,8 @@ private:
 // NOTE: span may be just a range. Would allow to process tokens as a stream without dynamic
 // allocation
 
-template <Spec auto... Specs>
-[[nodiscard]] auto compile(std::span<tokenizer::Token> tokens, Rules<Specs...>)
+template <std::size_t Extent, Spec auto... Specs>
+[[nodiscard]] auto compile(std::span<tokenizer::Token const, Extent> tokens, Rules<Specs...>)
     -> std::expected<Args<Specs...>, std::string> {
     auto token_compiler = detail::TokenCompiler<Specs...>{};
     for (auto const token : tokens) {

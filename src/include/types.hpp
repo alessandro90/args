@@ -26,6 +26,10 @@ struct [[nodiscard]] Opt {
     }
 };
 
+consteval auto short_form(char c) -> Opt<char> {
+    return Opt<char>::with(c);
+}
+
 template <typename T>
 concept Trivial = std::is_trivial_v<T>;
 
@@ -181,12 +185,12 @@ public:
         : m_results{std::move(results)} {}
 
     template <Spec auto S>
-    [[nodiscard]] constexpr auto get_with_info() -> ArgValue<S> const & {
+    [[nodiscard]] constexpr auto get_with_info() const -> ArgValue<S> const & {
         return std::get<ArgValue<S>>(m_results);
     }
 
     template <Spec auto S>
-    [[nodiscard]] constexpr auto get() -> decltype(S)::value_t const & {
+    [[nodiscard]] constexpr auto get() const -> decltype(S)::value_t const & {
         return get_with_info<S>().value;
     }
 
