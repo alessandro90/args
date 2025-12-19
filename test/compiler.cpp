@@ -32,6 +32,15 @@ TEST_CASE("boolean-short-flag", "[compiler]") {
         auto const value = out.value().get<option>();
         REQUIRE(!value);
     }
+    SECTION("not-providing-a-required-value-is-an-error") {
+        static constexpr auto required_option =
+            Flag{.long_form = "value"_flag, .short_form = "v"_short_flag, .required = true};
+        static constexpr auto required_rules = Rules<required_option>{};
+        auto const flag = std::array<tokenizer::Token, 0>{};
+        auto const out = compiler::compile(std::span{flag}, required_rules);
+
+        REQUIRE(!out.has_value());
+    }
 }
 
 // NOLINTEND(cppcoreguidelines-avoid-do-while, misc-use-anonymous-namespace,

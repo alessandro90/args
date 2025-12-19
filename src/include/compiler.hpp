@@ -7,12 +7,14 @@
 #include <expected>
 #include <format>
 #include <optional>
+#include <ranges>
 #include <span>
 #include <string>
 #include <system_error>
 #include <type_traits>
 #include <utility>
 #include <variant>
+#include <vector>
 #include "tokenizer.hpp"
 #include "types.hpp"
 
@@ -169,6 +171,39 @@ private:
     std::size_t m_current_positional_index{};
 };
 
+template <Spec auto... Specs>
+[[nodiscard]] auto verify_required_args(std::tuple<ArgValue<Specs>...> const &results)
+    -> std::vector<std::string> {
+    // NOTE: an empty vec (meaning no errors) does not allocate, so we are good
+    auto v = std::vector<std::string>{};
+    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+        (..., [&]() {
+            auto const &r = std::get<Is>(results);
+            using ArgType = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
+            std::size_t positional_argument_count = 0;
+            if constexpr (is_positional_v<decltype(ArgType::spec)>) {
+                ++positional_argument_count;
+                if (!r.is_used) {
+                    v.push_back(
+                        std::format(
+                            "Missing positional argument number {}", positional_argument_count));
+                }
+            } else if constexpr (args::detail::IsAnyFlag<ArgType::spec> && ArgType::spec.required) {
+                if (!r.is_used) {
+                    auto err = std::format(
+                        "Missing required flag. Long form: '{}'.",
+                        ArgType::spec.long_form.as_string_view());
+                    if (ArgType::spec.short_form.has_value) {
+                        err += std::format(" Short form: '{}'.", ArgType::spec.short_form.value);
+                    }
+                    v.push_back(std::move(err));
+                }
+            }
+        }());
+    }(std::make_index_sequence<sizeof...(Specs)>());
+    return v;
+}
+
 }  // namespace detail
 
 // NOTE: span may be just a range. Would allow to process tokens as a stream without dynamic
@@ -184,6 +219,11 @@ template <std::size_t Extent, Spec auto... Specs>
         if (err_msg.has_value()) {
             return std::unexpected(err_msg.value());
         }
+    }
+    auto const missing_args = detail::verify_required_args(token_compiler.results);
+    if (!missing_args.empty()) {
+        return std::unexpected(
+            missing_args | std::views::join_with('\n') | std::ranges::to<std::string>());
     }
     return Args{std::move(token_compiler).results};
 }

@@ -137,6 +137,15 @@ struct IsFlagWithValue: std::false_type {};
 template <Trivial V, std::size_t N>
 struct IsFlagWithValue<FlagWithValue<V, N>>: std::true_type {};
 
+template <typename P>
+struct IsPositional: std::false_type {};
+
+template <typename P>
+struct IsPositional<Positional<P>>: std::true_type {};
+
+template <typename P>
+inline constexpr bool is_positional_v = IsPositional<P>::value;
+
 template <Spec T>
 inline constexpr bool is_flag_with_value_v = IsFlagWithValue<T>::value;
 
