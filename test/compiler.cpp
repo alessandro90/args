@@ -9,10 +9,11 @@
 #include "include/types.hpp"
 
 using args::operator""_flag;
+using args::operator""_short_flag;
 using namespace args;
 
 TEST_CASE("boolean-short-flag", "[compiler]") {
-    static constexpr auto option = Flag{.long_form = "value"_flag, .short_form = short_form('v')};
+    static constexpr auto option = Flag{.long_form = "value"_flag, .short_form = "v"_short_flag};
     static constexpr auto rules = Rules<option>{};
 
     SECTION("providing-value-gets-true") {

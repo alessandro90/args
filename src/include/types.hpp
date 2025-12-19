@@ -103,6 +103,12 @@ consteval auto operator""_flag() -> decltype(X) {
     return X;
 }
 
+template <Str X>
+requires(X.chars.size() == 2 && X.chars[1] == '\0')
+consteval auto operator""_short_flag() -> Opt<char> {
+    return Opt<char>::with(X.chars[0]);
+}
+
 // TODO: add a size_t index to any positional in order to track the order?
 template <std::default_initializable P>
 struct [[nodiscard]] Positional {
@@ -162,6 +168,31 @@ template <Spec auto S1, Spec auto... Ss>
         return check_all_different_names<Ss...>();
     }
 }
+
+template <Spec auto S1, Spec auto... Ss>
+[[nodiscard]] consteval auto check_valid_names() -> bool {
+    auto const is_valid_char = [](char c) -> bool {
+        return c >= 'a' && c <= 'z';
+    };
+    if constexpr (!IsAnyFlag<S1>) {
+        return true;
+    } else {
+        if (!is_valid_char(S1.long_form.chars[0])) {
+            return false;
+        }
+        if (!S1.short_form.has_value) {
+            return true;
+        }
+        if (!is_valid_char(S1.short_form.value)) {
+            return false;
+        }
+        if constexpr (sizeof...(Ss) > 0) {
+            return check_valid_names<Ss...>();
+        } else {
+            return true;
+        }
+    }
+}
 }  // namespace detail
 
 template <Spec auto... Specs>
@@ -169,6 +200,9 @@ requires(sizeof...(Specs) > 0)
 struct Rules {
     static_assert(
         detail::check_all_different_names<Specs...>(), "All flags must have unique identifiers");
+    static_assert(
+        detail::check_valid_names<Specs...>(),
+        "All flags must begin with a letter, both long and short forms");
 };  // TODO: add static validation (e.g. check duplicate flags, check duplicate positional indexes)
 
 template <Spec auto S>

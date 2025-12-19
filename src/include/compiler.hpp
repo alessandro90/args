@@ -175,7 +175,8 @@ private:
 // allocation
 
 template <std::size_t Extent, Spec auto... Specs>
-[[nodiscard]] auto compile(std::span<tokenizer::Token const, Extent> tokens, Rules<Specs...>)
+[[nodiscard]] constexpr auto compile(
+    std::span<tokenizer::Token const, Extent> tokens, Rules<Specs...>)
     -> std::expected<Args<Specs...>, std::string> {
     auto token_compiler = detail::TokenCompiler<Specs...>{};
     for (auto const token : tokens) {
