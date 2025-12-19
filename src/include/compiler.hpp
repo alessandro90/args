@@ -89,12 +89,49 @@ struct [[nodiscard]] TokenCompiler {
         return {};
     }
 
-    [[nodiscard]] auto operator()(tokenizer::LongFlag) -> std::optional<std::string> {
-        return "Not implemented";
+    [[nodiscard]] auto operator()(tokenizer::LongFlag long_flag) -> std::optional<std::string> {
+        if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
+            return std::format("Cannot parse long flag: '{}'", long_flag.flag);
+        }
+        auto const long_flag_selector = [&]<Spec auto S>(ArgValue<S> const &x)
+                                            requires detail::LongFlagCompatible<S>
+        {
+            return x.spec.long_form == long_flag.flag;
+        };
+        auto const long_flag_action = [this]<Spec auto S>(ArgValue<S> &item)
+                                          requires detail::ShortFlagCompatible<S>
+        {
+            item.is_used = true;
+            item.value = true;
+        };
+
+        auto const long_flag_with_value_selector =
+            [&]<Spec auto S>(ArgValue<S> const &x) requires detail::LongFlagWithValueCompatible<S>
+        {
+            return x.spec.long_form.value == long_flag.flag;
+        };
+        auto const long_flag_with_value_action = [this, long_flag]<Spec auto S>(ArgValue<S> &)
+                                                     requires detail::LongFlagWithValueCompatible<S>
+        {
+            m_compiler_state = ParsingLongFlag{.long_flag = long_flag};
+        };
+        bool const handled =
+            handle_token(long_flag_selector, long_flag_action)
+            || handle_token(long_flag_with_value_selector, long_flag_with_value_action);
+        if (!handled) {
+            return std::format("Cannot find match for flag: '{}'", long_flag.flag);
+        }
+        return {};
     }
 
-    [[nodiscard]] auto operator()(tokenizer::FlagGroup) -> std::optional<std::string> {
-        return "Not implemented";
+    [[nodiscard]] auto operator()(tokenizer::FlagGroup flag_group) -> std::optional<std::string> {
+        for (auto const short_flag : flag_group.group) {
+            auto res = (*this)(tokenizer::ShortFlag{.flag = short_flag});
+            if (res.has_value()) {
+                return res;
+            }
+        }
+        return {};
     }
 
     [[nodiscard]] auto operator()(tokenizer::Argument argument) -> std::optional<std::string> {
