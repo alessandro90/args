@@ -4,6 +4,7 @@
 #include <array>
 #include <span>
 #include "catch2/catch_test_macros.hpp"
+#include "catch2/matchers/catch_matchers_floating_point.hpp"
 
 #include "include/tokenizer.hpp"
 #include "include/types.hpp"
@@ -22,7 +23,7 @@ TEST_CASE("boolean-short-flag", "[compiler]") {
 
         REQUIRE(out.has_value());
         auto const value = out.value().get<option>();
-        REQUIRE(value);  // NOLINT
+        REQUIRE(value);
     }
     SECTION("default-value-is-false") {
         auto const flag = std::array<tokenizer::Token, 0>{};
@@ -40,6 +41,35 @@ TEST_CASE("boolean-short-flag", "[compiler]") {
         auto const out = compiler::compile(std::span{flag}, required_rules);
 
         REQUIRE(!out.has_value());
+    }
+}
+
+TEST_CASE("short-flag-with-arithmetic-value", "[compiler]") {
+    SECTION("providing-value-gets-an-int") {
+        static constexpr auto option = FlagWithValue{
+            .long_form = "value"_flag, .short_form = "v"_short_flag, .default_value = 0};
+        static constexpr auto rules = Rules<option>{};
+        auto const tokens = std::array{
+            tokenizer::Token{tokenizer::ShortFlag{.flag = 'v'}},
+            tokenizer::Token{tokenizer::Argument{.value = "10"}}};
+        auto const out = compiler::compile(std::span{tokens}, rules);
+
+        REQUIRE(out.has_value());
+        auto const value = out.value().get<option>();
+        REQUIRE(value == 10);
+    }
+    SECTION("providing-value-gets-a-float") {
+        static constexpr auto option = FlagWithValue{
+            .long_form = "value"_flag, .short_form = "v"_short_flag, .default_value = 0.f};
+        static constexpr auto rules = Rules<option>{};
+        auto const tokens = std::array{
+            tokenizer::Token{tokenizer::ShortFlag{.flag = 'v'}},
+            tokenizer::Token{tokenizer::Argument{.value = "10.5"}}};
+        auto const out = compiler::compile(std::span{tokens}, rules);
+
+        REQUIRE(out.has_value());
+        auto const value = out.value().get<option>();
+        REQUIRE_THAT(static_cast<double>(value), Catch::Matchers::WithinAbsMatcher(10.5, 0.000001));
     }
 }
 

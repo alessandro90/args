@@ -150,6 +150,12 @@ template <Spec T>
 inline constexpr bool is_flag_with_value_v = IsFlagWithValue<T>::value;
 
 namespace detail {
+
+template <typename T>
+struct Typetag {
+    using type = T;
+};
+
 template <auto S>
 concept IsAnyFlag = is_flag_v<decltype(S)> || is_flag_with_value_v<decltype(S)>;
 

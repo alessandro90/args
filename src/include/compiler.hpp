@@ -1,8 +1,6 @@
 #ifndef CPP_ARGS_COMPILER_HEADER
 #define CPP_ARGS_COMPILER_HEADER
 
-#include <charconv>
-#include <concepts>
 #include <cstddef>
 #include <expected>
 #include <format>
@@ -10,11 +8,11 @@
 #include <ranges>
 #include <span>
 #include <string>
-#include <system_error>
 #include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
+#include "parsers.hpp"
 #include "tokenizer.hpp"
 #include "types.hpp"
 
@@ -22,14 +20,16 @@ namespace args::compiler {
 namespace detail {
 
 template <auto S>
-concept ShortFlagCompatible = Spec<decltype(S)> && S.short_form.has_value && is_flag_v<decltype(S)>;
+concept ShortFlagCompatible = Spec<decltype(S)> && S.short_form.has_value
+                              && is_flag_v<decltype(S)> && !is_flag_with_value_v<decltype(S)>;
 
 template <auto S>
 concept ShortFlagWithValueCompatible =
-    Spec<decltype(S)> && S.short_formhas_value && is_flag_with_value_v<decltype(S)>;
+    Spec<decltype(S)> && S.short_form.has_value && is_flag_with_value_v<decltype(S)>;
 
 template <auto S>
-concept LongFlagCompatible = Spec<decltype(S)> && is_flag_v<decltype(S)>;
+concept LongFlagCompatible =
+    Spec<decltype(S)> && is_flag_v<decltype(S)> && !is_flag_with_value_v<decltype(S)>;
 
 template <auto S>
 concept LongFlagWithValueCompatible = Spec<decltype(S)> && is_flag_with_value_v<decltype(S)>;
@@ -96,10 +96,10 @@ struct [[nodiscard]] TokenCompiler {
         auto const long_flag_selector = [&]<Spec auto S>(ArgValue<S> const &x)
                                             requires detail::LongFlagCompatible<S>
         {
-            return x.spec.long_form == long_flag.flag;
+            return x.spec.long_form.as_string_view() == long_flag.flag;
         };
         auto const long_flag_action = [this]<Spec auto S>(ArgValue<S> &item)
-                                          requires detail::ShortFlagCompatible<S>
+                                          requires detail::LongFlagCompatible<S>
         {
             item.is_used = true;
             item.value = true;
@@ -108,7 +108,7 @@ struct [[nodiscard]] TokenCompiler {
         auto const long_flag_with_value_selector =
             [&]<Spec auto S>(ArgValue<S> const &x) requires detail::LongFlagWithValueCompatible<S>
         {
-            return x.spec.long_form.value == long_flag.flag;
+            return x.spec.long_form.as_string_view() == long_flag.flag;
         };
         auto const long_flag_with_value_action = [this, long_flag]<Spec auto S>(ArgValue<S> &)
                                                      requires detail::LongFlagWithValueCompatible<S>
@@ -142,28 +142,28 @@ struct [[nodiscard]] TokenCompiler {
                 return "not implemented yet";
             },
             [&](ParsingShortFlag short_flag_state) -> std::optional<std::string> {
-                auto const selector =
-                    [&]<Spec auto S>(ArgValue<S> const &x)
-                        requires detail::ShortFlagWithValueCompatible<S>
-                                 && std::same_as<typename decltype(S)::value_t, int>
+                auto const selector = [&]<Spec auto S>(ArgValue<S> const &x)
+                                          requires detail::ShortFlagWithValueCompatible<S>
+
                 {
-                    return x.spec.short_form.value == short_flag_state.short_flag;
+                    return x.spec.short_form.value == short_flag_state.short_flag.flag;
                 };
                 auto error = std::optional<std::string>{};
                 auto const action = [&]<Spec auto S>(ArgValue<S> &item)
                                         requires detail::ShortFlagWithValueCompatible<S>
-                                                 && std::same_as<typename decltype(S)::value_t, int>
                 {
-                    // assume it is always an integer for now
-                    int value{};
-                    auto const parsed =
-                        std::from_chars(argument.value.begin(), argument.value.end(), value);
-                    if (parsed.ec == std::errc{}) {
+                    auto parsed_value = parsers::parse<typename decltype(S)::value_t>(
+                        argument.value.begin(), argument.value.end());
+                    if (parsed_value.has_value()) {
                         item.is_used = true;
-                        item.value = value;
+                        item.value = std::move(parsed_value).value();
                         m_compiler_state = std::monostate{};
                     } else {
-                        error = std::format("Cannot parse '{}' into int", argument.value);
+                        error = std::format(
+                            "Cannot parse '{}' into '{}'",
+                            argument.value,
+                            parsers::type_name(
+                                args::detail::Typetag<typename decltype(S)::value_t>{}));
                     }
                 };
                 if (!handle_token(selector, action)) {
