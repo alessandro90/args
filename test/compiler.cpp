@@ -73,5 +73,18 @@ TEST_CASE("short-flag-with-arithmetic-value", "[compiler]") {
     }
 }
 
+TEST_CASE("positional-with-arithmetic-value", "[compiler]") {
+    SECTION("with-integer-value") {
+        static constexpr auto option = Positional<int>{};
+        static constexpr auto rules = Rules<option>{};
+        auto const tokens = std::array{tokenizer::Token{tokenizer::Argument{.value = "10"}}};
+        auto const out = compiler::compile(std::span{tokens}, rules);
+
+        REQUIRE(out.has_value());
+        auto const value = out.value().get<option>();
+        REQUIRE(value == 10);
+    }
+}
+
 // NOLINTEND(cppcoreguidelines-avoid-do-while, misc-use-anonymous-namespace,
 // readability-function-congnitive-complexity)

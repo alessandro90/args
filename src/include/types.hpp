@@ -109,13 +109,10 @@ consteval auto operator""_short_flag() -> Opt<char> {
     return Opt<char>::with(X.chars[0]);
 }
 
-// TODO: add a size_t index to any positional in order to track the order?
 template <std::default_initializable P>
 struct [[nodiscard]] Positional {
     static constexpr bool is_spec = true;
     using value_t = P;
-
-    [[nodiscard]] constexpr auto operator==(Positional const &) const -> bool = default;
 };
 
 // Cheap way to define a Spec. Not very sound

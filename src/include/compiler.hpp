@@ -20,21 +20,31 @@ namespace args::compiler {
 namespace detail {
 
 template <auto S>
-concept ShortFlagCompatible = Spec<decltype(S)> && S.short_form.has_value
-                              && is_flag_v<decltype(S)> && !is_flag_with_value_v<decltype(S)>;
+concept AShortFlag = Spec<decltype(S)> && S.short_form.has_value
+                     && is_flag_v<decltype(S)> && !is_flag_with_value_v<decltype(S)>;
 
 template <auto S>
-concept ShortFlagWithValueCompatible =
+concept AShortFlagWithValue =
     Spec<decltype(S)> && S.short_form.has_value && is_flag_with_value_v<decltype(S)>;
 
 template <auto S>
-concept LongFlagCompatible =
+concept ALongFlag =
     Spec<decltype(S)> && is_flag_v<decltype(S)> && !is_flag_with_value_v<decltype(S)>;
 
 template <auto S>
-concept LongFlagWithValueCompatible = Spec<decltype(S)> && is_flag_with_value_v<decltype(S)>;
+concept ALongFlagWithValue = Spec<decltype(S)> && is_flag_with_value_v<decltype(S)>;
 
-struct [[nodiscard]] ParsingPositional {};
+template <auto S>
+concept APositional = Spec<decltype(S)> && is_positional_v<decltype(S)>;
+
+template <Spec S>
+[[nodiscard]] consteval auto is_required(S const &s) -> bool {
+    if constexpr (is_positional_v<S>) {
+        return true;
+    } else {
+        return s.required;
+    }
+}
 
 struct [[nodiscard]] ParsingShortFlag {
     tokenizer::ShortFlag short_flag;
@@ -58,25 +68,24 @@ struct [[nodiscard]] TokenCompiler {
             return std::format("Cannot parse short flag: '{}'", short_flag.flag);
         }
         auto const short_flag_selector = [&]<Spec auto S>(ArgValue<S> const &x)
-                                             requires detail::ShortFlagCompatible<S>
+                                             requires detail::AShortFlag<S>
         {
             return x.spec.short_form.value == short_flag.flag;
         };
         auto const short_flag_action = [this]<Spec auto S>(ArgValue<S> &item)
-                                           requires detail::ShortFlagCompatible<S>
+                                           requires detail::AShortFlag<S>
         {
             item.is_used = true;
             item.value = true;
         };
 
-        auto const short_flag_with_value_selector =
-            [&]<Spec auto S>(ArgValue<S> const &x) requires detail::ShortFlagWithValueCompatible<S>
+        auto const short_flag_with_value_selector = [&]<Spec auto S>(ArgValue<S> const &x)
+                                                        requires detail::AShortFlagWithValue<S>
         {
             return x.spec.short_form.value == short_flag.flag;
         };
-        auto const short_flag_with_value_action =
-            [this, short_flag]<Spec auto S>(ArgValue<S> &)
-                requires detail::ShortFlagWithValueCompatible<S>
+        auto const short_flag_with_value_action = [this, short_flag]<Spec auto S>(ArgValue<S> &)
+                                                      requires detail::AShortFlagWithValue<S>
         {
             m_compiler_state = ParsingShortFlag{.short_flag = short_flag};
         };
@@ -94,24 +103,24 @@ struct [[nodiscard]] TokenCompiler {
             return std::format("Cannot parse long flag: '{}'", long_flag.flag);
         }
         auto const long_flag_selector = [&]<Spec auto S>(ArgValue<S> const &x)
-                                            requires detail::LongFlagCompatible<S>
+                                            requires detail::ALongFlag<S>
         {
             return x.spec.long_form.as_string_view() == long_flag.flag;
         };
         auto const long_flag_action = [this]<Spec auto S>(ArgValue<S> &item)
-                                          requires detail::LongFlagCompatible<S>
+                                          requires detail::ALongFlag<S>
         {
             item.is_used = true;
             item.value = true;
         };
 
-        auto const long_flag_with_value_selector =
-            [&]<Spec auto S>(ArgValue<S> const &x) requires detail::LongFlagWithValueCompatible<S>
+        auto const long_flag_with_value_selector = [&]<Spec auto S>(ArgValue<S> const &x)
+                                                       requires detail::ALongFlagWithValue<S>
         {
             return x.spec.long_form.as_string_view() == long_flag.flag;
         };
         auto const long_flag_with_value_action = [this, long_flag]<Spec auto S>(ArgValue<S> &)
-                                                     requires detail::LongFlagWithValueCompatible<S>
+                                                     requires detail::ALongFlagWithValue<S>
         {
             m_compiler_state = ParsingLongFlag{.long_flag = long_flag};
         };
@@ -137,34 +146,42 @@ struct [[nodiscard]] TokenCompiler {
     [[nodiscard]] auto operator()(tokenizer::Argument argument) -> std::optional<std::string> {
         auto compile_argument = Overload{
             [&](std::monostate) -> std::optional<std::string> {
-                // TODO: compile single argument
-                m_compiler_state = ParsingPositional{};
-                return "not implemented yet";
+                auto error = std::optional<std::string>{};
+                auto const selector = [&, counter = 0uz]<Spec auto S>(ArgValue<S> const &) mutable
+                    requires detail::APositional<S>
+
+                {
+                    if (counter == m_current_positional_index) {
+                        ++m_current_positional_index;
+                        return true;
+                    }
+                    ++counter;
+                    return false;
+                };
+                auto const action = [&]<Spec auto S>(ArgValue<S> &item)
+                                        requires detail::APositional<S>
+                {
+                    try_parse_argument(argument, item, error);
+                };
+                if (!handle_token(selector, action)) {
+                    return std::format(
+                        "Cannot find match for positional argument number: '{}'",
+                        m_current_positional_index);
+                }
+                return error;
             },
             [&](ParsingShortFlag short_flag_state) -> std::optional<std::string> {
                 auto const selector = [&]<Spec auto S>(ArgValue<S> const &x)
-                                          requires detail::ShortFlagWithValueCompatible<S>
+                                          requires detail::AShortFlagWithValue<S>
 
                 {
                     return x.spec.short_form.value == short_flag_state.short_flag.flag;
                 };
                 auto error = std::optional<std::string>{};
                 auto const action = [&]<Spec auto S>(ArgValue<S> &item)
-                                        requires detail::ShortFlagWithValueCompatible<S>
+                                        requires detail::AShortFlagWithValue<S>
                 {
-                    auto parsed_value = parsers::parse<typename decltype(S)::value_t>(
-                        argument.value.begin(), argument.value.end());
-                    if (parsed_value.has_value()) {
-                        item.is_used = true;
-                        item.value = std::move(parsed_value).value();
-                        m_compiler_state = std::monostate{};
-                    } else {
-                        error = std::format(
-                            "Cannot parse '{}' into '{}'",
-                            argument.value,
-                            parsers::type_name(
-                                args::detail::Typetag<typename decltype(S)::value_t>{}));
-                    }
+                    try_parse_argument(argument, item, error);
                 };
                 if (!handle_token(selector, action)) {
                     return std::format(
@@ -172,12 +189,24 @@ struct [[nodiscard]] TokenCompiler {
                 }
                 return error;
             },
-            [this](ParsingLongFlag) -> std::optional<std::string> {
-                return "not implemented yet";
-            },
-            [this](ParsingPositional) -> std::optional<std::string> {
-                // TODO: signal error
-                return "not implemented yet";
+            [&](ParsingLongFlag long_flag_state) -> std::optional<std::string> {
+                auto const selector = [&]<Spec auto S>(ArgValue<S> const &x)
+                                          requires detail::ALongFlagWithValue<S>
+
+                {
+                    return x.spec.long_form.as_string_view() == long_flag_state.long_flag.flag;
+                };
+                auto error = std::optional<std::string>{};
+                auto const action = [&]<Spec auto S>(ArgValue<S> &item)
+                                        requires detail::ALongFlagWithValue<S>
+                {
+                    try_parse_argument(argument, item, error);
+                };
+                if (!handle_token(selector, action)) {
+                    return std::format(
+                        "Cannot find match for flag: '{}'", long_flag_state.long_flag.flag);
+                }
+                return error;
             },
         };
         return std::visit(compile_argument, m_compiler_state);
@@ -203,8 +232,25 @@ private:
         }(std::make_index_sequence<sizeof...(Specs)>());
     }
 
-    std::variant<std::monostate, ParsingShortFlag, ParsingLongFlag, ParsingPositional>
-        m_compiler_state{};
+    template <Spec auto S>
+    auto try_parse_argument(
+        tokenizer::Argument argument, ArgValue<S> &item, std::optional<std::string> &error)
+        -> void {
+        auto parsed_value = parsers::parse<
+            typename decltype(S)::value_t>(argument.value.begin(), argument.value.end());
+        if (parsed_value.has_value()) {
+            item.is_used = true;
+            item.value = std::move(parsed_value).value();
+            m_compiler_state = std::monostate{};
+        } else {
+            error = std::format(
+                "Cannot parse '{}' into '{}'",
+                argument.value,
+                parsers::type_name(args::detail::Typetag<typename decltype(S)::value_t>{}));
+        }
+    }
+
+    std::variant<std::monostate, ParsingShortFlag, ParsingLongFlag> m_compiler_state{};
     std::size_t m_current_positional_index{};
 };
 
@@ -225,7 +271,8 @@ template <Spec auto... Specs>
                         std::format(
                             "Missing positional argument number {}", positional_argument_count));
                 }
-            } else if constexpr (args::detail::IsAnyFlag<ArgType::spec> && ArgType::spec.required) {
+            } else if constexpr (
+                args::detail::IsAnyFlag<ArgType::spec> && is_required(ArgType::spec)) {
                 if (!r.is_used) {
                     auto err = std::format(
                         "Missing required flag. Long form: '{}'.",
@@ -242,9 +289,6 @@ template <Spec auto... Specs>
 }
 
 }  // namespace detail
-
-// NOTE: span may be just a range. Would allow to process tokens as a stream without dynamic
-// allocation
 
 template <std::size_t Extent, Spec auto... Specs>
 [[nodiscard]] constexpr auto compile(
