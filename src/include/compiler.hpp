@@ -54,6 +54,18 @@ struct [[nodiscard]] ParsingLongFlag {
     tokenizer::LongFlag long_flag;
 };
 
+template <typename T>
+auto assign_parsed_value(std::function<T const &()> &f, T value) -> void {
+    f = [v = std::move(value)]() -> T const & {
+        return v;
+    };
+}
+
+template <typename T>
+auto assign_parsed_value(T &f, T value) -> void {
+    f = std::move(value);
+}
+
 template <typename... F>
 struct [[nodiscard]] Overload: F... {
     using F::operator()...;
@@ -236,17 +248,18 @@ private:
     auto try_parse_argument(
         tokenizer::Argument argument, ArgValue<S> &item, std::optional<std::string> &error)
         -> void {
-        auto parsed_value = parsers::parse<
-            typename decltype(S)::value_t>(argument.value.begin(), argument.value.end());
+        using inner_type_t = decltype(args::detail::result_type<typename decltype(S)::value_t>());
+        auto parsed_value =
+            parsers::parse<inner_type_t>(argument.value.begin(), argument.value.end());
         if (parsed_value.has_value()) {
             item.is_used = true;
-            item.value = std::move(parsed_value).value();
+            detail::assign_parsed_value(item.value, std::move(parsed_value).value());
             m_compiler_state = std::monostate{};
         } else {
             error = std::format(
                 "Cannot parse '{}' into '{}'",
                 argument.value,
-                parsers::type_name(args::detail::Typetag<typename decltype(S)::value_t>{}));
+                parsers::type_name(args::detail::Typetag<inner_type_t>{}));
         }
     }
 

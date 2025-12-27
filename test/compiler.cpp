@@ -3,6 +3,7 @@
 #include "include/compiler.hpp"
 #include <array>
 #include <span>
+#include <vector>
 #include "catch2/catch_test_macros.hpp"
 #include "catch2/matchers/catch_matchers_floating_point.hpp"
 
@@ -84,6 +85,20 @@ TEST_CASE("positional-with-arithmetic-value", "[compiler]") {
         auto const value = out.value().get<option>();
         REQUIRE(value == 10);
     }
+}
+
+TEST_CASE("short-flag-with-vec-value-default", "[compiler]") {
+    static constexpr auto option = FlagWithValue{
+        .long_form = "value"_flag,
+        .short_form = "v"_short_flag,
+        .default_value = args::Lazy<std::vector<int>, 1, 2, 3>};
+    static constexpr auto rules = Rules<option>{};
+    auto const tokens = std::array<tokenizer::Token, 0>{};
+    auto const out = compiler::compile(std::span{tokens}, rules);
+
+    REQUIRE(out.has_value());
+    auto const &value = out.value().get<option>()();
+    REQUIRE(value == std::vector{1, 2, 3});
 }
 
 // NOLINTEND(cppcoreguidelines-avoid-do-while, misc-use-anonymous-namespace,

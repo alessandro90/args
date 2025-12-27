@@ -3,12 +3,23 @@
 
 #include <charconv>
 #include <cstdint>
+#include <format>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <type_traits>
+#include <vector>
 #include "types.hpp"
 
 namespace args::parsers {
+
+namespace details {
+template <typename T>
+struct IsVector: std::false_type {};
+
+template <typename T>
+struct IsVector<std::vector<T>>: std::true_type {};
+}  // namespace details
 
 consteval auto type_name(args::detail::Typetag<float>) -> std::string_view {
     return "float";
@@ -50,6 +61,11 @@ consteval auto type_name(args::detail::Typetag<std::int64_t>) -> std::string_vie
     return "i64";
 }
 
+template <typename T>
+auto type_name(args::detail::Typetag<std::vector<T>>) -> std::string {
+    return std::format("[{}]", type_name(args::detail::Typetag<T>{}));
+}
+
 template <typename Out, typename It>
 requires std::is_arithmetic_v<Out>
 [[nodiscard]] auto parse(It begin, It end) -> std::optional<Out> {
@@ -58,6 +74,13 @@ requires std::is_arithmetic_v<Out>
     if (parsed.ec == std::errc{}) {
         return value;
     }
+    return {};
+}
+
+template <typename Out, typename It>
+requires details::IsVector<Out>::value
+[[nodiscard]] auto parse(It, It) -> std::optional<Out> {
+    // TODO:
     return {};
 }
 }  // namespace args::parsers

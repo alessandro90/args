@@ -5,17 +5,43 @@
 #include <array>
 #include <concepts>
 #include <cstddef>
+#include <functional>
 #include <string_view>
 #include <type_traits>
 #include <utility>
 
 namespace args {
+
+namespace detail {
+
+template <std::default_initializable T>
+consteval auto value_getter_impl(T t) {
+    if constexpr (std::is_invocable_v<T>) {
+        using result_t = decltype(t()) const &;
+        return std::function{[]() -> result_t {
+            static auto const v = result_t{};
+            return v;
+        }};
+    } else {
+        return t;
+    }
+}
+
+template <typename T>
+using ValueGetter = decltype(value_getter_impl(std::declval<T>()));
+
+template <typename T>
+consteval auto result_type() -> std::remove_cvref_t<T>;
+
+template <std::invocable T>
+consteval auto result_type() -> std::remove_cvref_t<decltype(std::declval<T>()())>;
+
+}  // namespace detail
+
 template <typename T>
 struct [[nodiscard]] Opt {
     bool has_value;
     T value;
-
-    [[nodiscard]] constexpr auto operator==(Opt const &) const -> bool = default;
 
     static consteval auto empty() -> Opt {
         return Opt{.has_value = false, .value = T{}};
@@ -44,8 +70,6 @@ struct [[nodiscard]] Str {
     [[nodiscard]] constexpr auto as_string_view() const -> std::string_view {
         return std::string_view{chars.data()};
     }
-
-    [[nodiscard]] constexpr auto operator==(Str const &) const -> bool = default;
 };
 
 template <std::size_t N>
@@ -59,22 +83,17 @@ struct [[nodiscard]] Flag {
     bool required{};
     static constexpr bool is_spec = true;
     using value_t = bool;
-
-    [[nodiscard]] constexpr auto operator==(Flag const &) const -> bool = default;
 };
 
-// TODO: Trivial is the function, but value_t is its return type
 template <Trivial V, std::size_t N>
 struct [[nodiscard]] FlagWithValue {
     Str<N> long_form;
     Opt<char> short_form{Opt<char>::empty()};
     /// Used if the flag is missing
-    V default_value{};  // TODO: this can be a function for non trivial types, e.g. vector
+    V default_value{};
     bool required{};
     static constexpr bool is_spec = true;
-    using value_t = V;
-
-    [[nodiscard]] constexpr auto operator==(FlagWithValue const &) const -> bool = default;
+    using value_t = detail::ValueGetter<V>;
 };
 
 template <std::size_t N>
@@ -89,6 +108,8 @@ struct [[nodiscard]] FlagWithValueArgs {
 /// a default. For example if the flag is requried
 ///
 /// This is a workaround because all the specs must be literal types
+///
+/// FIXME: this function is not ideal after the support of complex types such as vector and string
 template <Trivial V1, std::size_t N>
 constexpr auto default_flag_with_value(FlagWithValueArgs<N> flag_args) -> FlagWithValue<V1, N> {
     return FlagWithValue{
@@ -109,10 +130,10 @@ consteval auto operator""_short_flag() -> Opt<char> {
     return Opt<char>::with(X.chars[0]);
 }
 
-template <std::default_initializable P>
+template <typename P>
 struct [[nodiscard]] Positional {
     static constexpr bool is_spec = true;
-    using value_t = P;
+    using value_t = detail::ValueGetter<P>;
 };
 
 // Cheap way to define a Spec. Not very sound
@@ -215,11 +236,49 @@ struct Rules {
     static_assert(
         detail::check_valid_names<Specs...>(),
         "All flags must begin with a letter, both long and short forms");
-};  // TODO: add static validation (e.g. check duplicate flags, check duplicate positional indexes)
+};
+
+template <Spec auto S>
+using GetterReturnValue = decltype(S.default_value()) const &;
+
+namespace detail {
+template <Spec auto S>
+consteval auto arg_value_t_impl() -> decltype(S)::value_t;
+
+template <Spec auto S>
+requires(std::is_invocable_v<typename decltype(S)::value_t>)
+consteval auto arg_value_t_impl() -> std::function<GetterReturnValue<S>()>;
+
+template <Spec auto S>
+using ArgValueType = decltype(arg_value_t_impl<S>());
+
+template <Spec auto S>
+[[nodiscard]] auto default_arg_value() {
+    if constexpr (std::is_invocable_v<ArgValueType<S>>) {
+        return std::function{[]() -> GetterReturnValue<S> {
+            // make it static so that multiple invocations do not regenerate the value
+            static auto const v = S.default_value();
+            return v;
+        }};
+    } else if constexpr (requires { S.default_value; }) {
+        return S.default_value;
+    } else {
+        // this is the case for positional arguments. They have no default,
+        // but we need a default anyway, so if the builder is a function returning
+        // a vector, we just create an empty vector
+        return ArgValueType<S>{};
+    }
+}
+}  // namespace detail
+
+template <typename T, auto... Args>
+inline constexpr auto Lazy = []() {
+    return T{std::move(Args)...};
+};
 
 template <Spec auto S>
 struct [[nodiscard]] ArgValue {
-    decltype(S)::value_t value;
+    detail::ArgValueType<S> value{detail::default_arg_value<S>()};
     bool is_used{false};
     static constexpr auto spec = S;
 };
