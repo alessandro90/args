@@ -5,7 +5,7 @@
 
 namespace args::tokenizer {
 
-auto tokenize(std::span<char *>) -> std::expected<std::vector<Token>, std::string> {
+auto tokenize(std::span<char const *>) -> std::expected<std::vector<Token>, std::string> {
     return std::unexpected("not implemented yet");
 }
 }  // namespace args::tokenizer

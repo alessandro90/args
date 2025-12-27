@@ -17,8 +17,11 @@ template <Spec auto... Specs>
     if (argc <= 1) {
         return std::unexpected("No command line arguments provided");
     }
+    auto const constify = [](char **x) -> char const *const * {
+        return x;
+    };
     // Skip the program name
-    auto const s = std::span{std::next(argv), static_cast<std::size_t>(argc - 1)};
+    auto const s = std::span{std::next(constify(argv)), static_cast<std::size_t>(argc - 1)};
     return tokenizer::tokenize(s).and_then([rules](std::vector<tokenizer::Token> tokens) {
         return compiler::compile(tokens, rules);
     });

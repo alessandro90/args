@@ -9,7 +9,6 @@ FetchContent_MakeAvailable(catch2)
 
 
 add_executable(cpp_args_test
-    tokenizer.cpp
     compiler.cpp
 )
 

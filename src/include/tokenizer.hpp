@@ -8,6 +8,10 @@
 #include <variant>
 #include <vector>
 
+// TODO: add 'has_equal' to long flag, short flag and flag group.
+// is_equal implies for the compiler to assume the flag is a flag with value
+// otherwise it tries to match the arguments based on the rules
+
 namespace args::tokenizer {
 struct [[nodiscard]] Argument {
     std::string_view value;
@@ -27,7 +31,7 @@ struct [[nodiscard]] FlagGroup {
 
 using Token = std::variant<ShortFlag, LongFlag, FlagGroup, Argument>;
 
-[[nodiscard]] auto tokenize(std::span<char *> src)
+[[nodiscard]] auto tokenize(std::span<char const *> src)
     -> std::expected<std::vector<Token>, std::string>;
 
 }  // namespace args::tokenizer
