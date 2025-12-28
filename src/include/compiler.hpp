@@ -54,18 +54,6 @@ struct [[nodiscard]] ParsingLongFlag {
     tokenizer::LongFlag long_flag;
 };
 
-template <typename T>
-auto assign_parsed_value(std::function<T const &()> &f, T value) -> void {
-    f = [v = std::move(value)]() -> T const & {
-        return v;
-    };
-}
-
-template <typename T>
-auto assign_parsed_value(T &f, T value) -> void {
-    f = std::move(value);
-}
-
 template <typename... F>
 struct [[nodiscard]] Overload: F... {
     using F::operator()...;
@@ -248,18 +236,18 @@ private:
     auto try_parse_argument(
         tokenizer::Argument argument, ArgValue<S> &item, std::optional<std::string> &error)
         -> void {
-        using inner_type_t = decltype(args::detail::result_type<typename decltype(S)::value_t>());
+        using namespace args::detail;
         auto parsed_value =
-            parsers::parse<inner_type_t>(argument.value.begin(), argument.value.end());
+            parsers::parse<result_type_t<S>>(argument.value.begin(), argument.value.end());
         if (parsed_value.has_value()) {
             item.is_used = true;
-            detail::assign_parsed_value(item.value, std::move(parsed_value).value());
+            item.value = std::move(parsed_value).value();
             m_compiler_state = std::monostate{};
         } else {
             error = std::format(
                 "Cannot parse '{}' into '{}'",
                 argument.value,
-                parsers::type_name(args::detail::Typetag<inner_type_t>{}));
+                parsers::type_name(Typetag<args::detail::result_type_t<S>>{}));
         }
     }
 
@@ -301,6 +289,22 @@ template <Spec auto... Specs>
     return v;
 }
 
+template <Spec auto... Specs>
+auto assign_callable_defaults(std::tuple<ArgValue<Specs>...> &results) -> void {
+    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+        (..., [&]() {
+            auto &r = std::get<Is>(results);
+            using ArgType = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
+            using S = decltype(ArgType::spec);
+            if constexpr (is_flag_with_value_v<S> && std::is_invocable_v<typename S::value_t>) {
+                if (!r.is_used) {
+                    r.value = ArgType::spec.default_value();
+                }
+            }
+        }());
+    }(std::make_index_sequence<sizeof...(Specs)>());
+}
+
 }  // namespace detail
 
 template <std::size_t Extent, Spec auto... Specs>
@@ -319,6 +323,7 @@ template <std::size_t Extent, Spec auto... Specs>
         return std::unexpected(
             missing_args | std::views::join_with('\n') | std::ranges::to<std::string>());
     }
+    detail::assign_callable_defaults(token_compiler.results);
     return Args{std::move(token_compiler).results};
 }
 

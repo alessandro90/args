@@ -5,38 +5,11 @@
 #include <array>
 #include <concepts>
 #include <cstddef>
-#include <functional>
 #include <string_view>
 #include <type_traits>
 #include <utility>
 
 namespace args {
-
-namespace detail {
-
-template <std::default_initializable T>
-consteval auto value_getter_impl(T t) {
-    if constexpr (std::is_invocable_v<T>) {
-        using result_t = decltype(t()) const &;
-        return std::function{[]() -> result_t {
-            static auto const v = result_t{};
-            return v;
-        }};
-    } else {
-        return t;
-    }
-}
-
-template <typename T>
-using ValueGetter = decltype(value_getter_impl(std::declval<T>()));
-
-template <typename T>
-consteval auto result_type() -> std::remove_cvref_t<T>;
-
-template <std::invocable T>
-consteval auto result_type() -> std::remove_cvref_t<decltype(std::declval<T>()())>;
-
-}  // namespace detail
 
 template <typename T>
 struct [[nodiscard]] Opt {
@@ -93,7 +66,7 @@ struct [[nodiscard]] FlagWithValue {
     V default_value{};
     bool required{};
     static constexpr bool is_spec = true;
-    using value_t = detail::ValueGetter<V>;
+    using value_t = V;
 };
 
 template <std::size_t N>
@@ -133,7 +106,7 @@ consteval auto operator""_short_flag() -> Opt<char> {
 template <typename P>
 struct [[nodiscard]] Positional {
     static constexpr bool is_spec = true;
-    using value_t = detail::ValueGetter<P>;
+    using value_t = P;
 };
 
 // Cheap way to define a Spec. Not very sound
@@ -147,7 +120,7 @@ template <std::size_t N>
 struct IsFlag<Flag<N>>: std::true_type {};
 
 template <Spec T>
-inline constexpr bool is_flag_v = IsFlag<T>::value;
+inline constexpr bool is_flag_v = IsFlag<std::remove_cvref_t<T>>::value;
 
 template <Spec>
 struct IsFlagWithValue: std::false_type {};
@@ -162,10 +135,10 @@ template <typename P>
 struct IsPositional<Positional<P>>: std::true_type {};
 
 template <typename P>
-inline constexpr bool is_positional_v = IsPositional<P>::value;
+inline constexpr bool is_positional_v = IsPositional<std::remove_cvref_t<P>>::value;
 
 template <Spec T>
-inline constexpr bool is_flag_with_value_v = IsFlagWithValue<T>::value;
+inline constexpr bool is_flag_with_value_v = IsFlagWithValue<std::remove_cvref_t<T>>::value;
 
 namespace detail {
 
@@ -242,31 +215,27 @@ template <Spec auto S>
 using GetterReturnValue = decltype(S.default_value()) const &;
 
 namespace detail {
-template <Spec auto S>
-consteval auto arg_value_t_impl() -> decltype(S)::value_t;
+
+template <typename T>
+consteval auto result_type() -> std::remove_cvref_t<T>;
+
+template <std::invocable T>
+consteval auto result_type() -> std::remove_cvref_t<decltype(std::declval<T>()())>;
 
 template <Spec auto S>
-requires(std::is_invocable_v<typename decltype(S)::value_t>)
-consteval auto arg_value_t_impl() -> std::function<GetterReturnValue<S>()>;
-
-template <Spec auto S>
-using ArgValueType = decltype(arg_value_t_impl<S>());
+using result_type_t = decltype(result_type<typename decltype(S)::value_t>());
 
 template <Spec auto S>
 [[nodiscard]] auto default_arg_value() {
-    if constexpr (std::is_invocable_v<ArgValueType<S>>) {
-        return std::function{[]() -> GetterReturnValue<S> {
-            // make it static so that multiple invocations do not regenerate the value
-            static auto const v = S.default_value();
-            return v;
-        }};
+    if constexpr (std::is_invocable_v<typename decltype(S)::value_t>) {
+        return result_type_t<S>{};
     } else if constexpr (requires { S.default_value; }) {
         return S.default_value;
     } else {
         // this is the case for positional arguments. They have no default,
         // but we need a default anyway, so if the builder is a function returning
         // a vector, we just create an empty vector
-        return ArgValueType<S>{};
+        return result_type_t<S>{};
     }
 }
 }  // namespace detail
@@ -278,7 +247,7 @@ inline constexpr auto Lazy = []() {
 
 template <Spec auto S>
 struct [[nodiscard]] ArgValue {
-    detail::ArgValueType<S> value{detail::default_arg_value<S>()};
+    detail::result_type_t<S> value{detail::default_arg_value<S>()};
     bool is_used{false};
     static constexpr auto spec = S;
 };
@@ -295,7 +264,7 @@ public:
     }
 
     template <Spec auto S>
-    [[nodiscard]] constexpr auto get() const -> decltype(S)::value_t const & {
+    [[nodiscard]] constexpr auto get() const -> detail::result_type_t<S> const & {
         return get_with_info<S>().value;
     }
 

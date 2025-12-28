@@ -97,7 +97,7 @@ TEST_CASE("short-flag-with-vec-value-default", "[compiler]") {
     auto const out = compiler::compile(std::span{tokens}, rules);
 
     REQUIRE(out.has_value());
-    auto const &value = out.value().get<option>()();
+    auto const &value = out.value().get<option>();
     REQUIRE(value == std::vector{1, 2, 3});
 }
 
