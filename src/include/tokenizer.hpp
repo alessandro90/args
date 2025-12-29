@@ -29,10 +29,10 @@ struct [[nodiscard]] FlagGroup {
     std::string_view group;
 };
 
-using Token = std::variant<ShortFlag, LongFlag, FlagGroup, Argument>;
+using token_t = std::variant<ShortFlag, LongFlag, FlagGroup, Argument>;
 
 [[nodiscard]] auto tokenize(std::span<char const *> src)
-    -> std::expected<std::vector<Token>, std::string>;
+    -> std::expected<std::vector<token_t>, std::string>;
 
 }  // namespace args::tokenizer
 

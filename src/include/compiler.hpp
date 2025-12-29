@@ -67,31 +67,28 @@ struct [[nodiscard]] TokenCompiler {
         if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
             return std::format("Cannot parse short flag: '{}'", short_flag.flag);
         }
-        auto const short_flag_selector = [&]<Spec auto S>(ArgValue<S> const &x)
-                                             requires detail::AShortFlag<S>
+        auto const selector = [&]<Spec auto S>(ArgValue<S> const &x) requires detail::AShortFlag<S>
         {
             return x.spec.short_form.value == short_flag.flag;
         };
-        auto const short_flag_action = [this]<Spec auto S>(ArgValue<S> &item)
-                                           requires detail::AShortFlag<S>
+        auto const action = [this]<Spec auto S>(ArgValue<S> &item) requires detail::AShortFlag<S>
         {
             item.is_used = true;
             item.value = true;
         };
 
-        auto const short_flag_with_value_selector = [&]<Spec auto S>(ArgValue<S> const &x)
-                                                        requires detail::AShortFlagWithValue<S>
+        auto const with_value_selector = [&]<Spec auto S>(ArgValue<S> const &x)
+                                             requires detail::AShortFlagWithValue<S>
         {
             return x.spec.short_form.value == short_flag.flag;
         };
-        auto const short_flag_with_value_action = [this, short_flag]<Spec auto S>(ArgValue<S> &)
-                                                      requires detail::AShortFlagWithValue<S>
+        auto const with_value_action = [this, short_flag]<Spec auto S>(ArgValue<S> &)
+                                           requires detail::AShortFlagWithValue<S>
         {
             m_compiler_state = ParsingShortFlag{.short_flag = short_flag};
         };
         bool const handled =
-            handle_token(short_flag_selector, short_flag_action)
-            || handle_token(short_flag_with_value_selector, short_flag_with_value_action);
+            handle_token(selector, action) || handle_token(with_value_selector, with_value_action);
         if (!handled) {
             return std::format("Cannot find match for flag: '{}'", short_flag.flag);
         }
@@ -102,31 +99,28 @@ struct [[nodiscard]] TokenCompiler {
         if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
             return std::format("Cannot parse long flag: '{}'", long_flag.flag);
         }
-        auto const long_flag_selector = [&]<Spec auto S>(ArgValue<S> const &x)
-                                            requires detail::ALongFlag<S>
+        auto const selector = [&]<Spec auto S>(ArgValue<S> const &x) requires detail::ALongFlag<S>
         {
             return x.spec.long_form.as_string_view() == long_flag.flag;
         };
-        auto const long_flag_action = [this]<Spec auto S>(ArgValue<S> &item)
-                                          requires detail::ALongFlag<S>
+        auto const action = [this]<Spec auto S>(ArgValue<S> &item) requires detail::ALongFlag<S>
         {
             item.is_used = true;
             item.value = true;
         };
 
-        auto const long_flag_with_value_selector = [&]<Spec auto S>(ArgValue<S> const &x)
-                                                       requires detail::ALongFlagWithValue<S>
+        auto const with_value_selector = [&]<Spec auto S>(ArgValue<S> const &x)
+                                             requires detail::ALongFlagWithValue<S>
         {
             return x.spec.long_form.as_string_view() == long_flag.flag;
         };
-        auto const long_flag_with_value_action = [this, long_flag]<Spec auto S>(ArgValue<S> &)
-                                                     requires detail::ALongFlagWithValue<S>
+        auto const with_value_action = [this, long_flag]<Spec auto S>(ArgValue<S> &)
+                                           requires detail::ALongFlagWithValue<S>
         {
             m_compiler_state = ParsingLongFlag{.long_flag = long_flag};
         };
         bool const handled =
-            handle_token(long_flag_selector, long_flag_action)
-            || handle_token(long_flag_with_value_selector, long_flag_with_value_action);
+            handle_token(selector, action) || handle_token(with_value_selector, with_value_action);
         if (!handled) {
             return std::format("Cannot find match for flag: '{}'", long_flag.flag);
         }
@@ -217,8 +211,8 @@ private:
     [[nodiscard]] auto handle_token(Selector selector, Action action) -> bool {
         return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
             return (... || [&]() {  // 'or' will execute until the first 'true'
-                using ArgType = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
-                if constexpr (std::is_invocable_v<Selector, ArgType const &>) {
+                using arg_type_t = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
+                if constexpr (std::is_invocable_v<Selector, arg_type_t const &>) {
                     auto &item = std::get<Is>(results);
                     if (!selector(item)) {
                         return false;  // no match, keep looping
@@ -243,12 +237,12 @@ private:
             item.is_used = true;
             item.value = std::move(parsed_value).value();
             m_compiler_state = std::monostate{};
-        } else {
-            error = std::format(
-                "Cannot parse '{}' into '{}'",
-                argument.value,
-                parsers::type_name(Typetag<args::detail::result_type_t<S>>{}));
+            return;
         }
+        error = std::format(
+            "Cannot parse '{}' into '{}'",
+            argument.value,
+            parsers::type_name(Typetag<result_type_t<S>>{}));
     }
 
     std::variant<std::monostate, ParsingShortFlag, ParsingLongFlag> m_compiler_state{};
@@ -263,9 +257,9 @@ template <Spec auto... Specs>
     [&]<std::size_t... Is>(std::index_sequence<Is...>) {
         (..., [&]() {
             auto const &r = std::get<Is>(results);
-            using ArgType = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
+            using arg_type_t = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
             std::size_t positional_argument_count = 0;
-            if constexpr (is_positional_v<decltype(ArgType::spec)>) {
+            if constexpr (is_positional_v<decltype(arg_type_t::spec)>) {
                 ++positional_argument_count;
                 if (!r.is_used) {
                     v.push_back(
@@ -273,13 +267,13 @@ template <Spec auto... Specs>
                             "Missing positional argument number {}", positional_argument_count));
                 }
             } else if constexpr (
-                args::detail::IsAnyFlag<ArgType::spec> && is_required(ArgType::spec)) {
+                args::detail::IsAFlag<arg_type_t::spec> && is_required(arg_type_t::spec)) {
                 if (!r.is_used) {
                     auto err = std::format(
                         "Missing required flag. Long form: '{}'.",
-                        ArgType::spec.long_form.as_string_view());
-                    if (ArgType::spec.short_form.has_value) {
-                        err += std::format(" Short form: '{}'.", ArgType::spec.short_form.value);
+                        arg_type_t::spec.long_form.as_string_view());
+                    if (arg_type_t::spec.short_form.has_value) {
+                        err += std::format(" Short form: '{}'.", arg_type_t::spec.short_form.value);
                     }
                     v.push_back(std::move(err));
                 }
@@ -289,16 +283,20 @@ template <Spec auto... Specs>
     return v;
 }
 
+/// Applies only to flags with values for which the default is a callable.
+///
+/// If the flag was not used, set its value to the result of the invocation
+/// of `default_value`
 template <Spec auto... Specs>
 auto assign_callable_defaults(std::tuple<ArgValue<Specs>...> &results) -> void {
     [&]<std::size_t... Is>(std::index_sequence<Is...>) {
         (..., [&]() {
             auto &r = std::get<Is>(results);
-            using ArgType = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
-            using S = decltype(ArgType::spec);
+            using arg_type_t = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
+            using S = decltype(arg_type_t::spec);
             if constexpr (is_flag_with_value_v<S> && std::is_invocable_v<typename S::value_t>) {
                 if (!r.is_used) {
-                    r.value = ArgType::spec.default_value();
+                    r.value = arg_type_t::spec.default_value();
                 }
             }
         }());
@@ -309,7 +307,7 @@ auto assign_callable_defaults(std::tuple<ArgValue<Specs>...> &results) -> void {
 
 template <std::size_t Extent, Spec auto... Specs>
 [[nodiscard]] constexpr auto compile(
-    std::span<tokenizer::Token const, Extent> tokens, Rules<Specs...>)
+    std::span<tokenizer::token_t const, Extent> tokens, Rules<Specs...>)
     -> std::expected<Args<Specs...>, std::string> {
     auto token_compiler = detail::TokenCompiler<Specs...>{};
     for (auto const token : tokens) {

@@ -19,7 +19,7 @@ TEST_CASE("boolean-short-flag", "[compiler]") {
     static constexpr auto rules = Rules<option>{};
 
     SECTION("providing-value-gets-true") {
-        auto const flag = std::array{tokenizer::Token{tokenizer::ShortFlag{.flag = 'v'}}};
+        auto const flag = std::array{tokenizer::token_t{tokenizer::ShortFlag{.flag = 'v'}}};
         auto const out = compiler::compile(std::span{flag}, rules);
 
         REQUIRE(out.has_value());
@@ -27,7 +27,7 @@ TEST_CASE("boolean-short-flag", "[compiler]") {
         REQUIRE(value);
     }
     SECTION("default-value-is-false") {
-        auto const flag = std::array<tokenizer::Token, 0>{};
+        auto const flag = std::array<tokenizer::token_t, 0>{};
         auto const out = compiler::compile(std::span{flag}, rules);
 
         REQUIRE(out.has_value());
@@ -38,7 +38,7 @@ TEST_CASE("boolean-short-flag", "[compiler]") {
         static constexpr auto required_option =
             Flag{.long_form = "value"_flag, .short_form = "v"_short_flag, .required = true};
         static constexpr auto required_rules = Rules<required_option>{};
-        auto const flag = std::array<tokenizer::Token, 0>{};
+        auto const flag = std::array<tokenizer::token_t, 0>{};
         auto const out = compiler::compile(std::span{flag}, required_rules);
 
         REQUIRE(!out.has_value());
@@ -51,8 +51,8 @@ TEST_CASE("short-flag-with-arithmetic-value", "[compiler]") {
             .long_form = "value"_flag, .short_form = "v"_short_flag, .default_value = 0};
         static constexpr auto rules = Rules<option>{};
         auto const tokens = std::array{
-            tokenizer::Token{tokenizer::ShortFlag{.flag = 'v'}},
-            tokenizer::Token{tokenizer::Argument{.value = "10"}}};
+            tokenizer::token_t{tokenizer::ShortFlag{.flag = 'v'}},
+            tokenizer::token_t{tokenizer::Argument{.value = "10"}}};
         auto const out = compiler::compile(std::span{tokens}, rules);
 
         REQUIRE(out.has_value());
@@ -64,8 +64,8 @@ TEST_CASE("short-flag-with-arithmetic-value", "[compiler]") {
             .long_form = "value"_flag, .short_form = "v"_short_flag, .default_value = 0.f};
         static constexpr auto rules = Rules<option>{};
         auto const tokens = std::array{
-            tokenizer::Token{tokenizer::ShortFlag{.flag = 'v'}},
-            tokenizer::Token{tokenizer::Argument{.value = "10.5"}}};
+            tokenizer::token_t{tokenizer::ShortFlag{.flag = 'v'}},
+            tokenizer::token_t{tokenizer::Argument{.value = "10.5"}}};
         auto const out = compiler::compile(std::span{tokens}, rules);
 
         REQUIRE(out.has_value());
@@ -78,7 +78,7 @@ TEST_CASE("positional-with-arithmetic-value", "[compiler]") {
     SECTION("with-integer-value") {
         static constexpr auto option = Positional<int>{};
         static constexpr auto rules = Rules<option>{};
-        auto const tokens = std::array{tokenizer::Token{tokenizer::Argument{.value = "10"}}};
+        auto const tokens = std::array{tokenizer::token_t{tokenizer::Argument{.value = "10"}}};
         auto const out = compiler::compile(std::span{tokens}, rules);
 
         REQUIRE(out.has_value());
@@ -93,7 +93,7 @@ TEST_CASE("short-flag-with-vec-value-default", "[compiler]") {
         .short_form = "v"_short_flag,
         .default_value = args::Lazy<std::vector<int>, 1, 2, 3>};
     static constexpr auto rules = Rules<option>{};
-    auto const tokens = std::array<tokenizer::Token, 0>{};
+    auto const tokens = std::array<tokenizer::token_t, 0>{};
     auto const out = compiler::compile(std::span{tokens}, rules);
 
     REQUIRE(out.has_value());

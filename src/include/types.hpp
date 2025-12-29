@@ -144,15 +144,15 @@ namespace detail {
 
 template <typename T>
 struct Typetag {
-    using type = T;
+    using type_t = T;
 };
 
 template <auto S>
-concept IsAnyFlag = is_flag_v<decltype(S)> || is_flag_with_value_v<decltype(S)>;
+concept IsAFlag = is_flag_v<decltype(S)> || is_flag_with_value_v<decltype(S)>;
 
 template <Spec auto S1, Spec auto S2, Spec auto...>
 [[nodiscard]] consteval auto have_different_flag_names() -> bool {
-    if constexpr (!IsAnyFlag<S1> || !IsAnyFlag<S2>) {
+    if constexpr (!IsAFlag<S1> || !IsAFlag<S2>) {
         return true;
     } else {
         if (S1.long_form.as_string_view() == S2.long_form.as_string_view()) {
@@ -180,7 +180,7 @@ template <Spec auto S1, Spec auto... Ss>
     auto const is_valid_char = [](char c) -> bool {
         return c >= 'a' && c <= 'z';
     };
-    if constexpr (!IsAnyFlag<S1>) {
+    if constexpr (!IsAFlag<S1>) {
         return true;
     } else {
         if (!is_valid_char(S1.long_form.chars[0])) {
@@ -210,9 +210,6 @@ struct Rules {
         detail::check_valid_names<Specs...>(),
         "All flags must begin with a letter, both long and short forms");
 };
-
-template <Spec auto S>
-using GetterReturnValue = decltype(S.default_value()) const &;
 
 namespace detail {
 

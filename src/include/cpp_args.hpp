@@ -22,7 +22,7 @@ template <Spec auto... Specs>
     };
     // Skip the program name
     auto const s = std::span{std::next(constify(argv)), static_cast<std::size_t>(argc - 1)};
-    return tokenizer::tokenize(s).and_then([rules](std::vector<tokenizer::Token> tokens) {
+    return tokenizer::tokenize(s).and_then([rules](std::vector<tokenizer::token_t> tokens) {
         return compiler::compile(tokens, rules);
     });
 }
