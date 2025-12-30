@@ -67,28 +67,27 @@ struct [[nodiscard]] TokenCompiler {
         if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
             return std::format("Cannot parse short flag: '{}'", short_flag.flag);
         }
-        auto const selector = [&]<Spec auto S>(ArgValue<S> const &x) requires detail::AShortFlag<S>
+        auto const handler = [this, short_flag]<Spec auto S>(ArgValue<S> &item)
+                                 requires detail::AShortFlag<S>
         {
-            return x.spec.short_form.value == short_flag.flag;
-        };
-        auto const action = [this]<Spec auto S>(ArgValue<S> &item) requires detail::AShortFlag<S>
-        {
+            if (item.spec.short_form.value != short_flag.flag) {
+                return false;
+            }
             item.is_used = true;
             item.value = true;
+            return true;
         };
 
-        auto const with_value_selector = [&]<Spec auto S>(ArgValue<S> const &x)
-                                             requires detail::AShortFlagWithValue<S>
+        auto const handler_with_value = [this, short_flag]<Spec auto S>(ArgValue<S> &item)
+                                            requires detail::AShortFlagWithValue<S>
         {
-            return x.spec.short_form.value == short_flag.flag;
-        };
-        auto const with_value_action = [this, short_flag]<Spec auto S>(ArgValue<S> &)
-                                           requires detail::AShortFlagWithValue<S>
-        {
+            if (item.spec.short_form.value != short_flag.flag) {
+                return false;
+            }
             m_compiler_state = ParsingShortFlag{.short_flag = short_flag};
+            return true;
         };
-        bool const handled =
-            handle_token(selector, action) || handle_token(with_value_selector, with_value_action);
+        bool const handled = try_handle_flag(short_flag.has_equal, handler_with_value, handler);
         if (!handled) {
             return std::format("Cannot find match for flag: '{}'", short_flag.flag);
         }
@@ -99,28 +98,27 @@ struct [[nodiscard]] TokenCompiler {
         if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
             return std::format("Cannot parse long flag: '{}'", long_flag.flag);
         }
-        auto const selector = [&]<Spec auto S>(ArgValue<S> const &x) requires detail::ALongFlag<S>
+        auto const handler = [this, long_flag]<Spec auto S>(ArgValue<S> &item)
+                                 requires detail::ALongFlag<S>
         {
-            return x.spec.long_form.as_string_view() == long_flag.flag;
-        };
-        auto const action = [this]<Spec auto S>(ArgValue<S> &item) requires detail::ALongFlag<S>
-        {
+            if (item.spec.long_form.as_string_view() != long_flag.flag) {
+                return false;
+            }
             item.is_used = true;
             item.value = true;
+            return true;
         };
 
-        auto const with_value_selector = [&]<Spec auto S>(ArgValue<S> const &x)
-                                             requires detail::ALongFlagWithValue<S>
+        auto const handler_with_value = [this, long_flag]<Spec auto S>(ArgValue<S> &item)
+                                            requires detail::ALongFlagWithValue<S>
         {
-            return x.spec.long_form.as_string_view() == long_flag.flag;
-        };
-        auto const with_value_action = [this, long_flag]<Spec auto S>(ArgValue<S> &)
-                                           requires detail::ALongFlagWithValue<S>
-        {
+            if (item.spec.long_form.as_string_view() != long_flag.flag) {
+                return false;
+            }
             m_compiler_state = ParsingLongFlag{.long_flag = long_flag};
+            return true;
         };
-        bool const handled =
-            handle_token(selector, action) || handle_token(with_value_selector, with_value_action);
+        bool const handled = try_handle_flag(long_flag.has_equal, handler_with_value, handler);
         if (!handled) {
             return std::format("Cannot find match for flag: '{}'", long_flag.flag);
         }
@@ -128,8 +126,12 @@ struct [[nodiscard]] TokenCompiler {
     }
 
     [[nodiscard]] auto operator()(tokenizer::FlagGroup flag_group) -> std::optional<std::string> {
-        for (auto const short_flag : flag_group.group) {
-            auto res = (*this)(tokenizer::ShortFlag{.flag = short_flag});
+        auto const flags_nr = flag_group.group.size();
+        for (auto const [idx, short_flag] : flag_group.group | std::views::enumerate) {
+            bool const is_last =
+                static_cast<std::size_t>(idx) == static_cast<std::size_t>(flags_nr - 1uz);
+            auto res = (*this)(tokenizer::ShortFlag{
+                .flag = short_flag, .has_equal = is_last && flag_group.has_equal});
             if (res.has_value()) {
                 return res;
             }
@@ -141,23 +143,19 @@ struct [[nodiscard]] TokenCompiler {
         auto compile_argument = Overload{
             [&](std::monostate) -> std::optional<std::string> {
                 auto error = std::optional<std::string>{};
-                auto const selector = [&, counter = 0uz]<Spec auto S>(ArgValue<S> const &) mutable
+                auto const handler = [&, counter = 0uz]<Spec auto S>(ArgValue<S> &item) mutable
                     requires detail::APositional<S>
-
                 {
-                    if (counter == m_current_positional_index) {
-                        ++m_current_positional_index;
-                        return true;
+                    if (counter != m_current_positional_index) {
+                        ++counter;
+                        return false;
                     }
-                    ++counter;
-                    return false;
-                };
-                auto const action = [&]<Spec auto S>(ArgValue<S> &item)
-                                        requires detail::APositional<S>
-                {
+                    ++m_current_positional_index;
                     try_parse_argument(argument, item, error);
+                    return true;
                 };
-                if (!handle_token(selector, action)) {
+
+                if (!handle_token(handler)) {
                     return std::format(
                         "Cannot find match for positional argument number: '{}'",
                         m_current_positional_index);
@@ -165,38 +163,37 @@ struct [[nodiscard]] TokenCompiler {
                 return error;
             },
             [&](ParsingShortFlag short_flag_state) -> std::optional<std::string> {
-                auto const selector = [&]<Spec auto S>(ArgValue<S> const &x)
-                                          requires detail::AShortFlagWithValue<S>
-
-                {
-                    return x.spec.short_form.value == short_flag_state.short_flag.flag;
-                };
                 auto error = std::optional<std::string>{};
-                auto const action = [&]<Spec auto S>(ArgValue<S> &item)
-                                        requires detail::AShortFlagWithValue<S>
+                auto const handler = [&]<Spec auto S>(ArgValue<S> &item)
+                                         requires detail::AShortFlagWithValue<S>
                 {
+                    if (item.spec.short_form.value != short_flag_state.short_flag.flag) {
+                        return false;
+                    }
                     try_parse_argument(argument, item, error);
+                    return true;
                 };
-                if (!handle_token(selector, action)) {
+                if (!handle_token(handler)) {
                     return std::format(
                         "Cannot find match for flag: '{}'", short_flag_state.short_flag.flag);
                 }
                 return error;
             },
             [&](ParsingLongFlag long_flag_state) -> std::optional<std::string> {
-                auto const selector = [&]<Spec auto S>(ArgValue<S> const &x)
-                                          requires detail::ALongFlagWithValue<S>
+                auto error = std::optional<std::string>{};
+                auto const handler = [&]<Spec auto S>(ArgValue<S> &item)
+                                         requires detail::ALongFlagWithValue<S>
 
                 {
-                    return x.spec.long_form.as_string_view() == long_flag_state.long_flag.flag;
-                };
-                auto error = std::optional<std::string>{};
-                auto const action = [&]<Spec auto S>(ArgValue<S> &item)
-                                        requires detail::ALongFlagWithValue<S>
-                {
+                    if (item.spec.long_form.as_string_view() != long_flag_state.long_flag.flag) {
+                        return false;
+                    }
+
                     try_parse_argument(argument, item, error);
+                    return true;
                 };
-                if (!handle_token(selector, action)) {
+
+                if (!handle_token(handler)) {
                     return std::format(
                         "Cannot find match for flag: '{}'", long_flag_state.long_flag.flag);
                 }
@@ -206,19 +203,30 @@ struct [[nodiscard]] TokenCompiler {
         return std::visit(compile_argument, m_compiler_state);
     }
 
+    /// Verify that the state of the compiler is 'monostate'. If not return an error string
+    [[nodiscard]] auto check_correct_final_state() const -> std::optional<std::string> {
+        auto const state_checker = Overload{
+            [](std::monostate) -> std::optional<std::string> {
+                return {};
+            },
+            [](ParsingLongFlag state) -> std::optional<std::string> {
+                return std::format("Missing value for flag: '{}'", state.long_flag.flag);
+            },
+            [](ParsingShortFlag state) -> std::optional<std::string> {
+                return std::format("Missing value for flag: '{}'", state.short_flag.flag);
+            }};
+        return std::visit(state_checker, m_compiler_state);
+    }
+
 private:
-    template <typename Selector, typename Action>
-    [[nodiscard]] auto handle_token(Selector selector, Action action) -> bool {
+    template <typename Handler>
+    [[nodiscard]] auto handle_token(Handler handler) -> bool {
         return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
             return (... || [&]() {  // 'or' will execute until the first 'true'
                 using arg_type_t = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
-                if constexpr (std::is_invocable_v<Selector, arg_type_t const &>) {
+                if constexpr (std::is_invocable_v<Handler, arg_type_t &>) {
                     auto &item = std::get<Is>(results);
-                    if (!selector(item)) {
-                        return false;  // no match, keep looping
-                    }
-                    action(item);
-                    return true;
+                    return handler(item);
                 } else {
                     return false;  // not callable, keep looping
                 }
@@ -243,6 +251,12 @@ private:
             "Cannot parse '{}' into '{}'",
             argument.value,
             parsers::type_name(Typetag<result_type_t<S>>{}));
+    }
+
+    [[nodiscard]] auto try_handle_flag(
+        bool has_equal, auto handler_with_value, auto handler_without_value) -> bool {
+        return has_equal ? handle_token(handler_with_value)
+                         : handle_token(handler_without_value) || handle_token(handler_with_value);
     }
 
     std::variant<std::monostate, ParsingShortFlag, ParsingLongFlag> m_compiler_state{};
@@ -311,10 +325,14 @@ template <std::size_t Extent, Spec auto... Specs>
     -> std::expected<Args<Specs...>, std::string> {
     auto token_compiler = detail::TokenCompiler<Specs...>{};
     for (auto const token : tokens) {
-        auto const err_msg = std::visit(token_compiler, token);
+        auto err_msg = std::visit(token_compiler, token);
         if (err_msg.has_value()) {
-            return std::unexpected(err_msg.value());
+            return std::unexpected(std::move(err_msg).value());
         }
+    }
+    auto state_error = token_compiler.check_correct_final_state();
+    if (state_error.has_value()) {
+        return std::unexpected(std::move(state_error).value());
     }
     auto const missing_args = detail::verify_required_args(token_compiler.results);
     if (!missing_args.empty()) {

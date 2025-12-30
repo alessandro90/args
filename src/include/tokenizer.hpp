@@ -18,15 +18,18 @@ struct [[nodiscard]] Argument {
 };
 
 struct [[nodiscard]] ShortFlag {
-    char flag;
+    char flag{};
+    bool has_equal{};
 };
 
 struct [[nodiscard]] LongFlag {
     std::string_view flag;
+    bool has_equal{};
 };
 
 struct [[nodiscard]] FlagGroup {
     std::string_view group;
+    bool has_equal{};
 };
 
 using token_t = std::variant<ShortFlag, LongFlag, FlagGroup, Argument>;

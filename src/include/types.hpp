@@ -175,11 +175,12 @@ template <Spec auto S1, Spec auto... Ss>
     }
 }
 
+[[nodiscard]] constexpr auto is_valid_char(char c) -> bool {
+    return c >= 'a' && c <= 'z';
+};
+
 template <Spec auto S1, Spec auto... Ss>
 [[nodiscard]] consteval auto check_valid_names() -> bool {
-    auto const is_valid_char = [](char c) -> bool {
-        return c >= 'a' && c <= 'z';
-    };
     if constexpr (!IsAFlag<S1>) {
         return true;
     } else {
@@ -209,6 +210,8 @@ struct Rules {
     static_assert(
         detail::check_valid_names<Specs...>(),
         "All flags must begin with a letter, both long and short forms");
+    // TODO:
+    // [[nodiscard]] static auto help() -> std::string_view;
 };
 
 namespace detail {
