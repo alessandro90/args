@@ -5,11 +5,20 @@
 #include <array>
 #include <concepts>
 #include <cstddef>
+#include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
 
 namespace args {
+
+template <typename T>
+struct Typetag {
+    using type_t = T;
+};
+
+template <typename T>
+inline constexpr auto tag = Typetag<T>{};
 
 template <typename T>
 struct [[nodiscard]] Opt {
@@ -36,6 +45,8 @@ template <std::size_t N>
 struct [[nodiscard]] Str {
     std::array<char, N + 1> chars{};
 
+    consteval Str() = default;
+
     consteval Str(char const (&s)[N + 1]) {  // NOLINT
         std::ranges::copy(s, chars.begin());
     }
@@ -48,48 +59,32 @@ struct [[nodiscard]] Str {
 template <std::size_t N>
 Str(char const (&s)[N]) -> Str<N - 1>;  // NOLINT
 
-template <std::size_t N>
+template <std::size_t N, std::size_t M = 0>
 struct [[nodiscard]] Flag {
     Str<N> long_form;
     Opt<char> short_form{Opt<char>::empty()};
     bool default_value{};
     bool required{};
+    Str<M> help{};
     static constexpr bool is_spec = true;
     using value_t = bool;
 };
 
-template <Trivial V, std::size_t N>
+template <Trivial V, std::size_t N, std::size_t M = 0>
 struct [[nodiscard]] FlagWithValue {
     Str<N> long_form;
     Opt<char> short_form{Opt<char>::empty()};
     /// Used if the flag is missing
     V default_value{};
     bool required{};
+    Str<M> help{};
     static constexpr bool is_spec = true;
     using value_t = V;
 };
 
-template <std::size_t N>
-struct [[nodiscard]] FlagWithValueArgs {
-    Str<N> long_form;
-    Opt<char> short_form{Opt<char>::empty()};
-    bool required{};
-};
-
-/// If you want a specific default value, use FlagWithValue directly. This function is meant
-/// to be used to specify the type of the attached value in case you do not want to manually set
-/// a default. For example if the flag is requried
-///
-/// This is a workaround because all the specs must be literal types
-///
-/// FIXME: this function is not ideal after the support of complex types such as vector and string
-template <Trivial V1, std::size_t N>
-constexpr auto default_flag_with_value(FlagWithValueArgs<N> flag_args) -> FlagWithValue<V1, N> {
-    return FlagWithValue{
-        .long_form = flag_args.long_form,
-        .short_form = flag_args.short_form,
-        .default_value = V1{},
-        .required = flag_args.required};
+template <Str X>
+consteval auto operator""_str() -> decltype(X) {
+    return X;
 }
 
 template <Str X>
@@ -103,8 +98,12 @@ consteval auto operator""_short_flag() -> Opt<char> {
     return Opt<char>::with(X.chars[0]);
 }
 
-template <typename P>
+template <typename P, std::size_t N = 0, std::size_t M = 0>
 struct [[nodiscard]] Positional {
+    Typetag<P> type;
+    Str<N> name{};
+    Str<M> help{};
+
     static constexpr bool is_spec = true;
     using value_t = P;
 };
@@ -116,8 +115,8 @@ concept Spec = S::is_spec;
 template <Spec>
 struct IsFlag: std::false_type {};
 
-template <std::size_t N>
-struct IsFlag<Flag<N>>: std::true_type {};
+template <std::size_t N, std::size_t M>
+struct IsFlag<Flag<N, M>>: std::true_type {};
 
 template <Spec T>
 inline constexpr bool is_flag_v = IsFlag<std::remove_cvref_t<T>>::value;
@@ -125,14 +124,14 @@ inline constexpr bool is_flag_v = IsFlag<std::remove_cvref_t<T>>::value;
 template <Spec>
 struct IsFlagWithValue: std::false_type {};
 
-template <Trivial V, std::size_t N>
-struct IsFlagWithValue<FlagWithValue<V, N>>: std::true_type {};
+template <Trivial V, std::size_t N, std::size_t M>
+struct IsFlagWithValue<FlagWithValue<V, N, M>>: std::true_type {};
 
 template <typename P>
 struct IsPositional: std::false_type {};
 
-template <typename P>
-struct IsPositional<Positional<P>>: std::true_type {};
+template <typename P, std::size_t N, std::size_t M>
+struct IsPositional<Positional<P, N, M>>: std::true_type {};
 
 template <typename P>
 inline constexpr bool is_positional_v = IsPositional<std::remove_cvref_t<P>>::value;
@@ -141,11 +140,6 @@ template <Spec T>
 inline constexpr bool is_flag_with_value_v = IsFlagWithValue<std::remove_cvref_t<T>>::value;
 
 namespace detail {
-
-template <typename T>
-struct Typetag {
-    using type_t = T;
-};
 
 template <auto S>
 concept IsAFlag = is_flag_v<decltype(S)> || is_flag_with_value_v<decltype(S)>;
@@ -200,6 +194,55 @@ template <Spec auto S1, Spec auto... Ss>
         }
     }
 }
+
+struct [[nodiscard]] PositionalHelp {
+    std::string name{};
+    std::string description{};
+};
+
+struct [[nodiscard]] PureFlagHelp {
+    std::string short_name{};
+    std::string long_name{};
+    std::string description{};
+};
+
+struct [[nodiscard]] FlagWithValueHelp {
+    std::string short_name{};
+    std::string long_name{};
+    std::string type{};
+    std::string description{};
+};
+
+struct HelpMaker {
+    // wrap into struct so we do not need 'inline' or a .cpp file
+    // just for this single function
+    [[nodiscard]] static auto make_help() -> std::string {
+        // NOTE: will need padding to align all descriptions. Usage and description string
+        // must be provided to rules upon construction
+        //
+        // Something like this
+        //
+        // Usage: usage string (provided as extra arg to rules?)
+        //
+        // Description string (optional, may not be provided)
+        //
+        // Arguments:
+        //
+        // arg_name (or index like #1 if not provided)  description (if provided)
+        //
+        // Flags:
+        //
+        // short_name (if provided), long_name description
+        //
+        // Flags with values:
+        //
+        // short_name (if provided), long_name <type> description (may include possible values
+        // allowed?)
+        // TODO:
+        return "";
+    }
+};
+
 }  // namespace detail
 
 template <Spec auto... Specs>
@@ -241,9 +284,12 @@ template <Spec auto S>
 }  // namespace detail
 
 template <typename T, auto... Args>
-inline constexpr auto Lazy = []() {
+inline constexpr auto Lazy = [] {
     return T{std::move(Args)...};
 };
+
+template <typename T, auto... Args>
+using lazy_t = decltype(Lazy<T, Args...>);
 
 template <Spec auto S>
 struct [[nodiscard]] ArgValue {

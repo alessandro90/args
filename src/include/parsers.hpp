@@ -21,49 +21,49 @@ template <typename T>
 struct IsVector<std::vector<T>>: std::true_type {};
 }  // namespace details
 
-consteval auto type_name(args::detail::Typetag<float>) -> std::string_view {
+consteval auto type_name(Typetag<float>) -> std::string_view {
     return "float";
 }
 
-consteval auto type_name(args::detail::Typetag<double>) -> std::string_view {
+consteval auto type_name(Typetag<double>) -> std::string_view {
     return "float";
 }
 
-consteval auto type_name(args::detail::Typetag<std::uint8_t>) -> std::string_view {
+consteval auto type_name(Typetag<std::uint8_t>) -> std::string_view {
     return "u8";
 }
 
-consteval auto type_name(args::detail::Typetag<std::int8_t>) -> std::string_view {
+consteval auto type_name(Typetag<std::int8_t>) -> std::string_view {
     return "i8";
 }
 
-consteval auto type_name(args::detail::Typetag<std::uint16_t>) -> std::string_view {
+consteval auto type_name(Typetag<std::uint16_t>) -> std::string_view {
     return "u16";
 }
 
-consteval auto type_name(args::detail::Typetag<std::int16_t>) -> std::string_view {
+consteval auto type_name(Typetag<std::int16_t>) -> std::string_view {
     return "i16";
 }
 
-consteval auto type_name(args::detail::Typetag<std::uint32_t>) -> std::string_view {
+consteval auto type_name(Typetag<std::uint32_t>) -> std::string_view {
     return "u32";
 }
 
-consteval auto type_name(args::detail::Typetag<std::int32_t>) -> std::string_view {
+consteval auto type_name(Typetag<std::int32_t>) -> std::string_view {
     return "i32";
 }
 
-consteval auto type_name(args::detail::Typetag<std::uint64_t>) -> std::string_view {
+consteval auto type_name(Typetag<std::uint64_t>) -> std::string_view {
     return "u64";
 }
 
-consteval auto type_name(args::detail::Typetag<std::int64_t>) -> std::string_view {
+consteval auto type_name(Typetag<std::int64_t>) -> std::string_view {
     return "i64";
 }
 
 template <typename T>
-auto type_name(args::detail::Typetag<std::vector<T>>) -> std::string {
-    return std::format("[{}]", type_name(args::detail::Typetag<T>{}));
+auto type_name(Typetag<std::vector<T>>) -> std::string {
+    return std::format("[{}]", type_name(Typetag<T>{}));
 }
 
 template <typename Out, typename It>

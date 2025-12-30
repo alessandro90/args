@@ -12,6 +12,7 @@
 
 using args::operator""_flag;
 using args::operator""_short_flag;
+using args::operator""_str;
 using namespace args;
 
 TEST_CASE("boolean-short-flag", "[compiler]") {
@@ -76,7 +77,7 @@ TEST_CASE("short-flag-with-arithmetic-value", "[compiler]") {
 
 TEST_CASE("positional-with-arithmetic-value", "[compiler]") {
     SECTION("with-integer-value") {
-        static constexpr auto option = Positional<int>{};
+        static constexpr auto option = Positional{.type = tag<int>, .name = "pos-name"_str};
         static constexpr auto rules = Rules<option>{};
         auto const tokens = std::array{tokenizer::token_t{tokenizer::Argument{.value = "10"}}};
         auto const out = compiler::compile(std::span{tokens}, rules);
@@ -91,7 +92,8 @@ TEST_CASE("short-flag-with-vec-value-default", "[compiler]") {
     static constexpr auto option = FlagWithValue{
         .long_form = "value"_flag,
         .short_form = "v"_short_flag,
-        .default_value = args::Lazy<std::vector<int>, 1, 2, 3>};
+        .default_value = args::Lazy<std::vector<int>, 1, 2, 3>,
+        .help = "help message for value"_str};
     static constexpr auto rules = Rules<option>{};
     auto const tokens = std::array<tokenizer::token_t, 0>{};
     auto const out = compiler::compile(std::span{tokens}, rules);
