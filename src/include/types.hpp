@@ -5,20 +5,17 @@
 #include <array>
 #include <concepts>
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
+#include <vector>
+#include "parsers.hpp"
+#include "typetag.hpp"
 
 namespace args {
 
-template <typename T>
-struct Typetag {
-    using type_t = T;
-};
-
-template <typename T>
-inline constexpr auto tag = Typetag<T>{};
 
 template <typename T>
 struct [[nodiscard]] Opt {
@@ -54,10 +51,21 @@ struct [[nodiscard]] Str {
     [[nodiscard]] constexpr auto as_string_view() const -> std::string_view {
         return std::string_view{chars.data()};
     }
+
+    [[nodiscard]] static auto is_empty() -> bool {
+        return N == 0;
+    }
 };
 
 template <std::size_t N>
 Str(char const (&s)[N]) -> Str<N - 1>;  // NOLINT
+
+template <Str X>
+consteval auto operator""_str() -> decltype(X) {
+    return X;
+}
+
+inline constexpr auto empty = ""_str;
 
 template <std::size_t N, std::size_t M = 0>
 struct [[nodiscard]] Flag {
@@ -81,11 +89,6 @@ struct [[nodiscard]] FlagWithValue {
     static constexpr bool is_spec = true;
     using value_t = V;
 };
-
-template <Str X>
-consteval auto operator""_str() -> decltype(X) {
-    return X;
-}
 
 template <Str X>
 consteval auto operator""_flag() -> decltype(X) {
@@ -195,70 +198,6 @@ template <Spec auto S1, Spec auto... Ss>
     }
 }
 
-struct [[nodiscard]] PositionalHelp {
-    std::string name{};
-    std::string description{};
-};
-
-struct [[nodiscard]] PureFlagHelp {
-    std::string short_name{};
-    std::string long_name{};
-    std::string description{};
-};
-
-struct [[nodiscard]] FlagWithValueHelp {
-    std::string short_name{};
-    std::string long_name{};
-    std::string type{};
-    std::string description{};
-};
-
-struct HelpMaker {
-    // wrap into struct so we do not need 'inline' or a .cpp file
-    // just for this single function
-    [[nodiscard]] static auto make_help() -> std::string {
-        // NOTE: will need padding to align all descriptions. Usage and description string
-        // must be provided to rules upon construction
-        //
-        // Something like this
-        //
-        // Usage: usage string (provided as extra arg to rules?)
-        //
-        // Description string (optional, may not be provided)
-        //
-        // Arguments:
-        //
-        // arg_name (or index like #1 if not provided)  description (if provided)
-        //
-        // Flags:
-        //
-        // short_name (if provided), long_name description
-        //
-        // Flags with values:
-        //
-        // short_name (if provided), long_name <type> description (may include possible values
-        // allowed?)
-        // TODO:
-        return "";
-    }
-};
-
-}  // namespace detail
-
-template <Spec auto... Specs>
-requires(sizeof...(Specs) > 0)
-struct Rules {
-    static_assert(
-        detail::check_all_different_names<Specs...>(), "All flags must have unique identifiers");
-    static_assert(
-        detail::check_valid_names<Specs...>(),
-        "All flags must begin with a letter, both long and short forms");
-    // TODO:
-    // [[nodiscard]] static auto help() -> std::string_view;
-};
-
-namespace detail {
-
 template <typename T>
 consteval auto result_type() -> std::remove_cvref_t<T>;
 
@@ -267,6 +206,119 @@ consteval auto result_type() -> std::remove_cvref_t<decltype(std::declval<T>()()
 
 template <Spec auto S>
 using result_type_t = decltype(result_type<typename decltype(S)::value_t>());
+
+struct [[nodiscard]] PositionalHelp {
+    std::string_view name{};
+    std::string_view description{};
+};
+
+struct [[nodiscard]] PureFlagHelp {
+    std::optional<char> short_name{};
+    std::string_view long_name{};
+    std::string_view description{};
+};
+
+struct [[nodiscard]] FlagWithValueHelp {
+    std::optional<char> short_name{};
+    std::string_view long_name{};
+    std::string type{};  // some types cannot be described at compile time
+    std::string_view description{};
+};
+
+template <Spec auto S>
+auto build_help_data(
+    std::vector<PositionalHelp> &positional,
+    std::vector<PureFlagHelp> &pure_flags,
+    std::vector<FlagWithValueHelp> &flags_with_value) -> void {
+    using s_t = decltype(S);
+    if constexpr (is_positional_v<s_t>) {
+        positional.push_back(
+            PositionalHelp{
+                .name = S.name.as_string_view(), .description = S.description.as_string_view()});
+    } else if constexpr (is_flag_v<s_t>) {
+        auto const short_name =
+            S.short_form.has_value ? std::optional{S.short_form.value} : std::optional<char>{};
+        pure_flags.push_back(
+            PureFlagHelp{
+                .short_name = short_name,
+                .long_name = S.long_form.as_string_view(),
+                .description = S.description.as_string_view()});
+    } else if constexpr (is_flag_with_value_v<s_t>) {
+        auto const short_name =
+            S.short_form.has_value ? std::optional{S.short_form.value} : std::optional<char>{};
+        flags_with_value.push_back(
+            FlagWithValueHelp{
+                .short_name = short_name,
+                .long_name = S.long_form.as_string_view(),
+                .type = parsers::type_name(tag<result_type_t<S>>),
+                .description = S.description.as_string_view()});
+    } else {
+        static_assert(false, "Invalid spec");
+    }
+}
+
+template <Spec auto S, Spec auto... Specs>
+auto build_help_data(
+    std::vector<PositionalHelp> &positional,
+    std::vector<PureFlagHelp> &pure_flags,
+    std::vector<FlagWithValueHelp> &flags_with_value) -> void {
+    build_help_data<S>(positional, pure_flags, flags_with_value);
+    build_help_data<Specs...>(positional, pure_flags, flags_with_value);
+}
+
+template <Str Usage, Str Description, Spec auto... Specs>
+[[nodiscard]] static auto make_help() -> std::string {
+    // First part: build the structs above
+    // Second part: create final string
+    //
+    // NOTE: will need padding to align all descriptions
+    //
+    // Something like this
+    //
+    // Usage: usage string (provided as extra arg to rules?)
+    //
+    // Description string (optional, may not be provided)
+    //
+    // Arguments:
+    //
+    // arg_name (or index like #1 if not provided)  description (if provided)
+    //
+    // Flags:
+    //
+    // short_name (if provided), long_name description
+    //
+    // Flags with values:
+    //
+    // short_name (if provided), long_name <type> description (may include possible values
+    // allowed?)
+    // TODO:
+    std::vector<PositionalHelp> positional{};
+    std::vector<PureFlagHelp> pure_flags{};
+    std::vector<FlagWithValueHelp> flags_with_value{};
+
+    build_help_data<Specs...>(positional, pure_flags, flags_with_value);
+
+    return "";
+}
+
+}  // namespace detail
+
+template <Str Usage, Str Description, Spec auto... Specs>
+requires(sizeof...(Specs) > 0)
+struct [[nodiscard]] Rules {
+    static_assert(
+        detail::check_all_different_names<Specs...>(), "All flags must have unique identifiers");
+    static_assert(
+        detail::check_valid_names<Specs...>(),
+        "All flags must begin with a letter, both long and short forms");
+
+    [[nodiscard]] static auto help() -> std::string_view {
+        static auto help_msg = detail::make_help<Usage, Description, Specs...>();
+        return std::string_view{help_msg};
+    }
+};
+
+namespace detail {
 
 template <Spec auto S>
 [[nodiscard]] auto default_arg_value() {

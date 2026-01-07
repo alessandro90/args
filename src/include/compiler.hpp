@@ -15,6 +15,7 @@
 #include "parsers.hpp"
 #include "tokenizer.hpp"
 #include "types.hpp"
+#include "typetag.hpp"
 
 namespace args::compiler {
 namespace detail {
@@ -319,9 +320,9 @@ auto assign_callable_defaults(std::tuple<ArgValue<Specs>...> &results) -> void {
 
 }  // namespace detail
 
-template <std::size_t Extent, Spec auto... Specs>
+template <std::size_t Extent, Str Usage, Str Description, Spec auto... Specs>
 [[nodiscard]] constexpr auto compile(
-    std::span<tokenizer::token_t const, Extent> tokens, Rules<Specs...>)
+    std::span<tokenizer::token_t const, Extent> tokens, Rules<Usage, Description, Specs...>)
     -> std::expected<Args<Specs...>, std::string> {
     auto token_compiler = detail::TokenCompiler<Specs...>{};
     for (auto const token : tokens) {

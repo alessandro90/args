@@ -11,8 +11,8 @@
 
 namespace args {
 
-template <Spec auto... Specs>
-[[nodiscard]] auto try_parse(int argc, char **argv, Rules<Specs...> rules)
+template <Str Usage, Str Description, Spec auto... Specs>
+[[nodiscard]] auto try_parse(int argc, char **argv, Rules<Usage, Description, Specs...> rules)
     -> std::expected<Args<Specs...>, std::string> {
     if (argc <= 1) {
         return std::unexpected("No command line arguments provided");
