@@ -38,15 +38,6 @@ concept ALongFlagWithValue = Spec<decltype(S)> && is_flag_with_value_v<decltype(
 template <auto S>
 concept APositional = Spec<decltype(S)> && is_positional_v<decltype(S)>;
 
-template <Spec S>
-[[nodiscard]] consteval auto is_required(S const &s) -> bool {
-    if constexpr (is_positional_v<S>) {
-        return true;
-    } else {
-        return s.required;
-    }
-}
-
 struct [[nodiscard]] ParsingShortFlag {
     tokenizer::ShortFlag short_flag;
 };
@@ -276,13 +267,13 @@ template <Spec auto... Specs>
             std::size_t positional_argument_count = 0;
             if constexpr (is_positional_v<decltype(arg_type_t::spec)>) {
                 ++positional_argument_count;
-                if (!r.is_used) {
+                if (!r.is_used && arg_type_t::spec.required) {
                     v.push_back(
                         std::format(
                             "Missing positional argument number {}", positional_argument_count));
                 }
             } else if constexpr (
-                args::detail::IsAFlag<arg_type_t::spec> && is_required(arg_type_t::spec)) {
+                args::detail::IsAFlag<arg_type_t::spec> && arg_type_t::spec.required) {
                 if (!r.is_used) {
                     auto err = std::format(
                         "Missing required flag. Long form: '{}'.",
@@ -303,15 +294,19 @@ template <Spec auto... Specs>
 /// If the flag was not used, set its value to the result of the invocation
 /// of `default_value`
 template <Spec auto... Specs>
-auto assign_callable_defaults(std::tuple<ArgValue<Specs>...> &results) -> void {
+auto assign_defaults_to_unused(std::tuple<ArgValue<Specs>...> &results) -> void {
     [&]<std::size_t... Is>(std::index_sequence<Is...>) {
         (..., [&]() {
             auto &r = std::get<Is>(results);
             using arg_type_t = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
-            using S = decltype(arg_type_t::spec);
-            if constexpr (is_flag_with_value_v<S> && std::is_invocable_v<typename S::value_t>) {
+            using S_t = decltype(arg_type_t::spec);
+            if constexpr (is_flag_with_value_v<S_t> && std::is_invocable_v<typename S_t::value_t>) {
                 if (!r.is_used) {
                     r.value = arg_type_t::spec.default_value();
+                }
+            } else if constexpr (is_positional_v<S_t> && !arg_type_t::spec.required) {
+                if (!r.is_used) {
+                    r.value = typename S_t::value_t{};
                 }
             }
         }());
@@ -340,7 +335,7 @@ template <std::size_t Extent, Str Usage, Str Description, Spec auto... Specs>
         return std::unexpected(
             missing_args | std::views::join_with('\n') | std::ranges::to<std::string>());
     }
-    detail::assign_callable_defaults(token_compiler.results);
+    detail::assign_defaults_to_unused(token_compiler.results);
     return Args{std::move(token_compiler).results};
 }
 

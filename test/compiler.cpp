@@ -87,6 +87,16 @@ TEST_CASE("positional-with-arithmetic-value", "[compiler]") {
         auto const value = out.value().get<option>();
         REQUIRE(value == 10);
     }
+    SECTION("with-integer-value-not-provided") {
+        static constexpr auto option = Positional{.type = tag<int>, .name = "pos-name"_str};
+        static constexpr auto rules = Rules<empty, empty, option>{};
+        auto const tokens = std::array<tokenizer::token_t, 0>{};
+        auto const out = compiler::compile(std::span{tokens}, rules);
+
+        REQUIRE(out.has_value());
+        auto const value = out.value().get<option>();
+        REQUIRE(value == 0);
+    }
 }
 
 TEST_CASE("short-flag-with-vec-value-default", "[compiler]") {

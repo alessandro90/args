@@ -101,9 +101,10 @@ consteval auto operator""_short_flag() -> Opt<char> {
     return Opt<char>::with(X.chars[0]);
 }
 
-template <typename P, std::size_t N = 0, std::size_t M = 0>
+template <std::default_initializable P, std::size_t N = 0, std::size_t M = 0>
 struct [[nodiscard]] Positional {
     Typetag<P> type;
+    bool required{};
     Str<N> name{};
     Str<M> help{};
 
