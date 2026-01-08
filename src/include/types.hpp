@@ -11,7 +11,6 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
-#include "parsers.hpp"
 #include "typetag.hpp"
 
 namespace args {
@@ -52,7 +51,7 @@ struct [[nodiscard]] Str {
         return std::string_view{chars.data()};
     }
 
-    [[nodiscard]] static auto is_empty() -> bool {
+    [[nodiscard]] static constexpr auto is_empty() -> bool {
         return N == 0;
     }
 };
@@ -104,9 +103,9 @@ consteval auto operator""_short_flag() -> Opt<char> {
 template <std::default_initializable P, std::size_t N = 0, std::size_t M = 0>
 struct [[nodiscard]] Positional {
     Typetag<P> type;
-    bool required{};
     Str<N> name{};
     Str<M> help{};
+    bool required{};
 
     static constexpr bool is_spec = true;
     using value_t = P;
@@ -211,6 +210,7 @@ using result_type_t = decltype(result_type<typename decltype(S)::value_t>());
 struct [[nodiscard]] PositionalHelp {
     std::string_view name{};
     std::string_view description{};
+    bool is_required{};
 };
 
 struct [[nodiscard]] PureFlagHelp {
@@ -222,7 +222,6 @@ struct [[nodiscard]] PureFlagHelp {
 struct [[nodiscard]] FlagWithValueHelp {
     std::optional<char> short_name{};
     std::string_view long_name{};
-    std::string type{};  // some types cannot be described at compile time
     std::string_view description{};
 };
 
@@ -235,7 +234,9 @@ auto build_help_data(
     if constexpr (is_positional_v<s_t>) {
         positional.push_back(
             PositionalHelp{
-                .name = S.name.as_string_view(), .description = S.description.as_string_view()});
+                .name = S.name.as_string_view(),
+                .description = S.help.as_string_view(),
+                .is_required = S.required});
     } else if constexpr (is_flag_v<s_t>) {
         auto const short_name =
             S.short_form.has_value ? std::optional{S.short_form.value} : std::optional<char>{};
@@ -243,7 +244,7 @@ auto build_help_data(
             PureFlagHelp{
                 .short_name = short_name,
                 .long_name = S.long_form.as_string_view(),
-                .description = S.description.as_string_view()});
+                .description = S.help.as_string_view()});
     } else if constexpr (is_flag_with_value_v<s_t>) {
         auto const short_name =
             S.short_form.has_value ? std::optional{S.short_form.value} : std::optional<char>{};
@@ -251,21 +252,24 @@ auto build_help_data(
             FlagWithValueHelp{
                 .short_name = short_name,
                 .long_name = S.long_form.as_string_view(),
-                .type = parsers::type_name(tag<result_type_t<S>>),
-                .description = S.description.as_string_view()});
+                .description = S.help.as_string_view()});
     } else {
         static_assert(false, "Invalid spec");
     }
 }
 
-template <Spec auto S, Spec auto... Specs>
+template <Spec auto S1, Spec auto S2, Spec auto... Specs>
 auto build_help_data(
     std::vector<PositionalHelp> &positional,
     std::vector<PureFlagHelp> &pure_flags,
     std::vector<FlagWithValueHelp> &flags_with_value) -> void {
-    build_help_data<S>(positional, pure_flags, flags_with_value);
-    build_help_data<Specs...>(positional, pure_flags, flags_with_value);
+    build_help_data<S1>(positional, pure_flags, flags_with_value);
+    build_help_data<S2, Specs...>(positional, pure_flags, flags_with_value);
 }
+
+auto build_positionals_help(std::string &help, std::vector<PositionalHelp> &positional) -> void;
+auto build_flags_help(std::string &help, std::vector<PureFlagHelp> &flags) -> void;
+auto build_flags_with_value_help(std::string &help, std::vector<FlagWithValueHelp> &flags) -> void;
 
 template <Str Usage, Str Description, Spec auto... Specs>
 [[nodiscard]] static auto make_help() -> std::string {
@@ -299,7 +303,35 @@ template <Str Usage, Str Description, Spec auto... Specs>
 
     build_help_data<Specs...>(positional, pure_flags, flags_with_value);
 
-    return "";
+    auto help = std::string{};
+
+    if constexpr (!Usage.is_empty()) {
+        help += Usage.as_string_view();
+    }
+    if constexpr (!Description.is_empty()) {
+        help += "\n\n";
+        help += Description.as_string_view();
+    }
+
+    if (!positional.empty()) {
+        help += "\n\n";
+        help += "Arguments:\n\n";
+        build_positionals_help(help, positional);
+    }
+
+    if (!pure_flags.empty()) {
+        help += "\n\n";
+        help += "Flags:\n\n";
+        build_flags_help(help, pure_flags);
+    }
+
+    if (!flags_with_value.empty()) {
+        help += "\n\n";
+        build_flags_with_value_help(help, flags_with_value);
+    }
+
+    help.push_back('\n');
+    return help;
 }
 
 }  // namespace detail

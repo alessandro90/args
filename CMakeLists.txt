@@ -53,6 +53,7 @@ check_ipo_supported(RESULT supported OUTPUT error)
 add_library(cpp_args STATIC
 	src/cpp_args.cpp
 	src/tokenizer.cpp
+	src/types.cpp
 )
 
 if( supported )
