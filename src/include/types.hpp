@@ -28,6 +28,8 @@ struct [[nodiscard]] Opt {
     static consteval auto with(T value) -> Opt {
         return Opt{.has_value = true, .value = value};
     }
+
+    [[nodiscard]] constexpr auto operator==(Opt const &) const -> bool = default;
 };
 
 consteval auto short_form(char c) -> Opt<char> {
@@ -172,22 +174,44 @@ template <Spec auto S1, Spec auto... Ss>
     }
 }
 
-[[nodiscard]] constexpr auto is_valid_char(char c) -> bool {
-    return c >= 'a' && c <= 'z';
+[[nodiscard]] constexpr auto is_valid_first_char(char c) -> bool {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
 };
+
+[[nodiscard]] constexpr auto is_valid_non_first_char(char c) -> bool {
+    return (is_valid_first_char(c) || (c >= '0' && c <= '9')) || c == '-' || c == '_';
+};
+
+[[nodiscard]] constexpr auto is_valid_name(std::string_view name) -> bool {
+    if (name.empty()) {
+        return false;
+    }
+    if (!is_valid_first_char(name[0])) {
+        return false;
+    }
+    if (name.size() == 1) {
+        return true;
+    }
+    for (auto i = 1uz; i < name.size(); ++i) {
+        if (!is_valid_non_first_char(name[i])) {
+            return false;
+        }
+    }
+    return true;
+}
 
 template <Spec auto S1, Spec auto... Ss>
 [[nodiscard]] consteval auto check_valid_names() -> bool {
     if constexpr (!IsAFlag<S1>) {
         return true;
     } else {
-        if (!is_valid_char(S1.long_form.chars[0])) {
+        if (!is_valid_name(S1.long_form.as_string_view())) {
             return false;
         }
         if (!S1.short_form.has_value) {
             return true;
         }
-        if (!is_valid_char(S1.short_form.value)) {
+        if (!is_valid_first_char(S1.short_form.value)) {
             return false;
         }
         if constexpr (sizeof...(Ss) > 0) {
@@ -213,23 +237,18 @@ struct [[nodiscard]] PositionalHelp {
     bool is_required{};
 };
 
-struct [[nodiscard]] PureFlagHelp {
+struct [[nodiscard]] FlagHelp {
     std::optional<char> short_name{};
     std::string_view long_name{};
     std::string_view description{};
-};
-
-struct [[nodiscard]] FlagWithValueHelp {
-    std::optional<char> short_name{};
-    std::string_view long_name{};
-    std::string_view description{};
+    bool is_required{};
 };
 
 template <Spec auto S>
 auto build_help_data(
     std::vector<PositionalHelp> &positional,
-    std::vector<PureFlagHelp> &pure_flags,
-    std::vector<FlagWithValueHelp> &flags_with_value) -> void {
+    std::vector<FlagHelp> &pure_flags,  // NOLINT(bugprone-easily-swappable-parameters)
+    std::vector<FlagHelp> &flags_with_value) -> void {
     using s_t = decltype(S);
     if constexpr (is_positional_v<s_t>) {
         positional.push_back(
@@ -241,18 +260,20 @@ auto build_help_data(
         auto const short_name =
             S.short_form.has_value ? std::optional{S.short_form.value} : std::optional<char>{};
         pure_flags.push_back(
-            PureFlagHelp{
+            FlagHelp{
                 .short_name = short_name,
                 .long_name = S.long_form.as_string_view(),
-                .description = S.help.as_string_view()});
+                .description = S.help.as_string_view(),
+                .is_required = S.required});
     } else if constexpr (is_flag_with_value_v<s_t>) {
         auto const short_name =
             S.short_form.has_value ? std::optional{S.short_form.value} : std::optional<char>{};
         flags_with_value.push_back(
-            FlagWithValueHelp{
+            FlagHelp{
                 .short_name = short_name,
                 .long_name = S.long_form.as_string_view(),
-                .description = S.help.as_string_view()});
+                .description = S.help.as_string_view(),
+                .is_required = S.required});
     } else {
         static_assert(false, "Invalid spec");
     }
@@ -261,45 +282,20 @@ auto build_help_data(
 template <Spec auto S1, Spec auto S2, Spec auto... Specs>
 auto build_help_data(
     std::vector<PositionalHelp> &positional,
-    std::vector<PureFlagHelp> &pure_flags,
-    std::vector<FlagWithValueHelp> &flags_with_value) -> void {
+    std::vector<FlagHelp> &pure_flags,
+    std::vector<FlagHelp> &flags_with_value) -> void {
     build_help_data<S1>(positional, pure_flags, flags_with_value);
     build_help_data<S2, Specs...>(positional, pure_flags, flags_with_value);
 }
 
 auto build_positionals_help(std::string &help, std::vector<PositionalHelp> &positional) -> void;
-auto build_flags_help(std::string &help, std::vector<PureFlagHelp> &flags) -> void;
-auto build_flags_with_value_help(std::string &help, std::vector<FlagWithValueHelp> &flags) -> void;
+auto build_flags_help(std::string &help, std::vector<FlagHelp> &flags) -> void;
 
 template <Str Usage, Str Description, Spec auto... Specs>
 [[nodiscard]] static auto make_help() -> std::string {
-    // First part: build the structs above
-    // Second part: create final string
-    //
-    // NOTE: will need padding to align all descriptions
-    //
-    // Something like this
-    //
-    // Usage: usage string (provided as extra arg to rules?)
-    //
-    // Description string (optional, may not be provided)
-    //
-    // Arguments:
-    //
-    // arg_name (or index like #1 if not provided)  description (if provided)
-    //
-    // Flags:
-    //
-    // short_name (if provided), long_name description
-    //
-    // Flags with values:
-    //
-    // short_name (if provided), long_name <type> description (may include possible values
-    // allowed?)
-    // TODO:
     std::vector<PositionalHelp> positional{};
-    std::vector<PureFlagHelp> pure_flags{};
-    std::vector<FlagWithValueHelp> flags_with_value{};
+    std::vector<FlagHelp> pure_flags{};
+    std::vector<FlagHelp> flags_with_value{};
 
     build_help_data<Specs...>(positional, pure_flags, flags_with_value);
 
@@ -327,7 +323,7 @@ template <Str Usage, Str Description, Spec auto... Specs>
 
     if (!flags_with_value.empty()) {
         help += "\n\n";
-        build_flags_with_value_help(help, flags_with_value);
+        build_flags_help(help, flags_with_value);
     }
 
     help.push_back('\n');

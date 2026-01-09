@@ -2,7 +2,6 @@
 // readability-function-congnitive-complexity)
 #include "include/compiler.hpp"
 #include <array>
-#include <print>
 #include <span>
 #include <vector>
 #include "catch2/catch_test_macros.hpp"
@@ -113,21 +112,6 @@ TEST_CASE("short-flag-with-vec-value-default", "[compiler]") {
     REQUIRE(out.has_value());
     auto const &value = out.value().get<option>();
     REQUIRE(value == std::vector{1, 2, 3});
-}
-
-TEST_CASE("help-message", "[compiler]") {
-    static constexpr auto option_1 = Positional{
-        .type = tag<int>,
-        .name = "pos-name"_str,
-        .help = "this is just a help message"_str,
-        .required = true};
-    static constexpr auto option_2 =
-        Positional{.type = tag<float>, .help = "Description of second var"_str};
-    static constexpr auto option_3 =
-        Positional{.type = tag<float>, .name = "a much longer name"_str};
-    static constexpr auto rules =
-        Rules<"app arg_1"_str, "Description of the app"_str, option_1, option_2, option_3>{};
-    std::println("{}", rules.help());
 }
 
 // NOLINTEND(cppcoreguidelines-avoid-do-while, misc-use-anonymous-namespace,
