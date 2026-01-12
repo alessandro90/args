@@ -148,10 +148,6 @@ struct [[nodiscard]] TokenCompiler {
                     }
                     ++m_current_positional_index;
                     try_parse_argument(argument, item, error);
-                    // if (error.has_value()) {
-                    //     return false;
-                    // }
-                    // return true;
                     return !error.has_value();
                 };
 
@@ -321,11 +317,13 @@ private:
 };
 
 template <Spec auto... Specs>
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 [[nodiscard]] auto verify_required_args(std::tuple<ArgValue<Specs>...> const &results)
     -> std::vector<std::string> {
     // NOTE: an empty vec (meaning no errors) does not allocate, so we are good
     auto v = std::vector<std::string>{};
     std::size_t positional_argument_count = 0;
+    // NOLINTNEXTLINE(readability-function-cognitive-complexity)
     [&]<std::size_t... Is>(std::index_sequence<Is...>) {
         (..., [&]() {
             auto const &r = std::get<Is>(results);

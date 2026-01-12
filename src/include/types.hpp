@@ -328,7 +328,12 @@ struct [[nodiscard]] Rules {
     }
 };
 
-template <std::size_t N, std::size_t M, Str Usage, Str Description, Spec auto... Specs>
+template <
+    std::size_t N,
+    std::size_t M = 0,
+    Str Usage = empty,
+    Str Description = empty,
+    Spec auto... Specs>
 struct [[nodiscard]] Subcommand {
     Str<N> name{};
     Str<M> help{};
@@ -423,9 +428,37 @@ struct [[nodiscard]] SubcommandArgValue {
 };
 
 template <Spec auto S>
-struct [[nodiscard]] ArgValue
+struct ArgValue
     : std::conditional_t<is_subcommand_v<decltype(S)>, SubcommandArgValue<S>, CommandArgValue<S>> {
 };
+
+namespace detail {
+template <Spec auto S, Spec auto... Ss>
+struct GetRet {
+    using type = std::conditional_t<
+        is_subcommand_v<decltype(S)>,
+        typename GetRet<Ss...>::type,
+        result_type_t<S>>;
+};
+
+template <Spec auto S>
+struct GetRet<S> {
+    using type = result_type_t<S>;
+};
+
+template <template <auto> typename R, Spec auto S, Spec auto... Ss>
+struct GetWithInfoRet {
+    using type = std::conditional_t<
+        is_subcommand_v<decltype(S)>,
+        typename GetWithInfoRet<R, Ss...>::type,
+        R<S>>;
+};
+
+template <template <auto> typename R, Spec auto S>
+struct GetWithInfoRet<R, S> {
+    using type = R<S>;
+};
+}  // namespace detail
 
 template <Spec auto... Specs>
 class [[nodiscard]] Args {
@@ -446,15 +479,28 @@ public:
     }
 
     template <Spec auto Sb, Spec auto S>
-    requires is_subcommand_v<decltype(Sb)>
+    requires(is_subcommand_v<decltype(Sb)> && !is_subcommand_v<decltype(S)>)
+    [[nodiscard]] constexpr auto get_with_info() const -> ArgValue<S> const & {
+        return get_with_info<Sb>().subcommands.template get_with_info<S>();
+    }
+
+    template <Spec auto Sb, Spec auto S>
+    requires(is_subcommand_v<decltype(Sb)> && !is_subcommand_v<decltype(S)>)
     [[nodiscard]] constexpr auto get() const -> detail::result_type_t<S> const & {
         return get_with_info<Sb>().subcommands.template get<S>();
     }
 
-    template <Spec auto Sb, Spec auto S>
-    requires is_subcommand_v<decltype(Sb)>
-    [[nodiscard]] constexpr auto get_with_info() const -> ArgValue<S> const & {
-        return get_with_info<Sb>().subcommands.template get_with_info<S>();
+    template <Spec auto Sb, Spec auto S, Spec auto... Ss>
+    requires(is_subcommand_v<decltype(Sb)> && is_subcommand_v<decltype(S)> && sizeof...(Ss) > 0)
+    [[nodiscard]] constexpr auto get() const -> detail::GetRet<Ss...>::type const & {
+        return get_with_info<Sb>().subcommands.template get<S, Ss...>();
+    }
+
+    template <Spec auto Sb, Spec auto S, Spec auto... Ss>
+    requires(is_subcommand_v<decltype(Sb)> && is_subcommand_v<decltype(S)> && sizeof...(Ss) > 0)
+    [[nodiscard]] constexpr auto get_with_info() const
+        -> detail::GetWithInfoRet<ArgValue, Ss...>::type const & {
+        return get_with_info<Sb>().subcommands.template get_with_info<S, Ss...>();
     }
 
 private:

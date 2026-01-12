@@ -132,5 +132,26 @@ TEST_CASE("subcommand", "[compiler]") {
     REQUIRE(value == 10);
 }
 
+TEST_CASE("subcommand-nested", "[compiler]") {
+    static constexpr auto argument =
+        Positional{.type = tag<int>, .name = "pos-name"_str, .required = true};
+    static constexpr auto nested_rules = Rules<empty, empty, argument>{};
+    static constexpr auto nested_subcommand =
+        Subcommand{.name = "nested-command"_str, .rules = nested_rules};
+    static constexpr auto subcommand = Subcommand{
+        .name = "subcommand-name"_str, .rules = Rules<empty, empty, nested_subcommand>{}};
+    static constexpr auto rules = Rules<empty, empty, subcommand>{};
+
+    auto const tokens = std::array{
+        tokenizer::token_t{tokenizer::Argument{.value = "subcommand-name"}},
+        tokenizer::token_t{tokenizer::Argument{.value = "nested-command"}},
+        tokenizer::token_t{tokenizer::Argument{.value = "10"}}};
+    auto const out = compiler::compile(std::span{tokens}, rules);
+
+    REQUIRE(out.has_value());
+    auto const value = out.value().get_with_info<subcommand, nested_subcommand, argument>().value;
+    REQUIRE(value == 10);
+}
+
 // NOLINTEND(cppcoreguidelines-avoid-do-while, misc-use-anonymous-namespace,
 // readability-function-congnitive-complexity)
