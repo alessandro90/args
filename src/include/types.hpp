@@ -201,26 +201,7 @@ template <Spec auto S1, Spec auto... Ss>
 }
 
 template <Spec auto S1, Spec auto... Ss>
-[[nodiscard]] consteval auto check_valid_names() -> bool {
-    if constexpr (!IsAFlag<S1>) {
-        return true;
-    } else {
-        if (!is_valid_name(S1.long_form.as_string_view())) {
-            return false;
-        }
-        if (!S1.short_form.has_value) {
-            return true;
-        }
-        if (!is_valid_first_char(S1.short_form.value)) {
-            return false;
-        }
-        if constexpr (sizeof...(Ss) > 0) {
-            return check_valid_names<Ss...>();
-        } else {
-            return true;
-        }
-    }
-}
+[[nodiscard]] consteval auto check_valid_names() -> bool;
 
 template <typename T>
 consteval auto result_type() -> std::remove_cvref_t<T>;
@@ -347,7 +328,52 @@ struct [[nodiscard]] Rules {
     }
 };
 
+template <std::size_t N, std::size_t M, Str Usage, Str Description, Spec auto... Specs>
+struct [[nodiscard]] Subcommand {
+    Str<N> name{};
+    Str<M> help{};
+    Rules<Usage, Description, Specs...> rules{};
+
+    static constexpr bool is_spec = true;
+    using value_t = decltype([]() {
+        return std::string_view{};
+    });
+};
+
+template <typename>
+struct IsSubcommand: std::false_type {};
+
+template <std::size_t N, std::size_t M, Str Usage, Str Description, Spec auto... Specs>
+struct IsSubcommand<Subcommand<N, M, Usage, Description, Specs...>>: std::true_type {};
+
+template <Spec S>
+inline constexpr bool is_subcommand_v = IsSubcommand<std::remove_cvref_t<S>>::value;
+
 namespace detail {
+template <Spec auto S1, Spec auto... Ss>
+[[nodiscard]] consteval auto check_valid_names() -> bool {
+    if constexpr (is_subcommand_v<decltype(S1)>) {
+        if (!is_valid_name(S1.name.as_string_view())) {
+            return false;
+        }
+    }
+    if constexpr (IsAFlag<S1>) {
+        if (!is_valid_name(S1.long_form.as_string_view())) {
+            return false;
+        }
+        if (!S1.short_form.has_value) {
+            return true;
+        }
+        if (!is_valid_first_char(S1.short_form.value)) {
+            return false;
+        }
+    }
+    if constexpr (sizeof...(Ss) > 0) {
+        return check_valid_names<Ss...>();
+    } else {
+        return true;
+    }
+}
 
 template <Spec auto S>
 [[nodiscard]] auto default_arg_value() {
@@ -356,9 +382,7 @@ template <Spec auto S>
     } else if constexpr (requires { S.default_value; }) {
         return S.default_value;
     } else {
-        // this is the case for positional arguments. They have no default,
-        // but we need a default anyway, so if the builder is a function returning
-        // a vector, we just create an empty vector
+        // this is the case for positional arguments.
         return result_type_t<S>{};
     }
 }
@@ -373,10 +397,34 @@ template <typename T, auto... Args>
 using lazy_t = decltype(Lazy<T, Args...>);
 
 template <Spec auto S>
-struct [[nodiscard]] ArgValue {
+struct [[nodiscard]] CommandArgValue {
     detail::result_type_t<S> value{detail::default_arg_value<S>()};
     bool is_used{false};
     static constexpr auto spec = S;
+};
+
+template <Spec auto... Specs>
+class [[nodiscard]] Args;
+
+template <typename>
+struct ArgsFromSubCommand {};
+
+template <std::size_t N, std::size_t M, Str Usage, Str Description, Spec auto... Specs>
+struct ArgsFromSubCommand<Subcommand<N, M, Usage, Description, Specs...>> {
+    using args_t = Args<Specs...>;
+};
+
+template <Spec auto S>
+struct [[nodiscard]] SubcommandArgValue {
+    detail::result_type_t<S> value{detail::default_arg_value<S>()};
+    bool is_used{false};
+    ArgsFromSubCommand<decltype(S)>::args_t subcommands{};
+    static constexpr auto spec = S;
+};
+
+template <Spec auto S>
+struct [[nodiscard]] ArgValue
+    : std::conditional_t<is_subcommand_v<decltype(S)>, SubcommandArgValue<S>, CommandArgValue<S>> {
 };
 
 template <Spec auto... Specs>
@@ -384,6 +432,8 @@ class [[nodiscard]] Args {
 public:
     explicit Args(std::tuple<ArgValue<Specs>...> results)
         : m_results{std::move(results)} {}
+
+    explicit Args() = default;
 
     template <Spec auto S>
     [[nodiscard]] constexpr auto get_with_info() const -> ArgValue<S> const & {
@@ -395,8 +445,20 @@ public:
         return get_with_info<S>().value;
     }
 
+    template <Spec auto Sb, Spec auto S>
+    requires is_subcommand_v<decltype(Sb)>
+    [[nodiscard]] constexpr auto get() const -> detail::result_type_t<S> const & {
+        return get_with_info<Sb>().subcommands.template get<S>();
+    }
+
+    template <Spec auto Sb, Spec auto S>
+    requires is_subcommand_v<decltype(Sb)>
+    [[nodiscard]] constexpr auto get_with_info() const -> ArgValue<S> const & {
+        return get_with_info<Sb>().subcommands.template get_with_info<S>();
+    }
+
 private:
-    std::tuple<ArgValue<Specs>...> m_results;
+    std::tuple<ArgValue<Specs>...> m_results{};
 };
 
 }  // namespace args

@@ -38,6 +38,9 @@ concept ALongFlagWithValue = Spec<decltype(S)> && is_flag_with_value_v<decltype(
 template <auto S>
 concept APositional = Spec<decltype(S)> && is_positional_v<decltype(S)>;
 
+template <auto S>
+concept ASubcommand = Spec<decltype(S)> && is_subcommand_v<decltype(S)>;
+
 struct [[nodiscard]] ParsingShortFlag {
     tokenizer::ShortFlag short_flag;
 };
@@ -135,7 +138,8 @@ struct [[nodiscard]] TokenCompiler {
         auto compile_argument = Overload{
             [&](std::monostate) -> std::optional<std::string> {
                 auto error = std::optional<std::string>{};
-                auto const handler = [&, counter = 0uz]<Spec auto S>(ArgValue<S> &item) mutable
+                auto const positional_handler =
+                    [&, counter = 0uz]<Spec auto S>(ArgValue<S> &item) mutable
                     requires detail::APositional<S>
                 {
                     if (counter != m_current_positional_index) {
@@ -144,10 +148,34 @@ struct [[nodiscard]] TokenCompiler {
                     }
                     ++m_current_positional_index;
                     try_parse_argument(argument, item, error);
+                    // if (error.has_value()) {
+                    //     return false;
+                    // }
+                    // return true;
+                    return !error.has_value();
+                };
+
+                auto const subcommand_handler =
+                    [&]<Spec auto S>(ArgValue<S> &item, std::size_t tuple_index) mutable
+                    requires detail::ASubcommand<S>
+                {
+                    if (m_current_positional_index != 0) {
+                        return false;
+                    }
+                    auto cloned_item = auto{item};
+                    try_parse_argument(argument, cloned_item, error);
+                    if (error.has_value()) {
+                        return false;
+                    }
+                    if (cloned_item.value != S.name.as_string_view()) {
+                        return false;
+                    }
+                    item = cloned_item;
+                    m_subcommand_tuple_index = tuple_index;
                     return true;
                 };
 
-                if (!handle_token(handler)) {
+                if (!handle_token(subcommand_handler) && !handle_token(positional_handler)) {
                     return std::format(
                         "Cannot find match for positional argument number: '{}'",
                         m_current_positional_index);
@@ -210,6 +238,41 @@ struct [[nodiscard]] TokenCompiler {
         return std::visit(state_checker, m_compiler_state);
     }
 
+    template <typename Compiler, std::size_t Extent>
+    [[nodiscard]] constexpr auto compile_subcommand(
+        std::span<tokenizer::token_t const, Extent> tokens,
+        Compiler compiler,
+        std::size_t subcommand_tuple_index) -> std::optional<std::string> {
+        std::optional<std::string> error{};
+        auto const handled = [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+            return (... || [&]() {  // 'or' will execute until the first 'true'
+                if (Is != subcommand_tuple_index) {
+                    return false;
+                }
+                using arg_value_t = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
+                if constexpr (is_subcommand_v<decltype(arg_value_t::spec)>) {
+                    auto &subcommand = std::get<Is>(results);
+                    auto subcommand_result = compiler(tokens, arg_value_t::spec.rules);
+                    if (subcommand_result.has_value()) {
+                        subcommand.subcommands = std::move(subcommand_result).value();
+                    } else {
+                        error = std::move(subcommand_result).error();
+                    }
+                    return true;
+                }
+                return false;
+            }());
+        }(std::make_index_sequence<sizeof...(Specs)>());
+        if (!handled) {
+            return "Cannot found subcommand";
+        }
+        return error;
+    }
+
+    [[nodiscard]] auto subcommand_index() -> std::optional<std::size_t> {
+        return m_subcommand_tuple_index;
+    }
+
 private:
     template <typename Handler>
     [[nodiscard]] auto handle_token(Handler handler) -> bool {
@@ -217,8 +280,9 @@ private:
             return (... || [&]() {  // 'or' will execute until the first 'true'
                 using arg_type_t = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
                 if constexpr (std::is_invocable_v<Handler, arg_type_t &>) {
-                    auto &item = std::get<Is>(results);
-                    return handler(item);
+                    return handler(std::get<Is>(results));
+                } else if constexpr (std::is_invocable_v<Handler, arg_type_t &, std::size_t>) {
+                    return handler(std::get<Is>(results), Is);
                 } else {
                     return false;  // not callable, keep looping
                 }
@@ -253,6 +317,7 @@ private:
 
     std::variant<std::monostate, ParsingShortFlag, ParsingLongFlag> m_compiler_state{};
     std::size_t m_current_positional_index{};
+    std::optional<std::size_t> m_subcommand_tuple_index{};
 };
 
 template <Spec auto... Specs>
@@ -260,28 +325,33 @@ template <Spec auto... Specs>
     -> std::vector<std::string> {
     // NOTE: an empty vec (meaning no errors) does not allocate, so we are good
     auto v = std::vector<std::string>{};
+    std::size_t positional_argument_count = 0;
     [&]<std::size_t... Is>(std::index_sequence<Is...>) {
         (..., [&]() {
             auto const &r = std::get<Is>(results);
             using arg_type_t = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
-            std::size_t positional_argument_count = 0;
-            if constexpr (is_positional_v<decltype(arg_type_t::spec)>) {
-                ++positional_argument_count;
-                if (!r.is_used && arg_type_t::spec.required) {
-                    v.push_back(
-                        std::format(
-                            "Missing positional argument number {}", positional_argument_count));
-                }
-            } else if constexpr (
-                args::detail::IsAFlag<arg_type_t::spec> && arg_type_t::spec.required) {
-                if (!r.is_used) {
-                    auto err = std::format(
-                        "Missing required flag. Long form: '{}'.",
-                        arg_type_t::spec.long_form.as_string_view());
-                    if (arg_type_t::spec.short_form.has_value) {
-                        err += std::format(" Short form: '{}'.", arg_type_t::spec.short_form.value);
+            if constexpr (!is_subcommand_v<decltype(arg_type_t::spec)>) {
+                if constexpr (is_positional_v<decltype(arg_type_t::spec)>) {
+                    ++positional_argument_count;
+                    if (!r.is_used && arg_type_t::spec.required) {
+                        v.push_back(
+                            std::format(
+                                "Missing positional argument number {}",
+                                positional_argument_count));
                     }
-                    v.push_back(std::move(err));
+                } else if constexpr (args::detail::IsAFlag<arg_type_t::spec>) {
+                    if constexpr (arg_type_t::spec.required) {
+                        if (!r.is_used) {
+                            auto err = std::format(
+                                "Missing required flag. Long form: '{}'.",
+                                arg_type_t::spec.long_form.as_string_view());
+                            if (arg_type_t::spec.short_form.has_value) {
+                                err += std::format(
+                                    " Short form: '{}'.", arg_type_t::spec.short_form.value);
+                            }
+                            v.push_back(std::move(err));
+                        }
+                    }
                 }
             }
         }());
@@ -304,9 +374,11 @@ auto assign_defaults_to_unused(std::tuple<ArgValue<Specs>...> &results) -> void 
                 if (!r.is_used) {
                     r.value = arg_type_t::spec.default_value();
                 }
-            } else if constexpr (is_positional_v<S_t> && !arg_type_t::spec.required) {
-                if (!r.is_used) {
-                    r.value = typename S_t::value_t{};
+            } else if constexpr (is_positional_v<S_t>) {
+                if constexpr (!arg_type_t::spec.required) {
+                    if (!r.is_used) {
+                        r.value = typename S_t::value_t{};
+                    }
                 }
             }
         }());
@@ -320,10 +392,26 @@ template <std::size_t Extent, Str Usage, Str Description, Spec auto... Specs>
     std::span<tokenizer::token_t const, Extent> tokens, Rules<Usage, Description, Specs...>)
     -> std::expected<Args<Specs...>, std::string> {
     auto token_compiler = detail::TokenCompiler<Specs...>{};
-    for (auto const token : tokens) {
+    for (auto const [index, token] : std::views::enumerate(tokens)) {
         auto err_msg = std::visit(token_compiler, token);
         if (err_msg.has_value()) {
             return std::unexpected(std::move(err_msg).value());
+        }
+        if (token_compiler.subcommand_index().has_value()) {
+            if (tokens.size() <= static_cast<std::size_t>(index)) {
+                return std::unexpected("Missing tokens to parse subcommand");
+            }
+            auto failed_subcommand = token_compiler.compile_subcommand(
+                tokens.subspan(static_cast<std::size_t>(index + 1)),
+                []<std::size_t
+                       SpanExtent>(std::span<tokenizer::token_t const, SpanExtent> tks, auto rs) {
+                    return compile(tks, rs);
+                },
+                token_compiler.subcommand_index().value());
+            if (failed_subcommand.has_value()) {
+                return std::unexpected(std::move(failed_subcommand).value());
+            }
+            break;
         }
     }
     auto state_error = token_compiler.check_correct_final_state();

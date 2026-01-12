@@ -19,6 +19,12 @@ struct IsVector: std::false_type {};
 
 template <typename T>
 struct IsVector<std::vector<T>>: std::true_type {};
+
+template <typename T>
+struct IsStringView: std::false_type {};
+
+template <>
+struct IsStringView<std::string_view>: std::true_type {};
 }  // namespace details
 
 consteval auto type_name(Typetag<float>) -> std::string_view {
@@ -61,6 +67,10 @@ consteval auto type_name(Typetag<std::int64_t>) -> std::string_view {
     return "i64";
 }
 
+consteval auto type_name(Typetag<std::string_view>) -> std::string_view {
+    return "str";
+}
+
 template <typename T>
 auto type_name(Typetag<std::vector<T>>) -> std::string {
     return std::format("[{}]", type_name(Typetag<T>{}));
@@ -82,6 +92,12 @@ requires details::IsVector<Out>::value
 [[nodiscard]] auto parse(It, It) -> std::optional<Out> {
     // TODO:
     return {};
+}
+
+template <typename Out, typename It>
+requires details::IsStringView<Out>::value
+[[nodiscard]] auto parse(It begin, It end) -> std::optional<Out> {
+    return std::string_view(begin, end);
 }
 }  // namespace args::parsers
 #endif

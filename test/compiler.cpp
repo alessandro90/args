@@ -114,5 +114,23 @@ TEST_CASE("short-flag-with-vec-value-default", "[compiler]") {
     REQUIRE(value == std::vector{1, 2, 3});
 }
 
+TEST_CASE("subcommand", "[compiler]") {
+    static constexpr auto suboption =
+        Positional{.type = tag<int>, .name = "pos-name"_str, .required = true};
+    static constexpr auto sub_rules = Rules<empty, empty, suboption>{};
+    static constexpr auto option = Subcommand{
+        .name = "subcommand-name"_str, .help = "help message for value"_str, .rules = sub_rules};
+    static constexpr auto rules = Rules<empty, empty, option>{};
+
+    auto const tokens = std::array{
+        tokenizer::token_t{tokenizer::Argument{.value = "subcommand-name"}},
+        tokenizer::token_t{tokenizer::Argument{.value = "10"}}};
+    auto const out = compiler::compile(std::span{tokens}, rules);
+
+    REQUIRE(out.has_value());
+    auto const value = out.value().get<option, suboption>();
+    REQUIRE(value == 10);
+}
+
 // NOLINTEND(cppcoreguidelines-avoid-do-while, misc-use-anonymous-namespace,
 // readability-function-congnitive-complexity)
