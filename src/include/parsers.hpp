@@ -12,29 +12,10 @@
 #include <string_view>
 #include <type_traits>
 #include <vector>
+#include "type_helpers.hpp"
 #include "typetag.hpp"
 
 namespace args::parsers {
-
-namespace details {
-template <typename T>
-struct IsVector: std::false_type {};
-
-template <typename T>
-struct IsVector<std::vector<T>>: std::true_type {};
-
-template <typename T>
-struct IsStringView: std::false_type {};
-
-template <>
-struct IsStringView<std::string_view>: std::true_type {};
-
-template <typename T>
-struct IsString: std::false_type {};
-
-template <>
-struct IsString<std::string>: std::true_type {};
-}  // namespace details
 
 [[nodiscard]] consteval auto type_name(Typetag<float>) -> std::string_view {
     return "float";
@@ -101,13 +82,13 @@ requires std::is_arithmetic_v<Out>
 }
 
 template <typename Out, typename It>
-requires details::IsStringView<Out>::value
+requires detail::IsStringView<Out>::value
 [[nodiscard]] auto parse(It begin, It end) -> std::optional<Out> {
     return std::string_view(begin, end);
 }
 
 template <typename Out, typename It>
-requires details::IsString<Out>::value
+requires detail::IsString<Out>::value
 [[nodiscard]] auto parse(It begin, It end) -> std::optional<Out> {
     return std::string(begin, end);
 }
@@ -173,7 +154,7 @@ template <typename Out, typename It>
 }  // namespace detail
 
 template <typename Out, typename It>
-requires details::IsVector<Out>::value
+requires args::detail::IsVector<Out>::value
 [[nodiscard]] auto parse(It begin, It end) -> std::optional<Out> {
     if (begin == end || *begin == ',') {
         return {};

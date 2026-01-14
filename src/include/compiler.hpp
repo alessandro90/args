@@ -54,6 +54,18 @@ struct [[nodiscard]] Overload: F... {
     using F::operator()...;
 };
 
+template <Spec auto S>
+requires args::detail::PositionalVariadic<S>
+auto assign_parsed_value(ArgValue<S> &item, args::detail::parse_type_t<S> value) -> void {
+    item.value.push_back(std::move(value));
+}
+
+template <Spec auto S>
+requires(!args::detail::is_positional_variadic_v<S>)
+auto assign_parsed_value(ArgValue<S> &item, args::detail::parse_type_t<S> value) -> void {
+    item.value = std::move(value);
+}
+
 template <Spec auto... Specs>
 struct [[nodiscard]] TokenCompiler {
     std::tuple<ArgValue<Specs>...> results{};
@@ -142,11 +154,13 @@ struct [[nodiscard]] TokenCompiler {
                     [&, counter = 0uz]<Spec auto S>(ArgValue<S> &item) mutable
                     requires detail::APositional<S>
                 {
-                    if (counter != m_current_positional_index) {
-                        ++counter;
-                        return false;
+                    if constexpr (!S.variadic) {
+                        if (counter != m_current_positional_index) {
+                            ++counter;
+                            return false;
+                        }
+                        ++m_current_positional_index;
                     }
-                    ++m_current_positional_index;
                     try_parse_argument(argument, item, error);
                     return !error.has_value();
                 };
@@ -286,16 +300,17 @@ private:
         }(std::make_index_sequence<sizeof...(Specs)>());
     }
 
-    template <Spec auto S>
+    template <auto S>
+    requires Spec<decltype(S)>
     auto try_parse_argument(
         tokenizer::Argument argument, ArgValue<S> &item, std::optional<std::string> &error)
         -> void {
         using namespace args::detail;
         auto parsed_value =
-            parsers::parse<result_type_t<S>>(argument.value.begin(), argument.value.end());
+            parsers::parse<parse_type_t<S>>(argument.value.begin(), argument.value.end());
         if (parsed_value.has_value()) {
             item.is_used = true;
-            item.value = std::move(parsed_value).value();
+            assign_parsed_value(item, std::move(parsed_value).value());
             m_compiler_state = std::monostate{};
             return;
         }
@@ -371,12 +386,6 @@ auto assign_defaults_to_unused(std::tuple<ArgValue<Specs>...> &results) -> void 
             if constexpr (is_flag_with_value_v<S_t> && std::is_invocable_v<typename S_t::value_t>) {
                 if (!r.is_used) {
                     r.value = arg_type_t::spec.default_value();
-                }
-            } else if constexpr (is_positional_v<S_t>) {
-                if constexpr (!arg_type_t::spec.required) {
-                    if (!r.is_used) {
-                        r.value = typename S_t::value_t{};
-                    }
                 }
             }
         }());

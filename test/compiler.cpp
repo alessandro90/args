@@ -153,5 +153,20 @@ TEST_CASE("subcommand-nested", "[compiler]") {
     REQUIRE(value == 10);
 }
 
+TEST_CASE("positional", "[compiler]") {
+    static constexpr auto option =
+        Positional{.type = tag<vec_t<int>>, .name = "pos-name"_str, .variadic = true};
+    static constexpr auto rules = Rules<empty, empty, option>{};
+    auto const tokens = std::array{
+        tokenizer::token_t{tokenizer::Argument{.value = "1"}},
+        tokenizer::token_t{tokenizer::Argument{.value = "10"}},
+        tokenizer::token_t{tokenizer::Argument{.value = "100"}}};
+    auto const out = compiler::compile(std::span{tokens}, rules);
+
+    REQUIRE(out.has_value());
+    auto const value = out.value().get<option>();
+    REQUIRE(value == std::vector{1, 10, 100});
+}
+
 // NOLINTEND(cppcoreguidelines-avoid-do-while, misc-use-anonymous-namespace,
 // readability-function-congnitive-complexity)
