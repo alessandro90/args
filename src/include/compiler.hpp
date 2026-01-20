@@ -21,25 +21,23 @@ namespace args::compiler {
 namespace detail {
 
 template <auto S>
-concept AShortFlag = Spec<decltype(S)> && S.short_form.has_value
-                     && is_flag_v<decltype(S)> && !is_flag_with_value_v<decltype(S)>;
+concept AShortFlag =
+    S.short_form.has_value && is_flag_v<decltype(S)> && !is_flag_with_value_v<decltype(S)>;
 
 template <auto S>
-concept AShortFlagWithValue =
-    Spec<decltype(S)> && S.short_form.has_value && is_flag_with_value_v<decltype(S)>;
+concept AShortFlagWithValue = S.short_form.has_value && is_flag_with_value_v<decltype(S)>;
 
 template <auto S>
-concept ALongFlag =
-    Spec<decltype(S)> && is_flag_v<decltype(S)> && !is_flag_with_value_v<decltype(S)>;
+concept ALongFlag = is_flag_v<decltype(S)> && !is_flag_with_value_v<decltype(S)>;
 
 template <auto S>
-concept ALongFlagWithValue = Spec<decltype(S)> && is_flag_with_value_v<decltype(S)>;
+concept ALongFlagWithValue = is_flag_with_value_v<decltype(S)>;
 
 template <auto S>
-concept APositional = Spec<decltype(S)> && is_positional_v<decltype(S)>;
+concept APositional = is_positional_v<decltype(S)>;
 
 template <auto S>
-concept ASubcommand = Spec<decltype(S)> && is_subcommand_v<decltype(S)>;
+concept ASubcommand = is_subcommand_v<decltype(S)>;
 
 struct [[nodiscard]] ParsingShortFlag {
     tokenizer::ShortFlag short_flag;
@@ -54,19 +52,19 @@ struct [[nodiscard]] Overload: F... {
     using F::operator()...;
 };
 
-template <Spec auto S>
+template <auto S>
 requires args::detail::PositionalVariadic<S>
 auto assign_parsed_value(ArgValue<S> &item, args::detail::parse_type_t<S> value) -> void {
     item.value.push_back(std::move(value));
 }
 
-template <Spec auto S>
+template <auto S>
 requires(!args::detail::is_positional_variadic_v<S>)
 auto assign_parsed_value(ArgValue<S> &item, args::detail::parse_type_t<S> value) -> void {
     item.value = std::move(value);
 }
 
-template <Spec auto... Specs>
+template <auto... Specs>
 struct [[nodiscard]] TokenCompiler {
     std::tuple<ArgValue<Specs>...> results{};
 
@@ -74,7 +72,7 @@ struct [[nodiscard]] TokenCompiler {
         if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
             return std::format("Cannot parse short flag: '{}'", short_flag.flag);
         }
-        auto const handler = [this, short_flag]<Spec auto S>(ArgValue<S> &item)
+        auto const handler = [this, short_flag]<auto S>(ArgValue<S> &item)
                                  requires detail::AShortFlag<S>
         {
             if (item.spec.short_form.value != short_flag.flag) {
@@ -85,7 +83,7 @@ struct [[nodiscard]] TokenCompiler {
             return true;
         };
 
-        auto const handler_with_value = [this, short_flag]<Spec auto S>(ArgValue<S> &item)
+        auto const handler_with_value = [this, short_flag]<auto S>(ArgValue<S> &item)
                                             requires detail::AShortFlagWithValue<S>
         {
             if (item.spec.short_form.value != short_flag.flag) {
@@ -105,7 +103,7 @@ struct [[nodiscard]] TokenCompiler {
         if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
             return std::format("Cannot parse long flag: '{}'", long_flag.flag);
         }
-        auto const handler = [this, long_flag]<Spec auto S>(ArgValue<S> &item)
+        auto const handler = [this, long_flag]<auto S>(ArgValue<S> &item)
                                  requires detail::ALongFlag<S>
         {
             if (item.spec.long_form.as_string_view() != long_flag.flag) {
@@ -116,7 +114,7 @@ struct [[nodiscard]] TokenCompiler {
             return true;
         };
 
-        auto const handler_with_value = [this, long_flag]<Spec auto S>(ArgValue<S> &item)
+        auto const handler_with_value = [this, long_flag]<auto S>(ArgValue<S> &item)
                                             requires detail::ALongFlagWithValue<S>
         {
             if (item.spec.long_form.as_string_view() != long_flag.flag) {
@@ -151,7 +149,7 @@ struct [[nodiscard]] TokenCompiler {
             [&](std::monostate) -> std::optional<std::string> {
                 auto error = std::optional<std::string>{};
                 auto const positional_handler =
-                    [&, counter = 0uz]<Spec auto S>(ArgValue<S> &item) mutable
+                    [&, counter = 0uz]<auto S>(ArgValue<S> &item) mutable
                     requires detail::APositional<S>
                 {
                     if constexpr (!S.variadic) {
@@ -166,7 +164,7 @@ struct [[nodiscard]] TokenCompiler {
                 };
 
                 auto const subcommand_handler =
-                    [&]<Spec auto S>(ArgValue<S> &item, std::size_t tuple_index) mutable
+                    [&]<auto S>(ArgValue<S> &item, std::size_t tuple_index) mutable
                     requires detail::ASubcommand<S>
                 {
                     if (m_current_positional_index != 0) {
@@ -194,7 +192,7 @@ struct [[nodiscard]] TokenCompiler {
             },
             [&](ParsingShortFlag short_flag_state) -> std::optional<std::string> {
                 auto error = std::optional<std::string>{};
-                auto const handler = [&]<Spec auto S>(ArgValue<S> &item)
+                auto const handler = [&]<auto S>(ArgValue<S> &item)
                                          requires detail::AShortFlagWithValue<S>
                 {
                     if (item.spec.short_form.value != short_flag_state.short_flag.flag) {
@@ -211,7 +209,7 @@ struct [[nodiscard]] TokenCompiler {
             },
             [&](ParsingLongFlag long_flag_state) -> std::optional<std::string> {
                 auto error = std::optional<std::string>{};
-                auto const handler = [&]<Spec auto S>(ArgValue<S> &item)
+                auto const handler = [&]<auto S>(ArgValue<S> &item)
                                          requires detail::ALongFlagWithValue<S>
 
                 {
@@ -301,7 +299,6 @@ private:
     }
 
     template <auto S>
-    requires Spec<decltype(S)>
     auto try_parse_argument(
         tokenizer::Argument argument, ArgValue<S> &item, std::optional<std::string> &error)
         -> void {
@@ -331,7 +328,7 @@ private:
     std::optional<std::size_t> m_subcommand_tuple_index{};
 };
 
-template <Spec auto... Specs>
+template <auto... Specs>
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 [[nodiscard]] auto verify_required_args(std::tuple<ArgValue<Specs>...> const &results)
     -> std::vector<std::string> {
@@ -376,7 +373,7 @@ template <Spec auto... Specs>
 ///
 /// If the flag was not used, set its value to the result of the invocation
 /// of `default_value`
-template <Spec auto... Specs>
+template <auto... Specs>
 auto assign_defaults_to_unused(std::tuple<ArgValue<Specs>...> &results) -> void {
     [&]<std::size_t... Is>(std::index_sequence<Is...>) {
         (..., [&]() {
@@ -394,7 +391,7 @@ auto assign_defaults_to_unused(std::tuple<ArgValue<Specs>...> &results) -> void 
 
 }  // namespace detail
 
-template <std::size_t Extent, Str Usage, Str Description, Spec auto... Specs>
+template <std::size_t Extent, Str Usage, Str Description, auto... Specs>
 [[nodiscard]] constexpr auto compile(
     std::span<tokenizer::token_t const, Extent> tokens, Rules<Usage, Description, Specs...>)
     -> std::expected<Args<Specs...>, std::string> {

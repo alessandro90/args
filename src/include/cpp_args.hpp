@@ -11,7 +11,7 @@
 
 namespace args {
 
-template <Str Usage, Str Description, Spec auto... Specs>
+template <Str Usage, Str Description, auto... Specs>
 [[nodiscard]] auto try_parse(int argc, char **argv, Rules<Usage, Description, Specs...> rules)
     -> std::expected<Args<Specs...>, std::string> {
     if (argc <= 1) {

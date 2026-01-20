@@ -16,10 +16,6 @@
 
 namespace args {
 
-// Cheap way to define a Spec. Not very sound
-template <typename S>
-concept Spec = S::is_spec;
-
 template <typename T, auto... Args>
 inline constexpr auto Lazy = [] {
     return T{std::move(Args)...};
@@ -90,7 +86,6 @@ struct [[nodiscard]] Flag {
     bool default_value{};
     bool required{};
     Str<M> help{};
-    static constexpr bool is_spec = true;
     using value_t = bool;
 };
 
@@ -102,7 +97,6 @@ struct [[nodiscard]] FlagWithValue {
     V default_value{};
     bool required{};
     Str<M> help{};
-    static constexpr bool is_spec = true;
     using value_t = V;
 };
 
@@ -125,11 +119,10 @@ struct [[nodiscard]] Positional {
     bool required{};
     bool variadic{};
 
-    static constexpr bool is_spec = true;
     using value_t = P;
 };
 
-template <Str Usage, Str Description, Spec auto... Specs>
+template <Str Usage, Str Description, auto... Specs>
 requires(sizeof...(Specs) > 0)
 struct [[nodiscard]] Rules;
 
@@ -138,27 +131,25 @@ template <
     std::size_t M = 0,
     Str Usage = empty,
     Str Description = empty,
-    Spec auto... Specs>
+    auto... Specs>
 struct [[nodiscard]] Subcommand {
     Str<N> name{};
     Str<M> help{};
     Rules<Usage, Description, Specs...> rules{};
 
     using value_t = strv_t;
-
-    static constexpr bool is_spec = true;
 };
 
-template <Spec>
+template <typename>
 struct IsFlag: std::false_type {};
 
 template <std::size_t N, std::size_t M>
 struct IsFlag<Flag<N, M>>: std::true_type {};
 
-template <Spec T>
+template <typename T>
 inline constexpr bool is_flag_v = IsFlag<std::remove_cvref_t<T>>::value;
 
-template <Spec>
+template <typename>
 struct IsFlagWithValue: std::false_type {};
 
 template <Trivial V, std::size_t N, std::size_t M>
@@ -173,16 +164,16 @@ struct IsPositional<Positional<P, N, M>>: std::true_type {};
 template <typename P>
 inline constexpr bool is_positional_v = IsPositional<std::remove_cvref_t<P>>::value;
 
-template <Spec T>
+template <typename T>
 inline constexpr bool is_flag_with_value_v = IsFlagWithValue<std::remove_cvref_t<T>>::value;
 
 template <typename>
 struct IsSubcommand: std::false_type {};
 
-template <std::size_t N, std::size_t M, Str Usage, Str Description, Spec auto... Specs>
+template <std::size_t N, std::size_t M, Str Usage, Str Description, auto... Specs>
 struct IsSubcommand<Subcommand<N, M, Usage, Description, Specs...>>: std::true_type {};
 
-template <Spec S>
+template <typename S>
 inline constexpr bool is_subcommand_v = IsSubcommand<std::remove_cvref_t<S>>::value;
 
 namespace detail {
@@ -202,7 +193,7 @@ concept PositionalVariadic = is_positional_variadic_v<S>;
 template <auto S>
 concept IsAFlag = is_flag_v<decltype(S)> || is_flag_with_value_v<decltype(S)>;
 
-template <Spec auto S1, Spec auto S2, Spec auto...>
+template <auto S1, auto S2, auto...>
 [[nodiscard]] consteval auto have_different_flag_names() -> bool {
     if constexpr (!IsAFlag<S1> || !IsAFlag<S2>) {
         return true;
@@ -215,7 +206,7 @@ template <Spec auto S1, Spec auto S2, Spec auto...>
     }
 }
 
-template <Spec auto S1, Spec auto... Ss>
+template <auto S1, auto... Ss>
 [[nodiscard]] consteval auto check_all_different_names() -> bool {
     if constexpr (sizeof...(Ss) == 0) {
         return true;
@@ -253,7 +244,7 @@ template <Spec auto S1, Spec auto... Ss>
     return true;
 }
 
-template <Spec auto S1, Spec auto... Ss>
+template <auto S1, auto... Ss>
 [[nodiscard]] consteval auto check_valid_names() -> bool {
     if constexpr (is_subcommand_v<decltype(S1)>) {
         if (!is_valid_name(S1.name.as_string_view())) {
@@ -284,22 +275,22 @@ consteval auto result_type() -> std::remove_cvref_t<T>;
 template <std::invocable T>
 consteval auto result_type() -> std::remove_cvref_t<decltype(std::declval<T>()())>;
 
-template <Spec auto S>
+template <auto S>
 using result_type_t = decltype(result_type<typename decltype(S)::value_t>());
 
-template <Spec auto S>
+template <auto S>
 requires(!is_positional_v<decltype(S)> || (is_positional_v<decltype(S)> && !S.variadic))
 consteval auto parse_type() -> result_type_t<S>;
 
-template <Spec auto S>
+template <auto S>
 requires PositionalVariadic<S>
 consteval auto parse_type() ->
     typename result_type_t<S>::value_type;  // this is a vector, so we can get its contained type
 
-template <Spec auto S>
+template <auto S>
 using parse_type_t = decltype(parse_type<S>());
 
-template <Spec auto S1, Spec auto... Ss>
+template <auto S1, auto... Ss>
 [[nodiscard]] consteval auto check_variadics() -> bool {
     if constexpr (is_positional_variadic_v<S1>) {
         return IsVector<result_type_t<S1>>::value;
@@ -311,7 +302,7 @@ template <Spec auto S1, Spec auto... Ss>
     }
 }
 
-template <Spec auto S1, Spec auto... Ss>
+template <auto S1, auto... Ss>
 [[nodiscard]] consteval auto count_variadics() -> std::size_t {
     if constexpr (is_positional_v<decltype(S1)>) {
         if constexpr (sizeof...(Ss) > 0) {
@@ -328,7 +319,7 @@ template <Spec auto S1, Spec auto... Ss>
     }
 }
 
-template <Spec auto S1, Spec auto... Ss>
+template <auto S1, auto... Ss>
 [[nodiscard]] consteval auto check_variadic_is_last_positional_rec(bool found_variadic) -> bool {
     if constexpr (is_positional_variadic_v<S1>) {
         if constexpr (sizeof...(Ss) > 0) {
@@ -349,12 +340,12 @@ template <Spec auto S1, Spec auto... Ss>
     }
 }
 
-template <Spec auto... Ss>
+template <auto... Ss>
 [[nodiscard]] consteval auto check_variadic_is_last_positional() -> bool {
     return check_variadic_is_last_positional_rec<Ss...>(false);
 }
 
-template <Spec auto S>
+template <auto S>
 [[nodiscard]] auto default_arg_value() {
     if constexpr (std::is_invocable_v<typename decltype(S)::value_t>) {
         return result_type_t<S>{};
@@ -365,32 +356,6 @@ template <Spec auto S>
         return result_type_t<S>{};
     }
 }
-
-template <Spec auto S, Spec auto... Ss>
-struct GetRet {
-    using type = std::conditional_t<
-        is_subcommand_v<decltype(S)>,
-        typename GetRet<Ss...>::type,
-        result_type_t<S>>;
-};
-
-template <Spec auto S>
-struct GetRet<S> {
-    using type = result_type_t<S>;
-};
-
-template <template <auto> typename R, Spec auto S, Spec auto... Ss>
-struct GetWithInfoRet {
-    using type = std::conditional_t<
-        is_subcommand_v<decltype(S)>,
-        typename GetWithInfoRet<R, Ss...>::type,
-        R<S>>;
-};
-
-template <template <auto> typename R, Spec auto S>
-struct GetWithInfoRet<R, S> {
-    using type = R<S>;
-};
 
 struct [[nodiscard]] PositionalHelp {
     std::string_view name{};
@@ -405,7 +370,7 @@ struct [[nodiscard]] FlagHelp {
     bool is_required{};
 };
 
-template <Spec auto S>
+template <auto S>
 auto build_help_data(
     std::vector<PositionalHelp> &positional,
     std::vector<FlagHelp> &pure_flags,  // NOLINT(bugprone-easily-swappable-parameters)
@@ -444,7 +409,7 @@ auto build_help_data(
     }
 }
 
-template <Spec auto S1, Spec auto S2, Spec auto... Specs>
+template <auto S1, auto S2, auto... Specs>
 auto build_help_data(
     std::vector<PositionalHelp> &positional,
     std::vector<FlagHelp> &pure_flags,
@@ -456,7 +421,7 @@ auto build_help_data(
 auto build_positionals_help(std::string &help, std::vector<PositionalHelp> &positional) -> void;
 auto build_flags_help(std::string &help, std::vector<FlagHelp> &flags) -> void;
 
-template <Str Usage, Str Description, Spec auto... Specs>
+template <Str Usage, Str Description, auto... Specs>
 [[nodiscard]] static auto make_help() -> std::string {
     std::vector<PositionalHelp> positional{};
     std::vector<FlagHelp> pure_flags{};
@@ -497,7 +462,7 @@ template <Str Usage, Str Description, Spec auto... Specs>
 
 }  // namespace detail
 
-template <Str Usage, Str Description, Spec auto... Specs>
+template <Str Usage, Str Description, auto... Specs>
 requires(sizeof...(Specs) > 0)
 struct [[nodiscard]] Rules {
     static_assert(
@@ -520,14 +485,14 @@ struct [[nodiscard]] Rules {
     }
 };
 
-template <Spec auto S>
+template <auto S>
 struct [[nodiscard]] CommandArgValue {
     detail::result_type_t<S> value{detail::default_arg_value<S>()};
     bool is_used{false};
     static constexpr auto spec = S;
 };
 
-template <Spec auto... Specs>
+template <auto... Specs>
 class [[nodiscard]] Args;
 
 template <typename>
@@ -535,12 +500,12 @@ struct ArgsFromSubCommand {
     static_assert(false, "Not a subcommand");
 };
 
-template <std::size_t N, std::size_t M, Str Usage, Str Description, Spec auto... Specs>
+template <std::size_t N, std::size_t M, Str Usage, Str Description, auto... Specs>
 struct ArgsFromSubCommand<Subcommand<N, M, Usage, Description, Specs...>> {
     using args_t = Args<Specs...>;
 };
 
-template <Spec auto S>
+template <auto S>
 struct [[nodiscard]] SubcommandArgValue {
     detail::result_type_t<S> value{detail::default_arg_value<S>()};
     bool is_used{false};
@@ -548,12 +513,40 @@ struct [[nodiscard]] SubcommandArgValue {
     static constexpr auto spec = S;
 };
 
-template <Spec auto S>
+template <auto S>
 struct ArgValue
     : std::conditional_t<is_subcommand_v<decltype(S)>, SubcommandArgValue<S>, CommandArgValue<S>> {
 };
 
-template <Spec auto... Specs>
+namespace detail {
+template <auto S, auto... Ss>
+struct GetRet {
+    using type = std::conditional_t<
+        is_subcommand_v<decltype(S)>,
+        typename GetRet<Ss...>::type,
+        result_type_t<S>>;
+};
+
+template <auto S>
+struct GetRet<S> {
+    using type = result_type_t<S>;
+};
+
+template <auto S, auto... Ss>
+struct GetWithInfoRet {
+    using type = std::conditional_t<
+        is_subcommand_v<decltype(S)>,
+        typename GetWithInfoRet<Ss...>::type,
+        ArgValue<S>>;
+};
+
+template <auto S>
+struct GetWithInfoRet<S> {
+    using type = ArgValue<S>;
+};
+}  // namespace detail
+
+template <auto... Specs>
 class [[nodiscard]] Args {
 public:
     explicit Args(std::tuple<ArgValue<Specs>...> results)
@@ -561,38 +554,38 @@ public:
 
     explicit Args() = default;
 
-    template <Spec auto S>
+    template <auto S>
     [[nodiscard]] constexpr auto get_with_info() const -> ArgValue<S> const & {
         return std::get<ArgValue<S>>(m_results);
     }
 
-    template <Spec auto S>
+    template <auto S>
     [[nodiscard]] constexpr auto get() const -> detail::result_type_t<S> const & {
         return get_with_info<S>().value;
     }
 
-    template <Spec auto Sb, Spec auto S>
+    template <auto Sb, auto S>
     requires(is_subcommand_v<decltype(Sb)> && !is_subcommand_v<decltype(S)>)
     [[nodiscard]] constexpr auto get_with_info() const -> ArgValue<S> const & {
         return get_with_info<Sb>().subcommands.template get_with_info<S>();
     }
 
-    template <Spec auto Sb, Spec auto S>
+    template <auto Sb, auto S>
     requires(is_subcommand_v<decltype(Sb)> && !is_subcommand_v<decltype(S)>)
     [[nodiscard]] constexpr auto get() const -> detail::result_type_t<S> const & {
         return get_with_info<Sb>().subcommands.template get<S>();
     }
 
-    template <Spec auto Sb, Spec auto S, Spec auto... Ss>
+    template <auto Sb, auto S, auto... Ss>
     requires(is_subcommand_v<decltype(Sb)> && is_subcommand_v<decltype(S)> && sizeof...(Ss) > 0)
     [[nodiscard]] constexpr auto get() const -> detail::GetRet<Ss...>::type const & {
         return get_with_info<Sb>().subcommands.template get<S, Ss...>();
     }
 
-    template <Spec auto Sb, Spec auto S, Spec auto... Ss>
+    template <auto Sb, auto S, auto... Ss>
     requires(is_subcommand_v<decltype(Sb)> && is_subcommand_v<decltype(S)> && sizeof...(Ss) > 0)
     [[nodiscard]] constexpr auto get_with_info() const
-        -> detail::GetWithInfoRet<ArgValue, Ss...>::type const & {
+        -> detail::GetWithInfoRet<Ss...>::type const & {
         return get_with_info<Sb>().subcommands.template get_with_info<S, Ss...>();
     }
 
