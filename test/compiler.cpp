@@ -10,17 +10,15 @@
 #include "include/types.hpp"
 #include "include/typetag.hpp"
 
-using args::operator""_flag;
-using args::operator""_short_flag;
-using args::operator""_str;
 using namespace args;
+using namespace args::tokenizer;
 
 TEST_CASE("boolean-short-flag", "[compiler]") {
     static constexpr auto option = Flag{.long_form = "value"_flag, .short_form = "v"_short_flag};
     static constexpr auto rules = Rules<empty, empty, option>{};
 
     SECTION("providing-value-gets-true") {
-        auto const flag = std::array{tokenizer::token_t{tokenizer::ShortFlag{.flag = 'v'}}};
+        auto const flag = std::array{token_t{ShortFlag{.flag = 'v'}}};
         auto const out = compiler::compile(std::span{flag}, rules);
 
         REQUIRE(out.has_value());
@@ -28,7 +26,7 @@ TEST_CASE("boolean-short-flag", "[compiler]") {
         REQUIRE(value);
     }
     SECTION("default-value-is-false") {
-        auto const flag = std::array<tokenizer::token_t, 0>{};
+        auto const flag = std::array<token_t, 0>{};
         auto const out = compiler::compile(std::span{flag}, rules);
 
         REQUIRE(out.has_value());
@@ -40,7 +38,7 @@ TEST_CASE("boolean-short-flag", "[compiler]") {
             Flag{.long_form = "value"_flag, .short_form = "v"_short_flag, .required = true};
         static constexpr auto required_rules =
             Rules<"usage description"_str, empty, required_option>{};
-        auto const flag = std::array<tokenizer::token_t, 0>{};
+        auto const flag = std::array<token_t, 0>{};
         auto const out = compiler::compile(std::span{flag}, required_rules);
 
         REQUIRE(!out.has_value());
@@ -52,9 +50,8 @@ TEST_CASE("short-flag-with-arithmetic-value", "[compiler]") {
         static constexpr auto option = FlagWithValue{
             .long_form = "value"_flag, .short_form = "v"_short_flag, .default_value = 0};
         static constexpr auto rules = Rules<empty, empty, option>{};
-        auto const tokens = std::array{
-            tokenizer::token_t{tokenizer::ShortFlag{.flag = 'v'}},
-            tokenizer::token_t{tokenizer::Argument{.value = "10"}}};
+        auto const tokens =
+            std::array{token_t{ShortFlag{.flag = 'v'}}, token_t{Argument{.value = "10"}}};
         auto const out = compiler::compile(std::span{tokens}, rules);
 
         REQUIRE(out.has_value());
@@ -65,9 +62,8 @@ TEST_CASE("short-flag-with-arithmetic-value", "[compiler]") {
         static constexpr auto option = FlagWithValue{
             .long_form = "value"_flag, .short_form = "v"_short_flag, .default_value = 0.f};
         static constexpr auto rules = Rules<empty, empty, option>{};
-        auto const tokens = std::array{
-            tokenizer::token_t{tokenizer::ShortFlag{.flag = 'v'}},
-            tokenizer::token_t{tokenizer::Argument{.value = "10.5"}}};
+        auto const tokens =
+            std::array{token_t{ShortFlag{.flag = 'v'}}, token_t{Argument{.value = "10.5"}}};
         auto const out = compiler::compile(std::span{tokens}, rules);
 
         REQUIRE(out.has_value());
@@ -80,7 +76,7 @@ TEST_CASE("positional-with-arithmetic-value", "[compiler]") {
     SECTION("with-integer-value") {
         static constexpr auto option = Positional{.type = tag<int>, .name = "pos-name"_str};
         static constexpr auto rules = Rules<empty, empty, option>{};
-        auto const tokens = std::array{tokenizer::token_t{tokenizer::Argument{.value = "10"}}};
+        auto const tokens = std::array{token_t{Argument{.value = "10"}}};
         auto const out = compiler::compile(std::span{tokens}, rules);
 
         REQUIRE(out.has_value());
@@ -90,7 +86,7 @@ TEST_CASE("positional-with-arithmetic-value", "[compiler]") {
     SECTION("with-integer-value-not-provided") {
         static constexpr auto option = Positional{.type = tag<int>, .name = "pos-name"_str};
         static constexpr auto rules = Rules<empty, empty, option>{};
-        auto const tokens = std::array<tokenizer::token_t, 0>{};
+        auto const tokens = std::array<token_t, 0>{};
         auto const out = compiler::compile(std::span{tokens}, rules);
 
         REQUIRE(out.has_value());
@@ -106,7 +102,7 @@ TEST_CASE("short-flag-with-vec-value-default", "[compiler]") {
         .default_value = args::Lazy<std::vector<int>, 1, 2, 3>,
         .help = "help message for value"_str};
     static constexpr auto rules = Rules<empty, empty, option>{};
-    auto const tokens = std::array<tokenizer::token_t, 0>{};
+    auto const tokens = std::array<token_t, 0>{};
     auto const out = compiler::compile(std::span{tokens}, rules);
 
     REQUIRE(out.has_value());
@@ -122,9 +118,8 @@ TEST_CASE("subcommand", "[compiler]") {
         .name = "subcommand-name"_str, .help = "help message for value"_str, .rules = sub_rules};
     static constexpr auto rules = Rules<empty, empty, option>{};
 
-    auto const tokens = std::array{
-        tokenizer::token_t{tokenizer::Argument{.value = "subcommand-name"}},
-        tokenizer::token_t{tokenizer::Argument{.value = "10"}}};
+    auto const tokens =
+        std::array{token_t{Argument{.value = "subcommand-name"}}, token_t{Argument{.value = "10"}}};
     auto const out = compiler::compile(std::span{tokens}, rules);
 
     REQUIRE(out.has_value());
@@ -143,9 +138,9 @@ TEST_CASE("subcommand-nested", "[compiler]") {
     static constexpr auto rules = Rules<empty, empty, subcommand>{};
 
     auto const tokens = std::array{
-        tokenizer::token_t{tokenizer::Argument{.value = "subcommand-name"}},
-        tokenizer::token_t{tokenizer::Argument{.value = "nested-command"}},
-        tokenizer::token_t{tokenizer::Argument{.value = "10"}}};
+        token_t{Argument{.value = "subcommand-name"}},
+        token_t{Argument{.value = "nested-command"}},
+        token_t{Argument{.value = "10"}}};
     auto const out = compiler::compile(std::span{tokens}, rules);
 
     REQUIRE(out.has_value());
@@ -158,9 +153,9 @@ TEST_CASE("positional", "[compiler]") {
         Positional{.type = tag<vec_t<int>>, .name = "pos-name"_str, .variadic = true};
     static constexpr auto rules = Rules<empty, empty, option>{};
     auto const tokens = std::array{
-        tokenizer::token_t{tokenizer::Argument{.value = "1"}},
-        tokenizer::token_t{tokenizer::Argument{.value = "10"}},
-        tokenizer::token_t{tokenizer::Argument{.value = "100"}}};
+        token_t{Argument{.value = "1"}},
+        token_t{Argument{.value = "10"}},
+        token_t{Argument{.value = "100"}}};
     auto const out = compiler::compile(std::span{tokens}, rules);
 
     REQUIRE(out.has_value());

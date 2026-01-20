@@ -27,10 +27,6 @@ using lazy_t = decltype(Lazy<T, Args...>);
 template <typename T>
 using vec_t = lazy_t<std::vector<T>>;
 
-using str_t = lazy_t<std::string>;
-
-using strv_t = lazy_t<std::string_view>;
-
 template <typename T>
 struct [[nodiscard]] Opt {
     bool has_value;
@@ -54,7 +50,7 @@ template <std::size_t N>
 struct [[nodiscard]] Str {
     std::array<char, N + 1> chars{};
 
-    consteval Str() = default;
+    consteval Str() noexcept = default;
 
     consteval Str(char const (&s)[N + 1]) {  // NOLINT
         std::ranges::copy(s, chars.begin());
@@ -64,7 +60,7 @@ struct [[nodiscard]] Str {
         return std::string_view{chars.data()};
     }
 
-    [[nodiscard]] static constexpr auto is_empty() -> bool {
+    [[nodiscard]] static constexpr auto is_empty() noexcept -> bool {
         return N == 0;
     }
 };
@@ -78,6 +74,14 @@ consteval auto operator""_str() -> decltype(X) {
 }
 
 inline constexpr auto empty = ""_str;
+
+using str_t = decltype([]<Str s>() {
+    return std::string(s.chars.begin(), s.chars.end());
+});
+
+using strv_t = decltype([]<Str s>() {
+    return s.as_string_view();
+});
 
 template <std::size_t N, std::size_t M = 0>
 struct [[nodiscard]] Flag {
@@ -555,36 +559,36 @@ public:
     explicit Args() = default;
 
     template <auto S>
-    [[nodiscard]] constexpr auto get_with_info() const -> ArgValue<S> const & {
+    [[nodiscard]] constexpr auto get_with_info() const noexcept -> ArgValue<S> const & {
         return std::get<ArgValue<S>>(m_results);
     }
 
     template <auto S>
-    [[nodiscard]] constexpr auto get() const -> detail::result_type_t<S> const & {
+    [[nodiscard]] constexpr auto get() const noexcept -> detail::result_type_t<S> const & {
         return get_with_info<S>().value;
     }
 
     template <auto Sb, auto S>
     requires(is_subcommand_v<decltype(Sb)> && !is_subcommand_v<decltype(S)>)
-    [[nodiscard]] constexpr auto get_with_info() const -> ArgValue<S> const & {
+    [[nodiscard]] constexpr auto get_with_info() const noexcept -> ArgValue<S> const & {
         return get_with_info<Sb>().subcommands.template get_with_info<S>();
     }
 
     template <auto Sb, auto S>
     requires(is_subcommand_v<decltype(Sb)> && !is_subcommand_v<decltype(S)>)
-    [[nodiscard]] constexpr auto get() const -> detail::result_type_t<S> const & {
+    [[nodiscard]] constexpr auto get() const noexcept -> detail::result_type_t<S> const & {
         return get_with_info<Sb>().subcommands.template get<S>();
     }
 
     template <auto Sb, auto S, auto... Ss>
     requires(is_subcommand_v<decltype(Sb)> && is_subcommand_v<decltype(S)> && sizeof...(Ss) > 0)
-    [[nodiscard]] constexpr auto get() const -> detail::GetRet<Ss...>::type const & {
+    [[nodiscard]] constexpr auto get() const noexcept -> detail::GetRet<Ss...>::type const & {
         return get_with_info<Sb>().subcommands.template get<S, Ss...>();
     }
 
     template <auto Sb, auto S, auto... Ss>
     requires(is_subcommand_v<decltype(Sb)> && is_subcommand_v<decltype(S)> && sizeof...(Ss) > 0)
-    [[nodiscard]] constexpr auto get_with_info() const
+    [[nodiscard]] constexpr auto get_with_info() const noexcept
         -> detail::GetWithInfoRet<Ss...>::type const & {
         return get_with_info<Sb>().subcommands.template get_with_info<S, Ss...>();
     }
