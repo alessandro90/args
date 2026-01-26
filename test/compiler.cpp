@@ -3,6 +3,7 @@
 #include "include/compiler.hpp"
 #include <array>
 #include <span>
+#include <variant>
 #include <vector>
 #include "catch2/catch_test_macros.hpp"
 #include "catch2/matchers/catch_matchers_floating_point.hpp"
@@ -21,16 +22,16 @@ TEST_CASE("boolean-short-flag", "[compiler]") {
         auto const flag = std::array{token_t{ShortFlag{.flag = 'v'}}};
         auto const out = compiler::compile(std::span{flag}, rules);
 
-        REQUIRE(out.has_value());
-        auto const value = out.value().get<option>();
+        REQUIRE(std::holds_alternative<Args<option>>(out));
+        auto const value = std::get<Args<option>>(out).get<option>();
         REQUIRE(value);
     }
     SECTION("default-value-is-false") {
         auto const flag = std::array<token_t, 0>{};
         auto const out = compiler::compile(std::span{flag}, rules);
 
-        REQUIRE(out.has_value());
-        auto const value = out.value().get<option>();
+        REQUIRE(std::holds_alternative<Args<option>>(out));
+        auto const value = std::get<Args<option>>(out).get<option>();
         REQUIRE(!value);
     }
     SECTION("not-providing-a-required-value-is-an-error") {
@@ -41,7 +42,7 @@ TEST_CASE("boolean-short-flag", "[compiler]") {
         auto const flag = std::array<token_t, 0>{};
         auto const out = compiler::compile(std::span{flag}, required_rules);
 
-        REQUIRE(!out.has_value());
+        REQUIRE(std::holds_alternative<Error>(out));
     }
 }
 
@@ -54,8 +55,8 @@ TEST_CASE("short-flag-with-arithmetic-value", "[compiler]") {
             std::array{token_t{ShortFlag{.flag = 'v'}}, token_t{Argument{.value = "10"}}};
         auto const out = compiler::compile(std::span{tokens}, rules);
 
-        REQUIRE(out.has_value());
-        auto const value = out.value().get<option>();
+        REQUIRE(std::holds_alternative<Args<option>>(out));
+        auto const value = std::get<Args<option>>(out).get<option>();
         REQUIRE(value == 10);
     }
     SECTION("providing-value-gets-a-float") {
@@ -66,8 +67,8 @@ TEST_CASE("short-flag-with-arithmetic-value", "[compiler]") {
             std::array{token_t{ShortFlag{.flag = 'v'}}, token_t{Argument{.value = "10.5"}}};
         auto const out = compiler::compile(std::span{tokens}, rules);
 
-        REQUIRE(out.has_value());
-        auto const value = out.value().get<option>();
+        REQUIRE(std::holds_alternative<Args<option>>(out));
+        auto const value = std::get<Args<option>>(out).get<option>();
         REQUIRE_THAT(static_cast<double>(value), Catch::Matchers::WithinAbsMatcher(10.5, 0.000001));
     }
 }
@@ -79,8 +80,8 @@ TEST_CASE("positional-with-arithmetic-value", "[compiler]") {
         auto const tokens = std::array{token_t{Argument{.value = "10"}}};
         auto const out = compiler::compile(std::span{tokens}, rules);
 
-        REQUIRE(out.has_value());
-        auto const value = out.value().get<option>();
+        REQUIRE(std::holds_alternative<Args<option>>(out));
+        auto const value = std::get<Args<option>>(out).get<option>();
         REQUIRE(value == 10);
     }
     SECTION("with-integer-value-not-provided") {
@@ -89,8 +90,8 @@ TEST_CASE("positional-with-arithmetic-value", "[compiler]") {
         auto const tokens = std::array<token_t, 0>{};
         auto const out = compiler::compile(std::span{tokens}, rules);
 
-        REQUIRE(out.has_value());
-        auto const value = out.value().get<option>();
+        REQUIRE(std::holds_alternative<Args<option>>(out));
+        auto const value = std::get<Args<option>>(out).get<option>();
         REQUIRE(value == 0);
     }
 }
@@ -105,8 +106,8 @@ TEST_CASE("short-flag-with-vec-value-default", "[compiler]") {
     auto const tokens = std::array<token_t, 0>{};
     auto const out = compiler::compile(std::span{tokens}, rules);
 
-    REQUIRE(out.has_value());
-    auto const &value = out.value().get<option>();
+    REQUIRE(std::holds_alternative<Args<option>>(out));
+    auto const &value = std::get<Args<option>>(out).get<option>();
     REQUIRE(value == std::vector{1, 2, 3});
 }
 
@@ -118,12 +119,13 @@ TEST_CASE("subcommand", "[compiler]") {
         .name = "subcommand-name"_str, .help = "help message for value"_str, .rules = sub_rules};
     static constexpr auto rules = Rules<empty, empty, option>{};
 
+
     auto const tokens =
         std::array{token_t{Argument{.value = "subcommand-name"}}, token_t{Argument{.value = "10"}}};
     auto const out = compiler::compile(std::span{tokens}, rules);
 
-    REQUIRE(out.has_value());
-    auto const value = out.value().get<option, suboption>();
+    REQUIRE(has_args(out));
+    auto const value = get_args(out).get<option, suboption>();
     REQUIRE(value == 10);
 }
 
@@ -143,14 +145,15 @@ TEST_CASE("subcommand-nested", "[compiler]") {
         token_t{Argument{.value = "10"}}};
     auto const out = compiler::compile(std::span{tokens}, rules);
 
-    REQUIRE(out.has_value());
-    auto const value = out.value().get_with_info<subcommand, nested_subcommand, argument>().value;
+    REQUIRE(has_args(out));
+    auto const value = get_args(out).get_with_info<subcommand, nested_subcommand, argument>().value;
     REQUIRE(value == 10);
 }
 
 TEST_CASE("positional", "[compiler]") {
     static constexpr auto option =
-        Positional{.type = tag<vec_t<int>>, .name = "pos-name"_str, .variadic = true};
+        Positional{.type = tag<std::vector<int>>, .name = "pos-name"_str, .variadic = true};
+    // Positional{.type = tag<vec_t<int>>, .name = "pos-name"_str, .variadic = true};
     static constexpr auto rules = Rules<empty, empty, option>{};
     auto const tokens = std::array{
         token_t{Argument{.value = "1"}},
@@ -158,8 +161,8 @@ TEST_CASE("positional", "[compiler]") {
         token_t{Argument{.value = "100"}}};
     auto const out = compiler::compile(std::span{tokens}, rules);
 
-    REQUIRE(out.has_value());
-    auto const value = out.value().get<option>();
+    REQUIRE(has_args(out));
+    auto const value = get_args(out).get<option>();
     REQUIRE(value == std::vector{1, 10, 100});
 }
 

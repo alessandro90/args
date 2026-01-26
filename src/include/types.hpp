@@ -10,6 +10,7 @@
 #include <string_view>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 #include "type_helpers.hpp"
 #include "typetag.hpp"
@@ -75,13 +76,9 @@ consteval auto operator""_str() -> decltype(X) {
 
 inline constexpr auto empty = ""_str;
 
-using str_t = decltype([]<Str s>() {
-    return std::string(s.chars.begin(), s.chars.end());
-});
+using str_t = lazy_t<std::string>;
 
-using strv_t = decltype([]<Str s>() {
-    return s.as_string_view();
-});
+using strv_t = lazy_t<std::string_view>;
 
 template <std::size_t N, std::size_t M = 0>
 struct [[nodiscard]] Flag {
@@ -141,7 +138,8 @@ struct [[nodiscard]] Subcommand {
     Str<M> help{};
     Rules<Usage, Description, Specs...> rules{};
 
-    using value_t = strv_t;
+    // using value_t = strv_t;
+    using value_t = std::string_view;
 };
 
 template <typename>
@@ -597,6 +595,66 @@ private:
     std::tuple<ArgValue<Specs>...> m_results{};
 };
 
+struct [[nodiscard]] Help {
+    std::string_view message;
+};
+
+struct [[nodiscard]] Error {
+    std::string message;
+};
+
+template <auto... Ss>
+using compile_result_t = std::variant<Args<Ss...>, Help, Error>;
+
+template <auto... Ss>
+[[nodiscard]] constexpr auto has_args(compile_result_t<Ss...> const &res) -> bool {
+    return std::holds_alternative<Args<Ss...>>(res);
+}
+
+template <auto... Ss>
+[[nodiscard]] constexpr auto has_help(compile_result_t<Ss...> const &res) -> bool {
+    return std::holds_alternative<Help>(res);
+}
+
+template <auto... Ss>
+[[nodiscard]] constexpr auto has_error(compile_result_t<Ss...> const &res) -> bool {
+    return std::holds_alternative<Error>(res);
+}
+
+template <auto... Ss>
+[[nodiscard]] constexpr auto get_args(compile_result_t<Ss...> const &res) -> Args<Ss...> const & {
+    return std::get<Args<Ss...>>(res);
+}
+
+template <auto... Ss>
+[[nodiscard]] constexpr auto get_args(compile_result_t<Ss...> &res) -> Args<Ss...> & {
+    return std::get<Args<Ss...>>(res);
+}
+
+template <auto... Ss>
+[[nodiscard]] constexpr auto get_args(compile_result_t<Ss...> &&res) -> Args<Ss...> {
+    return std::get<Args<Ss...>>(std::move(res));
+}
+
+template <auto... Ss>
+[[nodiscard]] constexpr auto get_help(compile_result_t<Ss...> const &res) -> Help {
+    return std::get<Help>(res);
+}
+
+template <auto... Ss>
+[[nodiscard]] constexpr auto get_error(compile_result_t<Ss...> const &res) -> Error const & {
+    return std::get<Error>(res);
+}
+
+template <auto... Ss>
+[[nodiscard]] constexpr auto get_error(compile_result_t<Ss...> &res) -> Error & {
+    return std::get<Error>(res);
+}
+
+template <auto... Ss>
+[[nodiscard]] constexpr auto get_error(compile_result_t<Ss...> &&res) -> Error {
+    return std::get<Error>(std::move(res));
+}
 }  // namespace args
 
 #endif

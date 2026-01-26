@@ -1,6 +1,7 @@
 #ifndef CPP_ARGS_COMPILER_HEADER
 #define CPP_ARGS_COMPILER_HEADER
 
+#include <algorithm>
 #include <cstddef>
 #include <expected>
 #include <format>
@@ -250,8 +251,8 @@ struct [[nodiscard]] TokenCompiler {
     [[nodiscard]] constexpr auto compile_subcommand(
         std::span<tokenizer::token_t const, Extent> tokens,
         Compiler compiler,
-        std::size_t subcommand_tuple_index) -> std::optional<std::string> {
-        std::optional<std::string> error{};
+        std::size_t subcommand_tuple_index) -> std::variant<std::monostate, Help, Error> {
+        std::variant<std::monostate, Help, Error> error_or_help{};
         auto const handled = [&]<std::size_t... Is>(std::index_sequence<Is...>) {
             return (... || [&]() {  // 'or' will execute until the first 'true'
                 if (Is != subcommand_tuple_index) {
@@ -261,10 +262,12 @@ struct [[nodiscard]] TokenCompiler {
                 if constexpr (is_subcommand_v<decltype(arg_value_t::spec)>) {
                     auto &subcommand = std::get<Is>(results);
                     auto subcommand_result = compiler(tokens, arg_value_t::spec.rules);
-                    if (subcommand_result.has_value()) {
-                        subcommand.subcommands = std::move(subcommand_result).value();
+                    if (has_args(subcommand_result)) {
+                        subcommand.subcommands = get_args(std::move(subcommand_result));
+                    } else if (has_error(subcommand_result)) {
+                        error_or_help = get_error(std::move(subcommand_result));
                     } else {
-                        error = std::move(subcommand_result).error();
+                        error_or_help = get_help(std::move(subcommand_result));
                     }
                     return true;
                 }
@@ -272,9 +275,9 @@ struct [[nodiscard]] TokenCompiler {
             }());
         }(std::make_index_sequence<sizeof...(Specs)>());
         if (!handled) {
-            return "Cannot found subcommand";
+            return Error{.message = "Cannot found subcommand"};
         }
-        return error;
+        return error_or_help;
     }
 
     [[nodiscard]] auto subcommand_index() -> std::optional<std::size_t> {
@@ -394,16 +397,16 @@ auto assign_defaults_to_unused(std::tuple<ArgValue<Specs>...> &results) -> void 
 template <std::size_t Extent, Str Usage, Str Description, auto... Specs>
 [[nodiscard]] constexpr auto compile(
     std::span<tokenizer::token_t const, Extent> tokens, Rules<Usage, Description, Specs...>)
-    -> std::expected<Args<Specs...>, std::string> {
+    -> compile_result_t<Specs...> {
     auto token_compiler = detail::TokenCompiler<Specs...>{};
     for (auto const [index, token] : std::views::enumerate(tokens)) {
         auto err_msg = std::visit(token_compiler, token);
         if (err_msg.has_value()) {
-            return std::unexpected(std::move(err_msg).value());
+            return Error{.message = std::move(err_msg).value()};
         }
         if (token_compiler.subcommand_index().has_value()) {
             if (tokens.size() <= static_cast<std::size_t>(index)) {
-                return std::unexpected("Missing tokens to parse subcommand");
+                return Error{.message = "Missing tokens to parse subcommand"};
             }
             auto failed_subcommand = token_compiler.compile_subcommand(
                 tokens.subspan(static_cast<std::size_t>(index + 1)),
@@ -412,20 +415,23 @@ template <std::size_t Extent, Str Usage, Str Description, auto... Specs>
                     return compile(tks, rs);
                 },
                 token_compiler.subcommand_index().value());
-            if (failed_subcommand.has_value()) {
-                return std::unexpected(std::move(failed_subcommand).value());
+            if (std::holds_alternative<Help>(failed_subcommand)) {
+                return compile_result_t<Specs...>{std::get<Help>(std::move(failed_subcommand))};
+            }
+            if (std::holds_alternative<Error>(failed_subcommand)) {
+                return compile_result_t<Specs...>{std::get<Error>(std::move(failed_subcommand))};
             }
             break;
         }
     }
     auto state_error = token_compiler.check_correct_final_state();
     if (state_error.has_value()) {
-        return std::unexpected(std::move(state_error).value());
+        return Error{.message = std::move(state_error).value()};
     }
     auto const missing_args = detail::verify_required_args(token_compiler.results);
     if (!missing_args.empty()) {
-        return std::unexpected(
-            missing_args | std::views::join_with('\n') | std::ranges::to<std::string>());
+        return Error{
+            .message = missing_args | std::views::join_with('\n') | std::ranges::to<std::string>()};
     }
     detail::assign_defaults_to_unused(token_compiler.results);
     return Args{std::move(token_compiler).results};
