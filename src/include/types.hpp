@@ -14,6 +14,7 @@
 #include <vector>
 #include "type_helpers.hpp"
 #include "typetag.hpp"
+#include "validators.hpp"
 
 namespace args {
 
@@ -80,25 +81,28 @@ using str_t = lazy_t<std::string>;
 
 using strv_t = lazy_t<std::string_view>;
 
-template <std::size_t N, std::size_t M = 0>
+template <std::size_t N, std::size_t M = 0, AValidator V = always_t>
 struct [[nodiscard]] Flag {
     Str<N> long_form;
     Opt<char> short_form{Opt<char>::empty()};
     bool default_value{};
     bool required{};
     Str<M> help{};
+    V validator{always};
+
     using value_t = bool;
 };
 
-template <Trivial V, std::size_t N, std::size_t M = 0>
+template <Trivial Value, std::size_t N, std::size_t M = 0, AValidator V = always_t>
 struct [[nodiscard]] FlagWithValue {
     Str<N> long_form;
     Opt<char> short_form{Opt<char>::empty()};
     /// Used if the flag is missing
-    V default_value{};
+    Value default_value{};
     bool required{};
     Str<M> help{};
-    using value_t = V;
+    V validator{always};
+    using value_t = Value;
 };
 
 template <Str X>
@@ -112,13 +116,18 @@ consteval auto operator""_short_flag() -> Opt<char> {
     return Opt<char>::with(X.chars[0]);
 }
 
-template <std::default_initializable P, std::size_t N = 0, std::size_t M = 0>
+template <
+    std::default_initializable P,
+    std::size_t N = 0,
+    std::size_t M = 0,
+    AValidator V = always_t>
 struct [[nodiscard]] Positional {
     Typetag<P> type;
     Str<N> name{};
     Str<M> help{};
     bool required{};
     bool variadic{};
+    V validator{always};
 
     using value_t = P;
 };
@@ -145,8 +154,8 @@ struct [[nodiscard]] Subcommand {
 template <typename>
 struct IsFlag: std::false_type {};
 
-template <std::size_t N, std::size_t M>
-struct IsFlag<Flag<N, M>>: std::true_type {};
+template <std::size_t N, std::size_t M, AValidator V>
+struct IsFlag<Flag<N, M, V>>: std::true_type {};
 
 template <typename T>
 inline constexpr bool is_flag_v = IsFlag<std::remove_cvref_t<T>>::value;
@@ -154,14 +163,14 @@ inline constexpr bool is_flag_v = IsFlag<std::remove_cvref_t<T>>::value;
 template <typename>
 struct IsFlagWithValue: std::false_type {};
 
-template <Trivial V, std::size_t N, std::size_t M>
-struct IsFlagWithValue<FlagWithValue<V, N, M>>: std::true_type {};
+template <Trivial Value, std::size_t N, std::size_t M, AValidator V>
+struct IsFlagWithValue<FlagWithValue<Value, N, M, V>>: std::true_type {};
 
 template <typename P>
 struct IsPositional: std::false_type {};
 
-template <typename P, std::size_t N, std::size_t M>
-struct IsPositional<Positional<P, N, M>>: std::true_type {};
+template <typename P, std::size_t N, std::size_t M, AValidator V>
+struct IsPositional<Positional<P, N, M, V>>: std::true_type {};
 
 template <typename P>
 inline constexpr bool is_positional_v = IsPositional<std::remove_cvref_t<P>>::value;
