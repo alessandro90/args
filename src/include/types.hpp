@@ -65,6 +65,19 @@ struct [[nodiscard]] Str {
     [[nodiscard]] static constexpr auto is_empty() noexcept -> bool {
         return N == 0;
     }
+
+    template <std::size_t M>
+    [[nodiscard]] constexpr auto operator==(Str<M> const &rhs) -> bool {
+        return N == M && chars == rhs.chars;
+    }
+
+    [[nodiscard]] constexpr auto operator==(std::string_view rhs) -> bool {
+        return as_string_view() == rhs;
+    }
+
+    [[nodiscard]] constexpr auto operator==(std::string rhs) -> bool {
+        return as_string_view() == rhs;
+    }
 };
 
 template <std::size_t N>
@@ -81,14 +94,13 @@ using str_t = lazy_t<std::string>;
 
 using strv_t = lazy_t<std::string_view>;
 
-template <std::size_t N, std::size_t M = 0, AValidator V = always_t>
+template <std::size_t N, std::size_t M = 0>
 struct [[nodiscard]] Flag {
     Str<N> long_form;
     Opt<char> short_form{Opt<char>::empty()};
     bool default_value{};
     bool required{};
     Str<M> help{};
-    V validator{always};
 
     using value_t = bool;
 };
@@ -154,8 +166,8 @@ struct [[nodiscard]] Subcommand {
 template <typename>
 struct IsFlag: std::false_type {};
 
-template <std::size_t N, std::size_t M, AValidator V>
-struct IsFlag<Flag<N, M, V>>: std::true_type {};
+template <std::size_t N, std::size_t M>
+struct IsFlag<Flag<N, M>>: std::true_type {};
 
 template <typename T>
 inline constexpr bool is_flag_v = IsFlag<std::remove_cvref_t<T>>::value;

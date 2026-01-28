@@ -2,6 +2,7 @@
 #define CPP_ARGS_VALIDATORS
 
 #include <algorithm>
+#include <concepts>
 #include <expected>
 #include <format>
 #include <string>
@@ -12,144 +13,144 @@ namespace args {
 
 using validator_result_t = std::expected<void, std::string>;
 
-template <typename V>
+template <typename V, typename ErrFn>
 struct [[nodiscard]] Validator {
     V fn;
+    ErrFn err_fn;
 
     template <typename T>
     [[nodiscard]] constexpr auto operator()(T const &value) const -> validator_result_t {
-        return fn(value);
+        if (fn(value)) {
+            return std::unexpected(err_fn(value));
+        }
+        return {};
     }
 
-    template <typename W>
-    constexpr auto operator|(Validator<W> v) const {
-        return make_validator([vv = fn, v]<typename T>(T const &value) -> validator_result_t {
-            return vv(value).or_else([&] {
-                return v(value);
+    template <typename W, typename ErrFnOther>
+    constexpr auto operator|(Validator<W, ErrFnOther> v) const {
+        return make_validator(
+            [*this, v](auto const &value) -> bool {
+                return fn(value) || v.fn(value);
+            },
+            [*this, v](auto const &value) -> std::string {
+                return std::format("('{}' or '{}')", err_fn(value), v.err_fn(value));
             });
-        });
     }
 
-    template <typename W>
-    constexpr auto operator&(Validator<W> v) const {
-        return make_validator([vv = fn, v]<typename T>(T const &value) -> validator_result_t {
-            return vv(value).and_then([&] {
-                return v(value);
+    template <typename W, typename ErrFnOther>
+    constexpr auto operator&(Validator<W, ErrFnOther> v) const {
+        return make_validator(
+            [*this, v](auto const &value) -> bool {
+                return fn(value) && v.fn(value);
+            },
+            [*this, v](auto const &value) -> std::string {
+                return std::format("('{}' and '{}')", err_fn(value), v.err_fn(value));
             });
-        });
     }
 
-    template <typename W>
-    constexpr auto operator^(Validator<W> v) const {
-        return make_validator([vv = fn, v]<typename T>(T const &value) -> validator_result_t {
-            auto const res_vv = vv(value);
-            auto const res_v = v(value);
-            if ((res_vv && res_v) || (!res_vv && !res_v)) {
-                return {};
-            }
-            return std::unexpected("'xor' validation not satisfied");
-        });
+    template <typename W, typename ErrFnOther>
+    constexpr auto operator^(Validator<W, ErrFnOther> v) const {
+        return make_validator(
+            [*this, v]<typename T>(T const &value) -> bool {
+                auto const res_vv = fn(value);
+                auto const res_v = v.fn(value);
+                return ((res_vv && res_v) || (!res_vv && !res_v));
+            },
+            [*this, v](auto const &value) -> std::string {
+                return std::format("('{}' xor '{}')", err_fn(value), v.err_fn(value));
+            });
     }
 
-    template <typename W>
     constexpr auto operator!() const {
-        return make_validator([vv = fn]<typename T>(T const &value) -> validator_result_t {
-            if (!vv(value)) {
-                return {};
-            }
-            return std::unexpected("'not' validation not satisfied");
-        });
+        return make_validator(
+            [*this](auto const &value) -> bool {
+                return !fn(value);
+            },
+            [*this](auto const &value) -> std::string {
+                return std::format("(not '{}')", err_fn(value));
+            });
     }
 };
 
-template <typename V>
-constexpr auto make_validator(V v) -> Validator<V> {
-    return Validator{.fn = v};
+template <typename V, typename ErrFn>
+constexpr auto make_validator(V v, ErrFn err_fn) -> Validator<V, ErrFn> {
+    return Validator{.fn = v, .err_fn = err_fn};
 }
 
 template <typename>
 struct IsValidator: std::false_type {};
 
-template <typename V>
-struct IsValidator<Validator<V>>: std::true_type {};
+template <typename V, typename ErrFn>
+struct IsValidator<Validator<V, ErrFn>>: std::true_type {};
 
 template <typename T>
-inline constexpr auto is_validator_v = IsValidator<T>::value;
+inline constexpr auto is_validator_v = IsValidator<std::remove_cvref_t<T>>::value;
 
 template <typename T>
 concept AValidator = is_validator_v<T>;
 
-inline constexpr auto always = Validator{.fn = [](auto const &) -> validator_result_t {
-    return {};
-}};
+inline constexpr auto always = Validator{
+    .fn = [](auto const &) -> bool {
+        return {};
+    },
+    .err_fn = [](auto const &) -> std::string {
+        return "";
+    }};
 
 using always_t = std::remove_cvref_t<decltype(always)>;
 
-template <typename T>
-constexpr auto less_than(T x) -> AValidator auto {
-    return Validator{.fn = [value = std::move(x)](T const &other) -> validator_result_t {
-        if (other >= value) {
-            return std::unexpected(std::format("Value must be less than {}, got {}", value, other));
-        }
-        return {};
+template <std::totally_ordered auto Limit>
+inline constexpr AValidator auto less_than = Validator{
+    .fn = [](auto const &value) -> bool {
+        return value < Limit;
+    },
+    .err_fn = [](auto const &value) -> std::string {
+        return std::format("Value '{}' must be less than '{}'", value, Limit);
     }};
-}
 
-template <typename T>
-constexpr auto equal(T x) -> AValidator auto {
-    return Validator{.fn = [value = std::move(x)](T const &other) -> validator_result_t {
-        if (other != value) {
-            return std::unexpected(std::format("Value must be equal to {}, got {}", value, other));
-        }
-        return {};
+template <std::equality_comparable auto Target>
+inline constexpr AValidator auto equal = Validator{
+    .fn = [](auto const &value) -> bool {
+        return value == Target;
+    },
+    .err_fn = [](auto const &value) -> std::string {
+        return std::unexpected(std::format("Value '{}' must be equal to '{}'", value, Target));
     }};
-}
 
-template <typename T>
-constexpr auto greater_than(T x) -> AValidator auto {
-    return Validator{.fn = [value = std::move(x)](T const &other) -> validator_result_t {
-        if (other <= value) {
-            return std::unexpected(
-                std::format("Value must be greater than {}, got {}", value, other));
-        }
-        return {};
+template <std::totally_ordered auto Limit>
+inline constexpr AValidator auto greater_than = Validator{
+    .fn = [](auto const &value) -> bool {
+        return value > Limit;
+    },
+    .err_fn = [](auto const &value) -> std::string {
+        return std::format("Value '{}' must be greater than '{}'", value, Limit);
     }};
-}
 
-template <typename V>
-constexpr auto for_each(Validator<V> v) -> AValidator auto {
-    return Validator{
-        .fn = [validator =
-                   std::move(v)]<typename T>(std::vector<T> const &other) -> validator_result_t {
-            for (auto const &value : other) {
-                auto result = validator(value);
-                if (result.has_error()) {
-                    return result;
-                }
-            }
-            return {};
-        }};
-}
+template <AValidator auto V>
+inline constexpr AValidator auto for_each = Validator{
+    .fn = []<typename T>(std::vector<T> const &value) -> bool {
+        return std::ranges::all_of(value, [&](auto const &item) {
+            return V.fn(item);
+        });
+    },
+    .err_fn = [](auto const &value) -> std::string {
+        return std::format("Vector item: {}", V.err_fn(value));
+    }};
 
-constexpr auto less_or_equal(auto x) -> AValidator auto {
-    return equal(x) | less_than(x);
-};
+template <auto X>
+inline constexpr AValidator auto less_or_equal = equal<X> | less_than<X>;
 
-constexpr auto greater_or_equal(auto value) -> AValidator auto {
-    return equal(value) | greater_than(value);
-};
+template <auto Value>
+inline constexpr AValidator auto greater_or_equal = equal<Value> | greater_than<Value>;
 
-constexpr auto exclusive_range(auto min, auto max) -> AValidator auto {
-    return greater_than(min) & less_than(max);
-};
+template <auto Min, auto Max>
+inline constexpr AValidator auto exclusive_range = greater_than<Min> & less_than<Max>;
 
-constexpr auto inclusive_range(auto min, auto max) -> AValidator auto {
-    return greater_or_equal(min) & less_or_equal(max);
-};
+template <auto Min, auto Max>
+inline constexpr AValidator auto inclusive_range = greater_or_equal<Min> & less_or_equal<Max>;
 
-constexpr auto half_open_range(auto min, auto max) -> AValidator auto {
-    return greater_or_equal(min) & less_than(max);
-};
+template <auto Min, auto Max>
+inline constexpr AValidator auto half_open_range = greater_or_equal<Min> & less_than<Max>;
 
 }  // namespace args
 
