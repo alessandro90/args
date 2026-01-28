@@ -3,7 +3,6 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <expected>
 #include <format>
 #include <optional>
 #include <ranges>

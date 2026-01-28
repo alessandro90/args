@@ -2,9 +2,11 @@
 #define CPP_ARGS_VALIDATORS
 
 #include <algorithm>
+#include <array>
 #include <concepts>
 #include <expected>
 #include <format>
+#include <ranges>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -25,51 +27,6 @@ struct [[nodiscard]] Validator {
         }
         return {};
     }
-
-    template <typename W, typename ErrFnOther>
-    constexpr auto operator|(Validator<W, ErrFnOther> v) const {
-        return make_validator(
-            [*this, v](auto const &value) -> bool {
-                return fn(value) || v.fn(value);
-            },
-            [*this, v](auto const &value) -> std::string {
-                return std::format("('{}' or '{}')", err_fn(value), v.err_fn(value));
-            });
-    }
-
-    template <typename W, typename ErrFnOther>
-    constexpr auto operator&(Validator<W, ErrFnOther> v) const {
-        return make_validator(
-            [*this, v](auto const &value) -> bool {
-                return fn(value) && v.fn(value);
-            },
-            [*this, v](auto const &value) -> std::string {
-                return std::format("('{}' and '{}')", err_fn(value), v.err_fn(value));
-            });
-    }
-
-    template <typename W, typename ErrFnOther>
-    constexpr auto operator^(Validator<W, ErrFnOther> v) const {
-        return make_validator(
-            [*this, v]<typename T>(T const &value) -> bool {
-                auto const res_vv = fn(value);
-                auto const res_v = v.fn(value);
-                return ((res_vv && res_v) || (!res_vv && !res_v));
-            },
-            [*this, v](auto const &value) -> std::string {
-                return std::format("('{}' xor '{}')", err_fn(value), v.err_fn(value));
-            });
-    }
-
-    constexpr auto operator!() const {
-        return make_validator(
-            [*this](auto const &value) -> bool {
-                return !fn(value);
-            },
-            [*this](auto const &value) -> std::string {
-                return std::format("(not '{}')", err_fn(value));
-            });
-    }
 };
 
 template <typename V, typename ErrFn>
@@ -88,6 +45,45 @@ inline constexpr auto is_validator_v = IsValidator<std::remove_cvref_t<T>>::valu
 
 template <typename T>
 concept AValidator = is_validator_v<T>;
+
+template <AValidator auto... Vs>
+inline constexpr AValidator auto Or = make_validator(
+    [](auto const &value) -> bool {
+        return (... || Vs.fn(value));
+    },
+    [](auto const &value) -> std::string {
+        return std::array{std::format("'{}'", Vs.err_fn(value))...} | std::views::join_with(" or ")
+               | std::ranges::to<std::string>();
+    });
+
+template <AValidator auto... Vs>
+inline constexpr AValidator auto And = make_validator(
+    [](auto const &value) -> bool {
+        return (... && Vs.fn(value));
+    },
+    [](auto const &value) -> std::string {
+        return std::array{std::format("'{}'", Vs.err_fn(value))...} | std::views::join_with(" and ")
+               | std::ranges::to<std::string>();
+    });
+
+template <AValidator auto... Vs>
+inline constexpr AValidator auto Xor = make_validator(
+    [](auto const &value) -> bool {
+        return (... ^ Vs.fn(value));
+    },
+    [](auto const &value) -> std::string {
+        return std::array{std::format("'{}'", Vs.err_fn(value))...} | std::views::join_with(" xor ")
+               | std::ranges::to<std::string>();
+    });
+
+template <AValidator auto V>
+inline constexpr AValidator auto Not = make_validator(
+    [](auto const &value) -> bool {
+        return !V.fn(value);
+    },
+    [](auto const &value) -> std::string {
+        return std::format("(not '{}')", V.err_fn(value));
+    });
 
 inline constexpr auto always = Validator{
     .fn = [](auto const &) -> bool {
@@ -138,20 +134,19 @@ inline constexpr AValidator auto for_each = Validator{
     }};
 
 template <auto X>
-inline constexpr AValidator auto less_or_equal = equal<X> | less_than<X>;
+inline constexpr AValidator auto less_or_equal = Or<equal<X>, less_than<X>>;
 
 template <auto Value>
-inline constexpr AValidator auto greater_or_equal = equal<Value> | greater_than<Value>;
+inline constexpr AValidator auto greater_or_equal = Or<equal<Value>, greater_than<Value>>;
 
 template <auto Min, auto Max>
-inline constexpr AValidator auto exclusive_range = greater_than<Min> & less_than<Max>;
+inline constexpr AValidator auto exclusive_range = And<greater_than<Min>, less_than<Max>>;
 
 template <auto Min, auto Max>
-inline constexpr AValidator auto inclusive_range = greater_or_equal<Min> & less_or_equal<Max>;
+inline constexpr AValidator auto inclusive_range = And<greater_or_equal<Min>, less_or_equal<Max>>;
 
 template <auto Min, auto Max>
-inline constexpr AValidator auto half_open_range = greater_or_equal<Min> & less_than<Max>;
-
+inline constexpr AValidator auto half_open_range = And<greater_or_equal<Min>, less_than<Max>>;
 }  // namespace args
 
 #endif
