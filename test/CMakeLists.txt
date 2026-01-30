@@ -14,7 +14,9 @@ add_executable(cpp_args_test
     validators.cpp
 )
 
-target_include_directories(cpp_args_test PRIVATE "${PROJECT_SOURCE_DIR}/src")
+target_link_libraries(cpp_args_test PRIVATE project_warnings)
+
+# target_include_directories(cpp_args_test PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(cpp_args_test PRIVATE cpp_args Catch2::Catch2WithMain)
 
 list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)

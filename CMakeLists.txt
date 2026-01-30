@@ -8,7 +8,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_compile_options(
+add_library(project_warnings INTERFACE)
+
+target_compile_options(project_warnings INTERFACE
     -Wall
     -Wextra
     -Wpedantic
@@ -55,6 +57,9 @@ add_library(cpp_args STATIC
 	src/tokenizer.cpp
 	src/types.cpp
 )
+target_link_libraries(cpp_args PRIVATE project_warnings)
+
+target_include_directories(cpp_args PUBLIC ${PROJECT_SOURCE_DIR}/src)
 
 if( supported )
     message(STATUS "IPO / LTO enabled")
@@ -65,6 +70,13 @@ endif()
 
 option(BUILD_TESTING "Build tests" ON)
 if(BUILD_TESTS)
-	include(CTest)
-	add_subdirectory(test)
+    include(CTest)
+    add_subdirectory(test)
 endif()
+
+option(BUILD_EXAMPLES "Build examples" ON)
+if(BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
+# add_custom_target(examples)
+
