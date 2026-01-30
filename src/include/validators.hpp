@@ -161,7 +161,7 @@ inline constexpr auto greater_than = Validator{
     }};
 
 template <Validator V>
-inline constexpr auto for_each = Validator{
+inline constexpr auto ForEach = Validator{
     .fn = []<typename T>(std::vector<T> const &value) -> bool {
         return std::ranges::all_of(value, [&](auto const &item) {
             return V.fn(item);
