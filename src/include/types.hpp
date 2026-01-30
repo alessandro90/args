@@ -94,6 +94,35 @@ using str_t = lazy_t<std::string>;
 
 using strv_t = lazy_t<std::string_view>;
 
+namespace detail {
+
+template <auto S>
+concept HasValidator = requires { S.validator; };
+
+template <auto S>
+concept HasDefault = requires { S.default_value; };
+
+template <auto S, auto... Ss>
+[[nodiscard]] consteval auto assert_valid_defaults() -> bool {
+    if constexpr (HasValidator<S> && HasDefault<S>) {
+        if constexpr (!std::is_invocable_v<decltype(S.default_value)>) {
+            if (!S.validator.fn(S.default_value)) {
+                return false;
+            }
+        } else {
+            if (!S.validator.fn(S.default_value())) {
+                return false;
+            }
+        }
+    }
+    if constexpr (sizeof...(Ss) == 0) {
+        return true;
+    } else {
+        return assert_valid_defaults<Ss...>();
+    }
+}
+}  // namespace detail
+
 template <std::size_t N, std::size_t M = 0>
 struct [[nodiscard]] Flag {
     Str<N> long_form;
@@ -501,6 +530,9 @@ struct [[nodiscard]] Rules {
         detail::check_variadic_is_last_positional<Specs...>(),
         "Positional variadic argument must be the last positional argument because it consumes all "
         "positionals");
+
+    // static_assert(detail::assert_valid_defaults<Specs...>(), "Invalid default for
+    // specification");
 
     [[nodiscard]] static auto help() -> std::string_view {
         static auto help_msg = detail::make_help<Usage, Description, Specs...>();

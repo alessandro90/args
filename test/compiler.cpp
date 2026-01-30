@@ -10,6 +10,7 @@
 #include "include/tokenizer.hpp"
 #include "include/types.hpp"
 #include "include/typetag.hpp"
+#include "include/validators.hpp"
 
 using namespace args;
 using namespace args::tokenizer;
@@ -153,7 +154,6 @@ TEST_CASE("subcommand-nested", "[compiler]") {
 TEST_CASE("positional", "[compiler]") {
     static constexpr auto option =
         Positional{.type = tag<std::vector<int>>, .name = "pos-name"_str, .variadic = true};
-    // Positional{.type = tag<vec_t<int>>, .name = "pos-name"_str, .variadic = true};
     static constexpr auto rules = Rules<empty, empty, option>{};
     auto const tokens = std::array{
         token_t{Argument{.value = "1"}},
@@ -164,6 +164,32 @@ TEST_CASE("positional", "[compiler]") {
     REQUIRE(has_args(out));
     auto const value = get_args(out).get<option>();
     REQUIRE(value == std::vector{1, 10, 100});
+}
+
+TEST_CASE("short-flag-with-arithmetic-value-validation", "[compiler]") {
+    static constexpr auto option = FlagWithValue{
+        .long_form = "value"_flag,
+        .short_form = "v"_short_flag,
+        .default_value = 0,
+        .validator = less_than<10>};
+    static constexpr auto rules = Rules<empty, empty, option>{};
+
+    SECTION("validation-correct") {
+        auto const tokens =
+            std::array{token_t{ShortFlag{.flag = 'v'}}, token_t{Argument{.value = "9"}}};
+        auto const out = compiler::compile(std::span{tokens}, rules);
+
+        REQUIRE(std::holds_alternative<Args<option>>(out));
+        auto const value = std::get<Args<option>>(out).get<option>();
+        REQUIRE(value == 9);
+    }
+    SECTION("validation-incorrect") {
+        auto const tokens =
+            std::array{token_t{ShortFlag{.flag = 'v'}}, token_t{Argument{.value = "10"}}};
+        auto const out = compiler::compile(std::span{tokens}, rules);
+
+        REQUIRE(has_error(out));
+    }
 }
 
 // NOLINTEND(cppcoreguidelines-avoid-do-while, misc-use-anonymous-namespace,

@@ -16,6 +16,7 @@
 #include "tokenizer.hpp"
 #include "types.hpp"
 #include "typetag.hpp"
+#include "validators.hpp"
 
 namespace args::compiler {
 namespace detail {
@@ -159,7 +160,7 @@ struct [[nodiscard]] TokenCompiler {
                         }
                         ++m_current_positional_index;
                     }
-                    try_parse_argument(argument, item, error);
+                    parse_and_validate_argument(argument, item, error);
                     return !error.has_value();
                 };
 
@@ -171,7 +172,7 @@ struct [[nodiscard]] TokenCompiler {
                         return false;
                     }
                     auto cloned_item = auto{item};
-                    try_parse_argument(argument, cloned_item, error);
+                    parse_and_validate_argument(argument, cloned_item, error);
                     if (error.has_value()) {
                         return false;
                     }
@@ -198,7 +199,7 @@ struct [[nodiscard]] TokenCompiler {
                     if (item.spec.short_form.value != short_flag_state.short_flag.flag) {
                         return false;
                     }
-                    try_parse_argument(argument, item, error);
+                    parse_and_validate_argument(argument, item, error);
                     return true;
                 };
                 if (!handle_token(handler)) {
@@ -217,7 +218,7 @@ struct [[nodiscard]] TokenCompiler {
                         return false;
                     }
 
-                    try_parse_argument(argument, item, error);
+                    parse_and_validate_argument(argument, item, error);
                     return true;
                 };
 
@@ -301,13 +302,20 @@ private:
     }
 
     template <auto S>
-    auto try_parse_argument(
+    auto parse_and_validate_argument(
         tokenizer::Argument argument, ArgValue<S> &item, std::optional<std::string> &error)
         -> void {
         using namespace args::detail;
         auto parsed_value =
             parsers::parse<parse_type_t<S>>(argument.value.begin(), argument.value.end());
         if (parsed_value.has_value()) {
+            if constexpr (!is_positional_variadic_v<S> && args::detail::HasValidator<S>) {
+                auto validation = S.validator(parsed_value.value());
+                if (!validation.has_value()) {
+                    error = std::move(validation).error();
+                    return;
+                }
+            }
             item.is_used = true;
             assign_parsed_value(item, std::move(parsed_value).value());
             m_compiler_state = std::monostate{};
@@ -391,6 +399,26 @@ auto assign_defaults_to_unused(std::tuple<ArgValue<Specs>...> &results) -> void 
     }(std::make_index_sequence<sizeof...(Specs)>());
 }
 
+template <auto... Specs>
+[[nodiscard]] auto validate_variadic_positional(std::tuple<ArgValue<Specs>...> &results)
+    -> validator_result_t {
+    auto validation_result = validator_result_t{};
+    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+        (..., [&]() {
+            auto &r = std::get<Is>(results);
+            using arg_type_t = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
+            if constexpr (args::detail::is_positional_variadic_v<arg_type_t::spec>) {
+                if (r.is_used) {
+                    // we only get one variadic positional to check, therefore no need to
+                    // store results in a vector for example
+                    validation_result = arg_type_t::spec.validator(r.value);
+                }
+            }
+        }());
+    }(std::make_index_sequence<sizeof...(Specs)>());
+    return validation_result;
+}
+
 }  // namespace detail
 
 template <std::size_t Extent, Str Usage, Str Description, auto... Specs>
@@ -433,6 +461,11 @@ template <std::size_t Extent, Str Usage, Str Description, auto... Specs>
             .message = missing_args | std::views::join_with('\n') | std::ranges::to<std::string>()};
     }
     detail::assign_defaults_to_unused(token_compiler.results);
+    auto positional_variadic_validation_result =
+        detail::validate_variadic_positional(token_compiler.results);
+    if (!positional_variadic_validation_result.has_value()) {
+        return Error{.message = std::move(positional_variadic_validation_result).error()};
+    }
     return Args{std::move(token_compiler).results};
 }
 

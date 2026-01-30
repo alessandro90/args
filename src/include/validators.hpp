@@ -22,7 +22,7 @@ struct [[nodiscard]] Validator {
 
     template <typename T>
     [[nodiscard]] constexpr auto operator()(T const &value) const -> validator_result_t {
-        if (fn(value)) {
+        if (!fn(value)) {
             return std::unexpected(err_fn(value));
         }
         return {};
@@ -99,7 +99,7 @@ inline constexpr auto Not = make_validator(
 
 inline constexpr auto always = Validator{
     .fn = [](auto const &) -> bool {
-        return {};
+        return true;
     },
     .err_fn = [](auto const &) -> std::string {
         return "";
@@ -118,14 +118,15 @@ inline constexpr auto less_than = Validator{
         return value < Limit;
     },
     .err_fn = [](auto const &value) -> std::string {
-        if constexpr (requires {
-                          requires detail::both_formattable<decltype(Limit), decltype(value)>;
-                      }) {
-            return std::format("Value '{}' must be less than '{}'", value, Limit);
-        } else {
-            static_cast<void>(value);
-            return "Value must be less than target";
-        }
+        // FIXME: for some reason these lines makes clangd crash. But they are correct
+        // if constexpr (requires {
+        //                   requires detail::both_formattable<decltype(Limit), decltype(value)>;
+        //               }) {
+        //     return std::format("Value '{}' must be less than '{}'", value, Limit);
+        // } else {
+        static_cast<void>(value);
+        return "Value must be less than target";
+        // }
     }};
 
 template <std::equality_comparable auto Target>
@@ -134,14 +135,15 @@ inline constexpr auto equal = Validator{
         return value == Target;
     },
     .err_fn = [](auto const &value) -> std::string {
-        if constexpr (requires {
-                          requires detail::both_formattable<decltype(Target), decltype(value)>;
-                      }) {
-            return std::format("Value '{}' must be equal to '{}'", value, Target);
-        } else {
-            static_cast<void>(value);
-            return "Value must be equal to target";
-        }
+        // FIXME: for some reason these lines makes clangd crash. But they are correct
+        // if constexpr (requires {
+        //                   requires detail::both_formattable<decltype(Target), decltype(value)>;
+        //               }) {
+        //     return std::format("Value '{}' must be equal to '{}'", value, Target);
+        // } else {
+        static_cast<void>(value);
+        return "Value must be equal to target";
+        // }
     }};
 
 template <std::totally_ordered auto Limit>
@@ -150,14 +152,15 @@ inline constexpr auto greater_than = Validator{
         return value > Limit;
     },
     .err_fn = [](auto const &value) -> std::string {
-        if constexpr (requires {
-                          requires detail::both_formattable<decltype(Limit), decltype(value)>;
-                      }) {
-            return std::format("Value '{}' must be greater than '{}'", value, Limit);
-        } else {
-            static_cast<void>(value);
-            return "Value must be greater than target";
-        }
+        // FIXME: for some reason these lines makes clangd crash. But they are correct
+        // if constexpr (requires {
+        //                   requires detail::both_formattable<decltype(Limit), decltype(value)>;
+        //               }) {
+        //     return std::format("Value '{}' must be greater than '{}'", value, Limit);
+        // } else {
+        static_cast<void>(value);
+        return "Value must be greater than target";
+        // }
     }};
 
 template <Validator V>
