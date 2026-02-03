@@ -660,17 +660,17 @@ template <auto... Ss>
 using compile_result_t = std::variant<Args<Ss...>, Help, Error>;
 
 template <auto... Ss>
-[[nodiscard]] constexpr auto has_args(compile_result_t<Ss...> const &res) -> bool {
+[[nodiscard]] constexpr auto has_args(compile_result_t<Ss...> const &res) noexcept -> bool {
     return std::holds_alternative<Args<Ss...>>(res);
 }
 
 template <auto... Ss>
-[[nodiscard]] constexpr auto has_help(compile_result_t<Ss...> const &res) -> bool {
+[[nodiscard]] constexpr auto has_help(compile_result_t<Ss...> const &res) noexcept -> bool {
     return std::holds_alternative<Help>(res);
 }
 
 template <auto... Ss>
-[[nodiscard]] constexpr auto has_error(compile_result_t<Ss...> const &res) -> bool {
+[[nodiscard]] constexpr auto has_error(compile_result_t<Ss...> const &res) noexcept -> bool {
     return std::holds_alternative<Error>(res);
 }
 

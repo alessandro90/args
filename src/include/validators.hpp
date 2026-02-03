@@ -46,6 +46,15 @@ inline constexpr auto is_validator_v = IsValidator<std::remove_cvref_t<T>>::valu
 template <typename T>
 concept AValidator = is_validator_v<T>;
 
+namespace detail {
+[[nodiscard]] auto make_error_char_range(
+    auto const &value, std::string_view joiner, AValidator auto const &...validators)
+    -> std::ranges::range auto {
+    return std::array{std::format("'{}'", validators.err_fn(value))...}
+           | std::views::join_with(joiner);
+}
+}  // namespace detail
+
 template <Validator... Vs>
 inline constexpr auto Or = make_validator(
     [](auto const &value) -> bool {
@@ -53,9 +62,7 @@ inline constexpr auto Or = make_validator(
     },
     [](auto const &value) -> std::string {
         auto s = std::string(1, '(');
-        s.append_range(
-            std::array{std::format("'{}'", Vs.err_fn(value))...} | std::views::join_with(" or ")
-            | std::ranges::to<std::string>());
+        s.append_range(detail::make_error_char_range(value, " or ", Vs...));
         s.push_back(')');
         return s;
     });
@@ -67,9 +74,7 @@ inline constexpr auto And = make_validator(
     },
     [](auto const &value) -> std::string {
         auto s = std::string(1, '(');
-        s.append_range(
-            std::array{std::format("'{}'", Vs.err_fn(value))...} | std::views::join_with(" and ")
-            | std::ranges::to<std::string>());
+        s.append_range(detail::make_error_char_range(value, " and ", Vs...));
         s.push_back(')');
         return s;
     });
@@ -81,9 +86,7 @@ inline constexpr auto Xor = make_validator(
     },
     [](auto const &value) -> std::string {
         auto s = std::string(1, '(');
-        s.append_range(
-            std::array{std::format("'{}'", Vs.err_fn(value))...} | std::views::join_with(" xor ")
-            | std::ranges::to<std::string>());
+        s.append_range(detail::make_error_char_range(value, " xor ", Vs...));
         s.push_back(')');
         return s;
     });
@@ -108,8 +111,40 @@ inline constexpr auto always = Validator{
 using always_t = std::remove_cvref_t<decltype(always)>;
 
 namespace detail {
-template <typename T, typename E>
-concept both_formattable = std::formattable<T, char> && std::formattable<E, char>;
+// template <typename T, typename E>
+// concept both_formattable = std::formattable<T, char> && std::formattable<E, char>;
+
+template <std::formattable<char> Limit, std::formattable<char> Value>
+[[nodiscard]] auto less_than_error_message(Limit const &limit, Value const &value) -> std::string {
+    return std::format("Value '{}' must be less than '{}'", value, limit);
+}
+
+template <typename Limit, typename Value>
+[[nodiscard]] auto less_than_error_message(Limit const &, Value const &) -> std::string {
+    return "Value must be less than target";
+}
+
+template <std::formattable<char> Target, std::formattable<char> Value>
+[[nodiscard]] auto equal_error_message(Target const &target, Value const &value) -> std::string {
+    return std::format("Value '{}' must be equal to '{}'", value, target);
+}
+
+template <typename Target, typename Value>
+[[nodiscard]] auto equal_error_message(Target const &, Value const &) -> std::string {
+    return "Value must be equal to target";
+}
+
+template <std::formattable<char> Limit, std::formattable<char> Value>
+[[nodiscard]] auto greater_than_error_message(Limit const &limit, Value const &value)
+    -> std::string {
+    return std::format("Value '{}' must be greater than '{}'", value, limit);
+}
+
+template <typename Limit, typename Value>
+[[nodiscard]] auto greater_than_error_message(Limit const &, Value const &) -> std::string {
+    return "Value must be greater than target";
+}
+
 }  // namespace detail
 
 template <std::totally_ordered auto Limit>
@@ -118,14 +153,15 @@ inline constexpr auto less_than = Validator{
         return value < Limit;
     },
     .err_fn = [](auto const &value) -> std::string {
+        return detail::less_than_error_message(Limit, value);
         // FIXME: for some reason these lines makes clangd crash. But they are correct
         // if constexpr (requires {
         //                   requires detail::both_formattable<decltype(Limit), decltype(value)>;
         //               }) {
         //     return std::format("Value '{}' must be less than '{}'", value, Limit);
         // } else {
-        static_cast<void>(value);
-        return "Value must be less than target";
+        // static_cast<void>(value);
+        // return "Value must be less than target";
         // }
     }};
 
@@ -135,14 +171,15 @@ inline constexpr auto equal = Validator{
         return value == Target;
     },
     .err_fn = [](auto const &value) -> std::string {
+        return detail::equal_error_message(Target, value);
         // FIXME: for some reason these lines makes clangd crash. But they are correct
         // if constexpr (requires {
         //                   requires detail::both_formattable<decltype(Target), decltype(value)>;
         //               }) {
         //     return std::format("Value '{}' must be equal to '{}'", value, Target);
         // } else {
-        static_cast<void>(value);
-        return "Value must be equal to target";
+        // static_cast<void>(value);
+        // return "Value must be equal to target";
         // }
     }};
 
@@ -152,14 +189,15 @@ inline constexpr auto greater_than = Validator{
         return value > Limit;
     },
     .err_fn = [](auto const &value) -> std::string {
+        return detail::greater_than_error_message(Limit, value);
         // FIXME: for some reason these lines makes clangd crash. But they are correct
         // if constexpr (requires {
         //                   requires detail::both_formattable<decltype(Limit), decltype(value)>;
         //               }) {
         //     return std::format("Value '{}' must be greater than '{}'", value, Limit);
         // } else {
-        static_cast<void>(value);
-        return "Value must be greater than target";
+        // static_cast<void>(value);
+        // return "Value must be greater than target";
         // }
     }};
 
