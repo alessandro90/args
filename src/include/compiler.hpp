@@ -147,87 +147,9 @@ struct [[nodiscard]] TokenCompiler {
 
     [[nodiscard]] auto operator()(tokenizer::Argument argument) -> std::optional<std::string> {
         auto compile_argument = Overload{
-            [&](std::monostate) -> std::optional<std::string> {
-                auto error = std::optional<std::string>{};
-                auto const positional_handler =
-                    [&, counter = 0uz]<auto S>(ArgValue<S> &item) mutable
-                    requires detail::APositional<S>
-                {
-                    if constexpr (!S.variadic) {
-                        if (counter != m_current_positional_index) {
-                            ++counter;
-                            return false;
-                        }
-                        ++m_current_positional_index;
-                    }
-                    parse_and_validate_argument(argument, item, error);
-                    return !error.has_value();
-                };
-
-                auto const subcommand_handler =
-                    [&]<auto S>(ArgValue<S> &item, std::size_t tuple_index) mutable
-                    requires detail::ASubcommand<S>
-                {
-                    if (m_current_positional_index != 0) {
-                        return false;
-                    }
-                    auto cloned_item = auto{item};
-                    parse_and_validate_argument(argument, cloned_item, error);
-                    if (error.has_value()) {
-                        return false;
-                    }
-                    if (cloned_item.value != S.name.as_string_view()) {
-                        return false;
-                    }
-                    item = cloned_item;
-                    m_subcommand_tuple_index = tuple_index;
-                    return true;
-                };
-
-                if (!handle_token(subcommand_handler) && !handle_token(positional_handler)) {
-                    return std::format(
-                        "Cannot find match for positional argument number: '{}'",
-                        m_current_positional_index);
-                }
-                return error;
-            },
-            [&](ParsingShortFlag short_flag_state) -> std::optional<std::string> {
-                auto error = std::optional<std::string>{};
-                auto const handler = [&]<auto S>(ArgValue<S> &item)
-                                         requires detail::AShortFlagWithValue<S>
-                {
-                    if (item.spec.short_form.value != short_flag_state.short_flag.flag) {
-                        return false;
-                    }
-                    parse_and_validate_argument(argument, item, error);
-                    return true;
-                };
-                if (!handle_token(handler)) {
-                    return std::format(
-                        "Cannot find match for flag: '{}'", short_flag_state.short_flag.flag);
-                }
-                return error;
-            },
-            [&](ParsingLongFlag long_flag_state) -> std::optional<std::string> {
-                auto error = std::optional<std::string>{};
-                auto const handler = [&]<auto S>(ArgValue<S> &item)
-                                         requires detail::ALongFlagWithValue<S>
-
-                {
-                    if (item.spec.long_form.as_string_view() != long_flag_state.long_flag.flag) {
-                        return false;
-                    }
-
-                    parse_and_validate_argument(argument, item, error);
-                    return true;
-                };
-
-                if (!handle_token(handler)) {
-                    return std::format(
-                        "Cannot find match for flag: '{}'", long_flag_state.long_flag.flag);
-                }
-                return error;
-            },
+            compile_positional_argument(argument),
+            compile_valued_short_flag(argument),
+            compile_valued_long_flag(argument),
         };
         return std::visit(compile_argument, m_compiler_state);
     }
@@ -331,6 +253,95 @@ private:
         bool has_equal, auto handler_with_value, auto handler_without_value) -> bool {
         return has_equal ? handle_token(handler_with_value)
                          : handle_token(handler_without_value) || handle_token(handler_with_value);
+    }
+
+    [[nodiscard]] auto compile_positional_argument(tokenizer::Argument argument) {
+        return [this, argument](std::monostate) -> std::optional<std::string> {
+            auto error = std::optional<std::string>{};
+            auto const positional_handler = [&, counter = 0uz]<auto S>(ArgValue<S> &item) mutable
+                requires detail::APositional<S>
+            {
+                if constexpr (!S.variadic) {
+                    if (counter != m_current_positional_index) {
+                        ++counter;
+                        return false;
+                    }
+                    ++m_current_positional_index;
+                }
+                parse_and_validate_argument(argument, item, error);
+                return !error.has_value();
+            };
+
+            auto const subcommand_handler =
+                [&]<auto S>(ArgValue<S> &item, std::size_t tuple_index) mutable
+                requires detail::ASubcommand<S>
+            {
+                if (m_current_positional_index != 0) {
+                    return false;
+                }
+                auto cloned_item = auto{item};
+                parse_and_validate_argument(argument, cloned_item, error);
+                if (error.has_value()) {
+                    return false;
+                }
+                if (cloned_item.value != S.name.as_string_view()) {
+                    return false;
+                }
+                item = cloned_item;
+                m_subcommand_tuple_index = tuple_index;
+                return true;
+            };
+
+            if (!handle_token(subcommand_handler) && !handle_token(positional_handler)) {
+                return std::format(
+                    "Cannot find match for positional argument number: '{}'",
+                    m_current_positional_index);
+            }
+            return error;
+        };
+    }
+
+    [[nodiscard]] auto compile_valued_short_flag(tokenizer::Argument argument) {
+        return [this, argument](ParsingShortFlag short_flag_state) -> std::optional<std::string> {
+            auto error = std::optional<std::string>{};
+            auto const handler = [&]<auto S>(ArgValue<S> &item)
+                                     requires detail::AShortFlagWithValue<S>
+            {
+                if (item.spec.short_form.value != short_flag_state.short_flag.flag) {
+                    return false;
+                }
+                parse_and_validate_argument(argument, item, error);
+                return true;
+            };
+            if (!handle_token(handler)) {
+                return std::format(
+                    "Cannot find match for flag: '{}'", short_flag_state.short_flag.flag);
+            }
+            return error;
+        };
+    }
+
+    [[nodiscard]] auto compile_valued_long_flag(tokenizer::Argument argument) {
+        return [this, argument](ParsingLongFlag long_flag_state) -> std::optional<std::string> {
+            auto error = std::optional<std::string>{};
+            auto const handler = [&]<auto S>(ArgValue<S> &item)
+                                     requires detail::ALongFlagWithValue<S>
+
+            {
+                if (item.spec.long_form.as_string_view() != long_flag_state.long_flag.flag) {
+                    return false;
+                }
+
+                parse_and_validate_argument(argument, item, error);
+                return true;
+            };
+
+            if (!handle_token(handler)) {
+                return std::format(
+                    "Cannot find match for flag: '{}'", long_flag_state.long_flag.flag);
+            }
+            return error;
+        };
     }
 
     std::variant<std::monostate, ParsingShortFlag, ParsingLongFlag> m_compiler_state{};
