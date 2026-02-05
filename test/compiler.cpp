@@ -20,7 +20,7 @@ TEST_CASE("boolean-short-flag", "[compiler]") {
     static constexpr auto rules = Rules<empty, empty, option>{};
 
     SECTION("providing-value-gets-true") {
-        auto const flag = std::array{token_t{ShortFlag{.flag = 'v'}}};
+        auto const flag = std::array{token_t{ShortFlag{.raw = "-v", .flag = 'v'}}};
         auto const out = compiler::compile(std::span{flag}, rules);
 
         REQUIRE(std::holds_alternative<Args<option>>(out));
@@ -52,8 +52,8 @@ TEST_CASE("short-flag-with-arithmetic-value", "[compiler]") {
         static constexpr auto option = FlagWithValue{
             .long_form = "value"_flag, .short_form = "v"_short_flag, .default_value = 0};
         static constexpr auto rules = Rules<empty, empty, option>{};
-        auto const tokens =
-            std::array{token_t{ShortFlag{.flag = 'v'}}, token_t{Argument{.value = "10"}}};
+        auto const tokens = std::array{
+            token_t{ShortFlag{.raw = "-v", .flag = 'v'}}, token_t{Argument{.value = "10"}}};
         auto const out = compiler::compile(std::span{tokens}, rules);
 
         REQUIRE(std::holds_alternative<Args<option>>(out));
@@ -64,8 +64,8 @@ TEST_CASE("short-flag-with-arithmetic-value", "[compiler]") {
         static constexpr auto option = FlagWithValue{
             .long_form = "value"_flag, .short_form = "v"_short_flag, .default_value = 0.f};
         static constexpr auto rules = Rules<empty, empty, option>{};
-        auto const tokens =
-            std::array{token_t{ShortFlag{.flag = 'v'}}, token_t{Argument{.value = "10.5"}}};
+        auto const tokens = std::array{
+            token_t{ShortFlag{.raw = "-v", .flag = 'v'}}, token_t{Argument{.value = "10.5"}}};
         auto const out = compiler::compile(std::span{tokens}, rules);
 
         REQUIRE(std::holds_alternative<Args<option>>(out));
@@ -166,6 +166,37 @@ TEST_CASE("positional", "[compiler]") {
     REQUIRE(value == std::vector{1, 10, 100});
 }
 
+TEST_CASE("forced-positional-variadic", "[compiler]") {
+    static constexpr auto dummy_flag = Flag{.long_form = "dummy-flag"_str, .required = true};
+    static constexpr auto forced_positionals = Positional{
+        .type = tag<std::vector<std::string_view>>,
+        .name = "forced-positionals"_str,
+        .variadic = true};
+    static constexpr auto rules = Rules<empty, empty, dummy_flag, forced_positionals>{};
+    auto const tokens = std::array{
+        token_t{LongFlag{.raw = "--dummy-flag", .flag = "dummy-flag"}},
+        token_t{DoubleDash{}},
+        token_t{LongFlag{
+            .raw = "--positional-flag-with-value=10",
+            .flag = "positional-flag-with-value",
+            .has_equal = true}},
+        token_t{Argument{.value = "10"}},
+        token_t{LongFlag{.raw = "--positional-flag", .flag = "positional-flag"}},
+    };
+    auto const out = compiler::compile(std::span{tokens}, rules);
+
+    REQUIRE(has_args(out));
+    auto const &args = get_args(out);
+    auto const dummy = args.get<dummy_flag>();
+    REQUIRE(dummy);
+
+    auto const &positionals = args.get<forced_positionals>();
+
+    REQUIRE(positionals.size() == 2);
+    REQUIRE(positionals[0] == "--positional-flag-with-value=10");
+    REQUIRE(positionals[1] == "--positional-flag");
+}
+
 TEST_CASE("short-flag-with-arithmetic-value-validation", "[compiler]") {
     static constexpr auto option = FlagWithValue{
         .long_form = "value"_flag,
@@ -175,8 +206,8 @@ TEST_CASE("short-flag-with-arithmetic-value-validation", "[compiler]") {
     static constexpr auto rules = Rules<empty, empty, option>{};
 
     SECTION("validation-correct") {
-        auto const tokens =
-            std::array{token_t{ShortFlag{.flag = 'v'}}, token_t{Argument{.value = "9"}}};
+        auto const tokens = std::array{
+            token_t{ShortFlag{.raw = "-v", .flag = 'v'}}, token_t{Argument{.value = "9"}}};
         auto const out = compiler::compile(std::span{tokens}, rules);
 
         REQUIRE(std::holds_alternative<Args<option>>(out));
@@ -184,8 +215,8 @@ TEST_CASE("short-flag-with-arithmetic-value-validation", "[compiler]") {
         REQUIRE(value == 9);
     }
     SECTION("validation-incorrect") {
-        auto const tokens =
-            std::array{token_t{ShortFlag{.flag = 'v'}}, token_t{Argument{.value = "10"}}};
+        auto const tokens = std::array{
+            token_t{ShortFlag{.raw = "-v", .flag = 'v'}}, token_t{Argument{.value = "10"}}};
         auto const out = compiler::compile(std::span{tokens}, rules);
 
         REQUIRE(has_error(out));

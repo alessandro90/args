@@ -15,6 +15,13 @@ namespace args {
 
 using validator_result_t = std::expected<void, std::string>;
 
+/// Used to apply validation logic to parsed arguments
+///
+/// `fn` is a validator function that takes a reference to a constant parsed value
+/// and returns `true` if the checks passes
+///
+/// `err_fn` is a function used to display an error (if `fn` returns `false`). This function also
+/// takes a reference to a constant parsed value
 template <typename V, typename ErrFn>
 struct [[nodiscard]] Validator {
     V fn;
@@ -55,6 +62,11 @@ namespace detail {
 }
 }  // namespace detail
 
+/// Creates a new validator that is a logical 'or' between all the provided validators
+///
+/// Usage:
+///
+/// `Or<v0, v1, v2, ...>`
 template <Validator... Vs>
 inline constexpr auto Or = make_validator(
     [](auto const &value) -> bool {
@@ -67,6 +79,12 @@ inline constexpr auto Or = make_validator(
         return s;
     });
 
+
+/// Creates a new validator that is a logical 'and' between all the provided validators
+///
+/// Usage:
+///
+/// `And<v0, v1, v2, ...>`
 template <Validator... Vs>
 inline constexpr auto And = make_validator(
     [](auto const &value) -> bool {
@@ -79,6 +97,11 @@ inline constexpr auto And = make_validator(
         return s;
     });
 
+/// Creates a new validator that is a logical 'xor' between all the provided validators
+///
+/// Usage:
+///
+/// `Xor<v0, v1, v2, ...>`
 template <Validator... Vs>
 inline constexpr auto Xor = make_validator(
     [](auto const &value) -> bool {
@@ -91,6 +114,11 @@ inline constexpr auto Xor = make_validator(
         return s;
     });
 
+/// Creates a new validator that is a logical 'not' of the provided validator
+///
+/// Usage:
+///
+/// `Not<v>`
 template <Validator V>
 inline constexpr auto Not = make_validator(
     [](auto const &value) -> bool {
@@ -100,6 +128,7 @@ inline constexpr auto Not = make_validator(
         return std::format("(not '{}')", V.err_fn(value));
     });
 
+/// The identity validator, never fails
 inline constexpr auto always = Validator{
     .fn = [](auto const &) -> bool {
         return true;
@@ -147,6 +176,11 @@ template <typename Limit, typename Value>
 
 }  // namespace detail
 
+/// Checks that the parsed value is less than the provided limit
+///
+/// Usage:
+///
+/// `less_than<limit>`
 template <std::totally_ordered auto Limit>
 inline constexpr auto less_than = Validator{
     .fn = [](auto const &value) -> bool {
@@ -165,8 +199,13 @@ inline constexpr auto less_than = Validator{
         // }
     }};
 
+/// Checks that the parsed value is equal to the provided target
+///
+/// Usage:
+///
+/// `equal_to<target>`
 template <std::equality_comparable auto Target>
-inline constexpr auto equal = Validator{
+inline constexpr auto equal_to = Validator{
     .fn = [](auto const &value) -> bool {
         return value == Target;
     },
@@ -183,6 +222,11 @@ inline constexpr auto equal = Validator{
         // }
     }};
 
+/// Checks that the parsed value is greater than the provided limit
+///
+/// Usage:
+///
+/// `greater_than<limit>`
 template <std::totally_ordered auto Limit>
 inline constexpr auto greater_than = Validator{
     .fn = [](auto const &value) -> bool {
@@ -201,6 +245,23 @@ inline constexpr auto greater_than = Validator{
         // }
     }};
 
+
+/// Checks that the parsed value is equal to one of the choices
+///
+/// Usage:
+///
+/// `any_of<c0, c1, c2, ...>`
+template <auto... Cc>
+inline constexpr auto any_of = Or<equal_to<Cc...>>;
+
+
+/// Apply the provided validator to each element of the parsed value.
+///
+/// The parsed value must be iterable
+///
+/// Usage:
+///
+/// `ForEach<v1, v2, ...>`
 template <Validator V>
 inline constexpr auto ForEach = Validator{
     .fn = []<typename T>(std::vector<T> const &value) -> bool {
@@ -212,21 +273,51 @@ inline constexpr auto ForEach = Validator{
         return std::format("Vector item: {}", V.err_fn(value));
     }};
 
+/// Checks that the parsed value is less or equal than the provided limit
+///
+/// Usage:
+///
+/// `less_or_equal<limit>`
 template <auto X>
-inline constexpr auto less_or_equal = Or<equal<X>, less_than<X>>;
+inline constexpr auto less_or_equal = Or<equal_to<X>, less_than<X>>;
 
+/// Checks that the parsed value is greater or equal than the provided limit
+///
+/// Usage:
+///
+/// `greater_or_equal<limit>`
 template <auto Value>
-inline constexpr auto greater_or_equal = Or<equal<Value>, greater_than<Value>>;
+inline constexpr auto greater_or_equal = Or<equal_to<Value>, greater_than<Value>>;
 
+/// Checks that the parsed value is in the range (extremes excluded)
+///
+/// Usage:
+///
+/// `exclusive_range<min, max>`
 template <auto Min, auto Max>
 inline constexpr auto exclusive_range = And<greater_than<Min>, less_than<Max>>;
 
+/// Checks that the parsed value is in the range (included excluded)
+///
+/// Usage:
+///
+/// `inclusive_range<min, max>`
 template <auto Min, auto Max>
 inline constexpr auto inclusive_range = And<greater_or_equal<Min>, less_or_equal<Max>>;
 
+/// Checks that the parsed value is in the range (including the lower limit and excluding the higher
+/// one)
+///
+/// Usage:
+///
+/// `half_open_range<min, max>`
 template <auto Min, auto Max>
 inline constexpr auto half_open_range = And<greater_or_equal<Min>, less_than<Max>>;
 
+/// Can be used to transform a parsed value before feeding it to a validator
+///
+/// `fn` the transforming function, takes a reference to a constant parsed value and can return
+/// anything
 template <typename Fn>
 struct [[nodiscard]] ValidatorTransformer {
     Fn fn;
@@ -245,6 +336,7 @@ inline constexpr auto is_validator_transformer_v =
 template <typename T>
 concept AValidatorTransformer = is_validator_transformer_v<T>;
 
+/// Map the provided value to its len (the value must provide a `size` method)
 inline constexpr auto len = ValidatorTransformer{.fn = [](auto const &value) -> std::size_t {
     return value.size();
 }};
@@ -264,9 +356,21 @@ constexpr auto compose_transformers() -> AValidatorTransformer auto {
 }
 }  // namespace detail
 
+/// Compose different tranformers (application is left to right)
+///
+/// Usage:
+///
+/// `Compose<t0, t1, t2, ...>`
 template <ValidatorTransformer... Ts>
 inline constexpr AValidatorTransformer auto Compose = detail::compose_transformers<Ts...>();
 
+/// Creates a transformed validator
+///
+/// The value is transformed and then passed to the validator
+///
+/// Usage:
+///
+/// `Pipe<t, v>`
 template <ValidatorTransformer T, Validator V>
 inline constexpr auto Pipe = Validator{
     .fn = [](auto const &value) -> bool {

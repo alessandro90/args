@@ -48,6 +48,16 @@ struct [[nodiscard]] Opt {
 template <typename T>
 concept Trivial = std::is_trivial_v<T>;
 
+/// A compile time string_view-like object
+///
+/// Should be used to define string-like quantities needed at compile time
+///
+/// Note: it can be compared to std::string_view and std::string, and therefore
+/// it can be used in validators that deal with those types
+///
+/// Usage:
+///
+/// `"a compile-time string-like object"_str`
 template <std::size_t N>
 struct [[nodiscard]] Str {
     std::array<char, N + 1> chars{};
@@ -75,7 +85,7 @@ struct [[nodiscard]] Str {
         return as_string_view() == rhs;
     }
 
-    [[nodiscard]] constexpr auto operator==(std::string rhs) -> bool {
+    [[nodiscard]] constexpr auto operator==(std::string const &rhs) -> bool {
         return as_string_view() == rhs;
     }
 };
@@ -88,6 +98,7 @@ consteval auto operator""_str() -> decltype(X) {
     return X;
 }
 
+/// An empty `Str` object. Useful to avoid empty string creation
 inline constexpr auto empty = ""_str;
 
 using str_t = lazy_t<std::string>;
@@ -123,25 +134,37 @@ template <auto S, auto... Ss>
 }
 }  // namespace detail
 
+/// A boolean flag descriptor
 template <std::size_t N, std::size_t M = 0>
 struct [[nodiscard]] Flag {
+    /// The long form of the flag (e.g. `"verbose"_str` will parse `--verbose`)
     Str<N> long_form;
+    /// The short form, a `char` (e.g. `"j"_str` will parse `-j`)
     Opt<char> short_form{Opt<char>::empty()};
+    /// The default value if no flag is parsed (defaults to `false`)
     bool default_value{};
+    /// `true` if the flag is required (defaults to `false`)
     bool required{};
+    /// An optional help message
     Str<M> help{};
 
     using value_t = bool;
 };
 
+/// A flag with value descriptor
 template <Trivial Value, std::size_t N, std::size_t M = 0, AValidator V = always_t>
 struct [[nodiscard]] FlagWithValue {
+    /// The long form of the flag (e.g. `"verbose"_str` will parse `--verbose`)
     Str<N> long_form;
+    /// The short form, a `char` (e.g. `"j"_str` will parse `-j`)
     Opt<char> short_form{Opt<char>::empty()};
-    /// Used if the flag is missing
+    /// The default value if no flag is parsed (defaults to a default constructed `Value`)
     Value default_value{};
+    /// `true` if the flag is required (defaults to `false`)
     bool required{};
+    /// An optional help message
     Str<M> help{};
+    /// A validator to apply to the parsed result (defaults to an infallible validator)
     V validator{always};
     using value_t = Value;
 };
@@ -157,17 +180,26 @@ consteval auto operator""_short_flag() -> Opt<char> {
     return Opt<char>::with(X.chars[0]);
 }
 
+/// A positional value descriptor
 template <
     std::default_initializable P,
     std::size_t N = 0,
     std::size_t M = 0,
     AValidator V = always_t>
 struct [[nodiscard]] Positional {
+    /// A tag to indicate the target type (specify as `tag<target_type>`)
     Typetag<P> type;
+    /// Optional name to be displayed int the help message
     Str<N> name{};
+    /// Optional help message
     Str<M> help{};
+    /// `true` if the flag is required (defaults to `false`)
     bool required{};
+    /// If `true` the parsed value must be a `std::vector`. Successive values will be stored into
+    /// the vecotor, e.g. `value_1 value_2 value_3` will be parsed into a unique vector of
+    /// appropriately parsed values
     bool variadic{};
+    /// A validator to apply to the parsed result (defaults to an infallible validator)
     V validator{always};
 
     using value_t = P;
@@ -177,6 +209,9 @@ template <Str Usage, Str Description, auto... Specs>
 requires(sizeof...(Specs) > 0)
 struct [[nodiscard]] Rules;
 
+/// A subcommand descriptor
+///
+/// A subcommand can only be the first argument of a set of rules
 template <
     std::size_t N,
     std::size_t M = 0,
@@ -184,8 +219,11 @@ template <
     Str Description = empty,
     auto... Specs>
 struct [[nodiscard]] Subcommand {
+    /// The name to parse
     Str<N> name{};
+    /// An optional help message
     Str<M> help{};
+    /// The set of rules (arguments) for this subcommand
     Rules<Usage, Description, Specs...> rules{};
 
     // using value_t = strv_t;
@@ -514,6 +552,11 @@ template <Str Usage, Str Description, auto... Specs>
 
 }  // namespace detail
 
+/// Collects all the descriptor to parse the arguments
+///
+/// A 'Usage' `Str` and a 'Description' `Str` must be provided (use `empty` to avoid writing them)
+///
+/// Provides a static member function `help` with the automatically generated help message
 template <Str Usage, Str Description, auto... Specs>
 requires(sizeof...(Specs) > 0)
 struct [[nodiscard]] Rules {
@@ -568,6 +611,13 @@ struct [[nodiscard]] SubcommandArgValue {
     static constexpr auto spec = S;
 };
 
+/// The data associated with each parsed command
+///
+/// Provides:
+///
+/// - the actual parsed value (`value`)
+/// - if the value has been provided or a default has been used (`is_used`)
+/// - the parsed subcommands (`subcommands`, if this is a subcommand directive)
 template <auto S>
 struct ArgValue
     : std::conditional_t<is_subcommand_v<decltype(S)>, SubcommandArgValue<S>, CommandArgValue<S>> {
@@ -601,6 +651,18 @@ struct GetWithInfoRet<S> {
 };
 }  // namespace detail
 
+/// A container class for all parsed commands
+///
+/// Provides getter methods for directly accessing the value and accessing the value with more
+/// contextual info (e.g. if the value has actually been provided or a default has been used)
+///
+/// The getters a generics over the desciptions, so for accessing the value of a description
+/// `d` of type `Flag` use `args.get<d>()`. To access the same value with extra information use
+/// `args.get_with_info<d>()`.
+///
+/// For accessing a value `d` of a subcommand `sb` use `args.get<sb, d>()` or
+/// `args.get_with_info<sb, d>()`. Both functions are variadic in the sense that they can take an
+/// arbitrary number of subcommands and a final descriptor, e.g. `args.get<sb_0, sb_1, sb_2, d>()`
 template <auto... Specs>
 class [[nodiscard]] Args {
 public:
@@ -674,36 +736,57 @@ template <auto... Ss>
     return std::holds_alternative<Error>(res);
 }
 
+/// Returns a reference to a constant `args::Args` object
+///
+/// Throws if the is no such object. This function should be used after checking with `has_args`
 template <auto... Ss>
 [[nodiscard]] constexpr auto get_args(compile_result_t<Ss...> const &res) -> Args<Ss...> const & {
     return std::get<Args<Ss...>>(res);
 }
 
+/// Returns a reference to a `args::Args` object
+///
+/// Throws if the is no such object. This function should be used after checking with `has_args`
 template <auto... Ss>
 [[nodiscard]] constexpr auto get_args(compile_result_t<Ss...> &res) -> Args<Ss...> & {
     return std::get<Args<Ss...>>(res);
 }
 
+/// Returns a `args::Args` object
+///
+/// Throws if the is no such object. This function should be used after checking with `has_args`
 template <auto... Ss>
 [[nodiscard]] constexpr auto get_args(compile_result_t<Ss...> &&res) -> Args<Ss...> {
     return std::get<Args<Ss...>>(std::move(res));
 }
 
+/// Returns a `args::Help` object
+///
+/// Throws if the is no such object. This function should be used after checking with `has_help`
 template <auto... Ss>
 [[nodiscard]] constexpr auto get_help(compile_result_t<Ss...> const &res) -> Help {
     return std::get<Help>(res);
 }
 
+/// Returns a reference to a constant `args::Error` object
+///
+/// Throws if the is no such object. This function should be used after checking with `has_error`
 template <auto... Ss>
 [[nodiscard]] constexpr auto get_error(compile_result_t<Ss...> const &res) -> Error const & {
     return std::get<Error>(res);
 }
 
+/// Returns a reference to a `args::Error` object
+///
+/// Throws if the is no such object. This function should be used after checking with `has_error`
 template <auto... Ss>
 [[nodiscard]] constexpr auto get_error(compile_result_t<Ss...> &res) -> Error & {
     return std::get<Error>(res);
 }
 
+/// Returns a `args::Error` object
+///
+/// Throws if the is no such object. This function should be used after checking with `has_error`
 template <auto... Ss>
 [[nodiscard]] constexpr auto get_error(compile_result_t<Ss...> &&res) -> Error {
     return std::get<Error>(std::move(res));

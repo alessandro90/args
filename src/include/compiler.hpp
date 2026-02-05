@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <format>
 #include <optional>
 #include <ranges>
@@ -67,9 +68,54 @@ auto assign_parsed_value(ArgValue<S> &item, args::detail::parse_type_t<S> value)
 
 template <auto... Specs>
 struct [[nodiscard]] TokenCompiler {
+private:
+    enum class [[nodiscard]] Mode : std::uint8_t {
+        Normal,
+        PositionalOnly,
+        PositionalOnlySkipNext
+    };
+
+public:
     std::tuple<ArgValue<Specs>...> results{};
 
-    [[nodiscard]] auto operator()(tokenizer::ShortFlag short_flag) -> std::optional<std::string> {
+    [[nodiscard]] auto operator()(tokenizer::Argument argument) -> std::optional<std::string> {
+        if (m_mode == Mode::PositionalOnlySkipNext) {
+            m_mode = Mode::PositionalOnly;
+            return {};
+        }
+        auto compile_argument = Overload{
+            compile_positional_argument(argument),
+            compile_valued_short_flag(argument),
+            compile_valued_long_flag(argument),
+        };
+        return std::visit(compile_argument, m_compiler_state);
+    }
+
+    [[nodiscard]] auto operator()(auto flag) -> std::optional<std::string> {
+        if (m_mode == Mode::Normal) {
+            return compile_flag(flag);
+        }
+        auto result = (*this)(tokenizer::Argument{.value = flag.raw});
+        if (flag.has_equal) {
+            // if the flag is like --flag=3 or -f=3 we need to skip the next
+            // token because it will be '3', but we already parsed that using 'raw'.
+            // '--flag 3' is different because we treat it as 2 different positionals
+            // if not quoted and just as a single value if quoted (such a value would be
+            // an invalid flag but in this case we parse it like a string basically)
+            m_mode = Mode::PositionalOnlySkipNext;
+        }
+        return result;
+    }
+
+    [[nodiscard]] auto operator()(tokenizer::DoubleDash) -> std::optional<std::string> {
+        if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
+            return "Cannot begin a positional only mode";
+        }
+        m_mode = Mode::PositionalOnly;
+        return {};
+    }
+
+    [[nodiscard]] auto compile_flag(tokenizer::ShortFlag short_flag) -> std::optional<std::string> {
         if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
             return std::format("Cannot parse short flag: '{}'", short_flag.flag);
         }
@@ -100,7 +146,7 @@ struct [[nodiscard]] TokenCompiler {
         return {};
     }
 
-    [[nodiscard]] auto operator()(tokenizer::LongFlag long_flag) -> std::optional<std::string> {
+    [[nodiscard]] auto compile_flag(tokenizer::LongFlag long_flag) -> std::optional<std::string> {
         if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
             return std::format("Cannot parse long flag: '{}'", long_flag.flag);
         }
@@ -131,27 +177,20 @@ struct [[nodiscard]] TokenCompiler {
         return {};
     }
 
-    [[nodiscard]] auto operator()(tokenizer::FlagGroup flag_group) -> std::optional<std::string> {
+    [[nodiscard]] auto compile_flag(tokenizer::FlagGroup flag_group) -> std::optional<std::string> {
         auto const flags_nr = flag_group.group.size();
         for (auto const [idx, short_flag] : flag_group.group | std::views::enumerate) {
             bool const is_last =
                 static_cast<std::size_t>(idx) == static_cast<std::size_t>(flags_nr - 1uz);
             auto res = (*this)(tokenizer::ShortFlag{
-                .flag = short_flag, .has_equal = is_last && flag_group.has_equal});
+                .raw = flag_group.raw,
+                .flag = short_flag,
+                .has_equal = is_last && flag_group.has_equal});
             if (res.has_value()) {
                 return res;
             }
         }
         return {};
-    }
-
-    [[nodiscard]] auto operator()(tokenizer::Argument argument) -> std::optional<std::string> {
-        auto compile_argument = Overload{
-            compile_positional_argument(argument),
-            compile_valued_short_flag(argument),
-            compile_valued_long_flag(argument),
-        };
-        return std::visit(compile_argument, m_compiler_state);
     }
 
     /// Verify that the state of the compiler is 'monostate'. If not return an error string
@@ -347,6 +386,7 @@ private:
     std::variant<std::monostate, ParsingShortFlag, ParsingLongFlag> m_compiler_state{};
     std::size_t m_current_positional_index{};
     std::optional<std::size_t> m_subcommand_tuple_index{};
+    Mode m_mode{Mode::Normal};
 };
 
 template <auto... Specs>
