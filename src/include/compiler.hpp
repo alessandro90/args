@@ -261,7 +261,8 @@ public:
                 using arg_value_t = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
                 if constexpr (is_subcommand_v<decltype(arg_value_t::spec)>) {
                     auto &subcommand = std::get<Is>(results);
-                    auto subcommand_result = compiler(tokens, arg_value_t::spec.rules);
+                    auto subcommand_result = compiler(
+                        tokens, arg_value_t::spec.rules, arg_value_t::spec.mutually_exclusive);
                     if (has_args(subcommand_result)) {
                         subcommand.subcommands = get_args(std::move(subcommand_result));
                     } else if (has_error(subcommand_result)) {
@@ -512,10 +513,11 @@ template <auto... Specs>
 
 }  // namespace detail
 
-template <std::size_t Extent, Str Usage, Str Description, auto... Specs>
+template <std::size_t Extent, Str Usage, Str Description, auto... Specs, auto... Gg>
 [[nodiscard]] constexpr auto compile(
-    std::span<tokenizer::token_t const, Extent> tokens, Rules<Usage, Description, Specs...>)
-    -> compile_result_t<Specs...> {
+    std::span<tokenizer::token_t const, Extent> tokens,
+    Rules<Usage, Description, Specs...>,
+    MutuallyExclusiveGroups<Gg...> mutually_exclusive) -> compile_result_t<Specs...> {
     auto token_compiler = detail::TokenCompiler<Specs...>{};
     for (auto const [index, token] : std::views::enumerate(tokens)) {
         auto err_msg = std::visit(token_compiler, token);
@@ -528,9 +530,9 @@ template <std::size_t Extent, Str Usage, Str Description, auto... Specs>
             }
             auto failed_subcommand = token_compiler.compile_subcommand(
                 tokens.subspan(static_cast<std::size_t>(index + 1)),
-                []<std::size_t
-                       SpanExtent>(std::span<tokenizer::token_t const, SpanExtent> tks, auto rs) {
-                    return compile(tks, rs);
+                []<std::size_t SpanExtent>(
+                    std::span<tokenizer::token_t const, SpanExtent> tks, auto rs, auto me) {
+                    return compile(tks, rs, me);
                 },
                 token_compiler.subcommand_index().value());
             if (std::holds_alternative<Help>(failed_subcommand)) {
@@ -557,7 +559,13 @@ template <std::size_t Extent, Str Usage, Str Description, auto... Specs>
     if (!positional_variadic_validation_result.has_value()) {
         return Error{.message = std::move(positional_variadic_validation_result).error()};
     }
-    return Args{std::move(token_compiler).results};
+    auto result_args = Args{std::move(token_compiler).results};
+    if (auto invalid_mutually_exclusive =
+            args::detail::check_mutually_exclusive_group_satisfied(result_args, mutually_exclusive);
+        invalid_mutually_exclusive.has_value()) {
+        return Error{.message = std::move(invalid_mutually_exclusive).value()};
+    }
+    return result_args;
 }
 
 }  // namespace args::compiler

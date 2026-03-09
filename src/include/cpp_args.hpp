@@ -12,9 +12,16 @@
 
 namespace args {
 
-template <Str Usage, Str Description, auto... Specs>
-[[nodiscard]] auto try_parse(int argc, char **argv, Rules<Usage, Description, Specs...> rules)
-    -> compile_result_t<Specs...> {
+template <Str Usage, Str Description, auto... Specs, auto... Gg>
+[[nodiscard]] auto try_parse(
+    int argc,
+    char **argv,
+    Rules<Usage, Description, Specs...> rules,
+    MutuallyExclusiveGroups<Gg...> mutually_exclusive) -> compile_result_t<Specs...> {
+    // TODO: move this inside compile (need to check also subcommands)
+    static_assert(
+        args::detail::are_valid_mutually_exclusive_groups(rules, mutually_exclusive),
+        "Invalid mutually exclusive groups");
     if (argc <= 1) {
         return Error{.message = "No command line arguments provided"};
     }
@@ -27,13 +34,22 @@ template <Str Usage, Str Description, auto... Specs>
     if (!tokens.has_value()) {
         return compile_result_t<Specs...>{Error{.message = std::move(tokens).error()}};
     }
-    return compiler::compile(std::move(tokens), rules);
+    return compiler::compile(std::move(tokens), rules, mutually_exclusive);
 }
 
 template <Str Usage, Str Description, auto... Specs>
+[[nodiscard]] auto try_parse(int argc, char **argv, Rules<Usage, Description, Specs...> rules)
+    -> compile_result_t<Specs...> {
+    return try_parse(argc, argv, rules, MutuallyExclusiveGroups<>{});
+}
+
+template <Str Usage, Str Description, auto... Specs, auto... Gg>
 [[nodiscard]] auto try_parse_or_exit_program(
-    int argc, char **argv, Rules<Usage, Description, Specs...> rules) -> Args<Specs...> {
-    auto args = try_parse(argc, argv, rules);
+    int argc,
+    char **argv,
+    Rules<Usage, Description, Specs...> rules,
+    MutuallyExclusiveGroups<Gg...> mutually_exclusive) -> Args<Specs...> {
+    auto args = try_parse(argc, argv, rules, mutually_exclusive);
     if (has_error(args)) {
         auto const error = get_error(args);
         std::println(stderr, "ERROR: {}", error.message);
@@ -46,6 +62,12 @@ template <Str Usage, Str Description, auto... Specs>
         std::exit(EXIT_SUCCESS);  // NOLINT(concurrency-mt-unsafe)
     }
     return get_args(std::move(args));
+}
+
+template <Str Usage, Str Description, auto... Specs>
+[[nodiscard]] auto try_parse_or_exit_program(
+    int argc, char **argv, Rules<Usage, Description, Specs...> rules) -> Args<Specs...> {
+    return try_parse_or_exit_program(argc, argv, rules, MutuallyExclusiveGroups<>{});
 }
 }  // namespace args
 

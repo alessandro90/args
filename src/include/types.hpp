@@ -189,6 +189,23 @@ struct [[nodiscard]] Positional {
 template <Str Usage, Str Description, auto... Specs>
 struct [[nodiscard]] Rules;
 
+template <auto... Ss>
+struct [[nodiscard]] MutuallyExclusive {
+    static_assert(sizeof...(Ss) > 1, "A mutually exclusive set must have at least 2 members");
+    bool at_least_one{};
+};
+
+template <auto... Ss>
+struct MutuallyExclusiveGroups {};
+
+namespace detail {
+template <typename>
+struct IsMutuallyExclusiveGroup: std::false_type {};
+
+template <auto... Gg>
+struct IsMutuallyExclusiveGroup<MutuallyExclusiveGroups<Gg...>>: std::true_type {};
+}  // namespace detail
+
 /// A subcommand descriptor
 ///
 /// A subcommand can only be the first argument of a set of rules
@@ -197,6 +214,7 @@ template <
     std::size_t M = 0,
     Str Usage = empty,
     Str Description = empty,
+    typename Me = MutuallyExclusiveGroups<>,
     auto... Specs>
 struct [[nodiscard]] Subcommand {
     /// The name to parse
@@ -207,6 +225,12 @@ struct [[nodiscard]] Subcommand {
     Rules<Usage, Description, Specs...> rules{};
     /// `true` if this subcommand is invoked as a long flag
     bool is_flag{};
+    /// Arbitrary mutually exclusive groups
+    Me mutually_exclusive{};
+
+    static_assert(
+        detail::IsMutuallyExclusiveGroup<Me>::value,
+        "This type can only be a MutuallyExclusiveGroups type");
 
     // using value_t = strv_t;
     using value_t = std::string_view;
@@ -242,22 +266,26 @@ inline constexpr bool is_flag_with_value_v = IsFlagWithValue<std::remove_cvref_t
 template <typename>
 struct IsSubcommand: std::false_type {};
 
-template <std::size_t N, std::size_t M, Str Usage, Str Description, auto... Specs>
-struct IsSubcommand<Subcommand<N, M, Usage, Description, Specs...>>: std::true_type {};
+template <std::size_t N, std::size_t M, Str Usage, Str Description, typename Me, auto... Specs>
+struct IsSubcommand<Subcommand<N, M, Usage, Description, Me, Specs...>>: std::true_type {};
 
 template <typename S>
 inline constexpr bool is_subcommand_v = IsSubcommand<std::remove_cvref_t<S>>::value;
 
 namespace detail {
 
-template <auto S>
-struct IsPositionalVariadic: std::false_type {};
 
-template <Positional P>
-struct IsPositionalVariadic<P>: std::conditional_t<P.variadic, std::true_type, std::false_type> {};
+template <typename P>
+[[nodiscard]] consteval auto is_positional_variadic(P p) -> bool {
+    if constexpr (IsPositional<P>::value) {
+        return p.variadic;
+    } else {
+        return false;
+    }
+}
 
 template <auto S>
-inline constexpr auto is_positional_variadic_v = IsPositionalVariadic<S>::value;
+inline constexpr auto is_positional_variadic_v = is_positional_variadic(S);
 
 template <auto S>
 concept PositionalVariadic = is_positional_variadic_v<S>;
@@ -535,7 +563,7 @@ auto build_help_data(
                 .long_name = S.long_form.as_string_view(),
                 .description = S.help.as_string_view(),
                 .is_required = S.required});
-    } else if constexpr (is_subcommand_v<decltype(S)>) {
+    } else if constexpr (is_subcommand_v<s_t>) {
         // TODO: handle flag subcommand
         positional.push_back(
             PositionalHelp{
@@ -629,8 +657,8 @@ struct ArgsFromSubCommand {
     static_assert(false, "Not a subcommand");
 };
 
-template <std::size_t N, std::size_t M, Str Usage, Str Description, auto... Specs>
-struct ArgsFromSubCommand<Subcommand<N, M, Usage, Description, Specs...>> {
+template <std::size_t N, std::size_t M, Str Usage, Str Description, typename Me, auto... Specs>
+struct ArgsFromSubCommand<Subcommand<N, M, Usage, Description, Me, Specs...>> {
     using args_t = Args<Specs...>;
 };
 
@@ -680,6 +708,35 @@ template <auto S>
 struct GetWithInfoRet<S> {
     using type = ArgValue<S>;
 };
+}  // namespace detail
+
+namespace detail {
+template <auto S, auto R>
+struct IsSameSpec: std::false_type {};
+
+template <auto S>
+struct IsSameSpec<S, S>: std::true_type {};
+
+template <auto S, auto... Ss>
+[[nodiscard]] consteval auto has_duplicate_mutually_exclusive_flags() -> bool {
+    return std::disjunction_v<IsSameSpec<S, Ss>...>;
+}
+
+template <auto... Rs, auto... Ss>
+[[nodiscard]] consteval auto are_valid_mutually_exclusive_flags(
+    Rules<Rs...>, MutuallyExclusive<Ss...>) -> bool {
+    if constexpr (sizeof...(Ss) > sizeof...(Rs)) {
+        return false;
+    }
+    return has_duplicate_mutually_exclusive_flags<Ss...>()
+           && std::conjunction_v<std::disjunction<IsSameSpec<Ss, Rs>...>>;
+}
+
+template <auto... Rs, auto... Ss>
+[[nodiscard]] consteval auto are_valid_mutually_exclusive_groups(
+    Rules<Rs...> rules, MutuallyExclusiveGroups<Ss...>) -> bool {
+    return (... && are_valid_mutually_exclusive_flags(rules, Ss));
+}
 }  // namespace detail
 
 /// A container class for all parsed commands
@@ -740,6 +797,50 @@ public:
 private:
     std::tuple<ArgValue<Specs>...> m_results{};
 };
+
+namespace detail {
+template <auto... Ss, auto... Gg>
+[[nodiscard]] auto check_mutually_exclusive_set_satisfied(
+    Args<Ss...> const &args, MutuallyExclusive<Gg...> mutually_exclusive, std::size_t index)
+    -> std::optional<std::string> {
+    auto const used_args = (0 + ... + args.template get_with_info<Gg>().is_used);
+    if (mutually_exclusive.at_least_one && used_args == 0) {
+        return std::format(
+            "Mutually exclusive set number {} not satisfied. At least one argument is required.",
+            index);
+    }
+    if (used_args > 1) {
+        return std::format(
+                "Mutually exclusive set number {} not satisfied. Too many arguments provided. "
+                "Expected 1, provided: {}.",
+                index,
+                used_args);
+    }
+    return {};
+}
+
+template <auto... Ss, auto... Gg>
+[[nodiscard]] auto check_mutually_exclusive_group_satisfied(
+    Args<Ss...> const &args, MutuallyExclusiveGroups<Gg...>) -> std::optional<std::string> {
+    if constexpr (sizeof...(Gg) == 0) {
+        return {};
+    } else {
+        auto errors = std::vector<std::string>{};
+        auto index = 0uz;
+        (..., [&] {
+            if (auto err = check_mutually_exclusive_set_satisfied(args, Gg, index);
+                err.has_value()) {
+                errors.push_back(std::move(err).value());
+            }
+            ++index;
+        }());
+        if (!errors.empty()) {
+            return std::move(errors) | std::views::join_with('\n') | std::ranges::to<std::string>();
+        }
+        return {};
+    }
+}
+}  // namespace detail
 
 struct [[nodiscard]] Help {
     std::string_view message;

@@ -10,7 +10,6 @@
 #include "include/tokenizer.hpp"
 #include "include/types.hpp"
 #include "include/typetag.hpp"
-#include "include/validators.hpp"
 
 using namespace args;
 using namespace args::tokenizer;
@@ -21,7 +20,7 @@ TEST_CASE("boolean-short-flag", "[compiler]") {
 
     SECTION("providing-value-gets-true") {
         auto const flag = std::array{token_t{ShortFlag{.raw = "-v", .flag = 'v'}}};
-        auto const out = compiler::compile(std::span{flag}, rules);
+        auto const out = compiler::compile(std::span{flag}, rules, MutuallyExclusiveGroups<>{});
 
         REQUIRE(std::holds_alternative<Args<option>>(out));
         auto const value = std::get<Args<option>>(out).get<option>();
@@ -29,7 +28,7 @@ TEST_CASE("boolean-short-flag", "[compiler]") {
     }
     SECTION("default-value-is-false") {
         auto const flag = std::array<token_t, 0>{};
-        auto const out = compiler::compile(std::span{flag}, rules);
+        auto const out = compiler::compile(std::span{flag}, rules, MutuallyExclusiveGroups<>{});
 
         REQUIRE(std::holds_alternative<Args<option>>(out));
         auto const value = std::get<Args<option>>(out).get<option>();
@@ -41,7 +40,8 @@ TEST_CASE("boolean-short-flag", "[compiler]") {
         static constexpr auto required_rules =
             Rules<"usage description"_str, empty, required_option>{};
         auto const flag = std::array<token_t, 0>{};
-        auto const out = compiler::compile(std::span{flag}, required_rules);
+        auto const out =
+            compiler::compile(std::span{flag}, required_rules, MutuallyExclusiveGroups<>{});
 
         REQUIRE(std::holds_alternative<Error>(out));
     }
@@ -54,7 +54,7 @@ TEST_CASE("short-flag-with-arithmetic-value", "[compiler]") {
         static constexpr auto rules = Rules<empty, empty, option>{};
         auto const tokens = std::array{
             token_t{ShortFlag{.raw = "-v", .flag = 'v'}}, token_t{Argument{.value = "10"}}};
-        auto const out = compiler::compile(std::span{tokens}, rules);
+        auto const out = compiler::compile(std::span{tokens}, rules, MutuallyExclusiveGroups<>{});
 
         REQUIRE(std::holds_alternative<Args<option>>(out));
         auto const value = std::get<Args<option>>(out).get<option>();
@@ -66,7 +66,7 @@ TEST_CASE("short-flag-with-arithmetic-value", "[compiler]") {
         static constexpr auto rules = Rules<empty, empty, option>{};
         auto const tokens = std::array{
             token_t{ShortFlag{.raw = "-v", .flag = 'v'}}, token_t{Argument{.value = "10.5"}}};
-        auto const out = compiler::compile(std::span{tokens}, rules);
+        auto const out = compiler::compile(std::span{tokens}, rules, MutuallyExclusiveGroups<>{});
 
         REQUIRE(std::holds_alternative<Args<option>>(out));
         auto const value = std::get<Args<option>>(out).get<option>();
@@ -79,7 +79,7 @@ TEST_CASE("positional-with-arithmetic-value", "[compiler]") {
         static constexpr auto option = Positional{.type = tag<int>, .name = "pos-name"_str};
         static constexpr auto rules = Rules<empty, empty, option>{};
         auto const tokens = std::array{token_t{Argument{.value = "10"}}};
-        auto const out = compiler::compile(std::span{tokens}, rules);
+        auto const out = compiler::compile(std::span{tokens}, rules, MutuallyExclusiveGroups<>{});
 
         REQUIRE(std::holds_alternative<Args<option>>(out));
         auto const value = std::get<Args<option>>(out).get<option>();
@@ -89,7 +89,7 @@ TEST_CASE("positional-with-arithmetic-value", "[compiler]") {
         static constexpr auto option = Positional{.type = tag<int>, .name = "pos-name"_str};
         static constexpr auto rules = Rules<empty, empty, option>{};
         auto const tokens = std::array<token_t, 0>{};
-        auto const out = compiler::compile(std::span{tokens}, rules);
+        auto const out = compiler::compile(std::span{tokens}, rules, MutuallyExclusiveGroups<>{});
 
         REQUIRE(std::holds_alternative<Args<option>>(out));
         auto const value = std::get<Args<option>>(out).get<option>();
@@ -105,7 +105,7 @@ TEST_CASE("short-flag-with-vec-value-default", "[compiler]") {
         .help = "help message for value"_str};
     static constexpr auto rules = Rules<empty, empty, option>{};
     auto const tokens = std::array<token_t, 0>{};
-    auto const out = compiler::compile(std::span{tokens}, rules);
+    auto const out = compiler::compile(std::span{tokens}, rules, MutuallyExclusiveGroups<>{});
 
     REQUIRE(std::holds_alternative<Args<option>>(out));
     auto const &value = std::get<Args<option>>(out).get<option>();
@@ -123,7 +123,7 @@ TEST_CASE("subcommand", "[compiler]") {
 
     auto const tokens =
         std::array{token_t{Argument{.value = "subcommand-name"}}, token_t{Argument{.value = "10"}}};
-    auto const out = compiler::compile(std::span{tokens}, rules);
+    auto const out = compiler::compile(std::span{tokens}, rules, MutuallyExclusiveGroups<>{});
 
     REQUIRE(has_args(out));
     auto const value = get_args(out).get<option, suboption>();
@@ -145,7 +145,7 @@ TEST_CASE("subcommand-flagged", "[compiler]") {
     auto const tokens = std::array{
         token_t{LongFlag{.raw = "--subcommand-name", .flag = "subcommand-name"}},
         token_t{Argument{.value = "10"}}};
-    auto const out = compiler::compile(std::span{tokens}, rules);
+    auto const out = compiler::compile(std::span{tokens}, rules, MutuallyExclusiveGroups<>{});
 
     REQUIRE(has_args(out));
     auto const value = get_args(out).get<option, suboption>();
@@ -166,7 +166,7 @@ TEST_CASE("subcommand-nested", "[compiler]") {
         token_t{Argument{.value = "subcommand-name"}},
         token_t{Argument{.value = "nested-command"}},
         token_t{Argument{.value = "10"}}};
-    auto const out = compiler::compile(std::span{tokens}, rules);
+    auto const out = compiler::compile(std::span{tokens}, rules, MutuallyExclusiveGroups<>{});
 
     REQUIRE(has_args(out));
     auto const value = get_args(out).get_with_info<subcommand, nested_subcommand, argument>().value;
@@ -181,7 +181,7 @@ TEST_CASE("positional", "[compiler]") {
         token_t{Argument{.value = "1"}},
         token_t{Argument{.value = "10"}},
         token_t{Argument{.value = "100"}}};
-    auto const out = compiler::compile(std::span{tokens}, rules);
+    auto const out = compiler::compile(std::span{tokens}, rules, MutuallyExclusiveGroups<>{});
 
     REQUIRE(has_args(out));
     auto const value = get_args(out).get<option>();
@@ -205,7 +205,7 @@ TEST_CASE("forced-positional-variadic", "[compiler]") {
         token_t{Argument{.value = "10"}},
         token_t{LongFlag{.raw = "--positional-flag", .flag = "positional-flag"}},
     };
-    auto const out = compiler::compile(std::span{tokens}, rules);
+    auto const out = compiler::compile(std::span{tokens}, rules, MutuallyExclusiveGroups<>{});
 
     REQUIRE(has_args(out));
     auto const &args = get_args(out);
@@ -230,7 +230,7 @@ TEST_CASE("short-flag-with-arithmetic-value-validation", "[compiler]") {
     SECTION("validation-correct") {
         auto const tokens = std::array{
             token_t{ShortFlag{.raw = "-v", .flag = 'v'}}, token_t{Argument{.value = "9"}}};
-        auto const out = compiler::compile(std::span{tokens}, rules);
+        auto const out = compiler::compile(std::span{tokens}, rules, MutuallyExclusiveGroups<>{});
 
         REQUIRE(std::holds_alternative<Args<option>>(out));
         auto const value = std::get<Args<option>>(out).get<option>();
@@ -239,8 +239,127 @@ TEST_CASE("short-flag-with-arithmetic-value-validation", "[compiler]") {
     SECTION("validation-incorrect") {
         auto const tokens = std::array{
             token_t{ShortFlag{.raw = "-v", .flag = 'v'}}, token_t{Argument{.value = "10"}}};
-        auto const out = compiler::compile(std::span{tokens}, rules);
+        auto const out = compiler::compile(std::span{tokens}, rules, MutuallyExclusiveGroups<>{});
 
+        REQUIRE(has_error(out));
+    }
+}
+
+TEST_CASE("mutually-exclusive-single-group", "[compiler]") {
+    static constexpr auto option_a =
+        FlagWithValue{.long_form = "option_a"_flag, .default_value = 0};
+
+    static constexpr auto option_b = Flag{.long_form = "option_b"_flag};
+    static constexpr auto option_c = Positional{.type = tag<int>, .name = "option_c"_str};
+    static constexpr auto rules = Rules<empty, empty, option_a, option_b, option_c>{};
+
+    static constexpr auto mutually_exclusive = MutuallyExclusive<option_a, option_c>{};
+    static constexpr auto mutually_exclusive_at_least_one =
+        MutuallyExclusive<option_a, option_c>{.at_least_one = true};
+
+    SECTION("ok-case-with-args") {
+        auto const tokens = std::array{
+            token_t{Argument{.value = "10"}},
+            token_t{LongFlag{.raw = "--option_b", .flag = "option_b"}}};
+
+        auto const out = compiler::compile(
+            std::span{tokens}, rules, MutuallyExclusiveGroups<mutually_exclusive>{});
+        REQUIRE(has_args(out));
+    }
+
+    SECTION("ok-case-no-args") {
+        auto const tokens = std::array<token_t, 0>{};
+        auto const out = compiler::compile(
+            std::span{tokens}, rules, MutuallyExclusiveGroups<mutually_exclusive>{});
+        REQUIRE(has_args(out));
+    }
+
+    SECTION("not-ok-case-because-multiple-args") {
+        auto const tokens = std::array{
+            token_t{Argument{.value = "10"}},
+            token_t{LongFlag{.raw = "--option_a 4", .flag = "option_a"}},
+            token_t{Argument{.value = "4"}},
+            token_t{LongFlag{.raw = "--option_b", .flag = "option_b"}}};
+
+        auto const out = compiler::compile(
+            std::span{tokens}, rules, MutuallyExclusiveGroups<mutually_exclusive>{});
+        REQUIRE(has_error(out));
+    }
+
+    SECTION("not-ok-case-because-no-args") {
+        auto const tokens = std::array<token_t, 0>{};
+
+        auto const out = compiler::compile(
+            std::span{tokens}, rules, MutuallyExclusiveGroups<mutually_exclusive_at_least_one>{});
+        REQUIRE(has_error(out));
+    }
+}
+
+TEST_CASE("mutually-exclusive-multiple-groups", "[compiler]") {
+    static constexpr auto option_a =
+        FlagWithValue{.long_form = "option_a"_flag, .default_value = 0};
+
+    static constexpr auto option_b = Flag{.long_form = "option_b"_flag};
+    static constexpr auto option_c = Positional{.type = tag<int>, .name = "option_c"_str};
+    static constexpr auto option_d = FlagWithValue{
+        .long_form = "option_d"_flag,
+        .default_value = 0,
+    };
+    static constexpr auto rules = Rules<empty, empty, option_a, option_b, option_c, option_d>{};
+
+    static constexpr auto mutually_exclusive_group_0 = MutuallyExclusive<option_a, option_c>{};
+    static constexpr auto mutually_exclusive_group_1 = MutuallyExclusive<option_b, option_d>{};
+
+    SECTION("ok-case-with-args-1") {
+        auto const tokens = std::array{
+            token_t{LongFlag{.raw = "--option_a 2", .flag = "option_a"}},
+            token_t{Argument{.value = "2"}},
+            token_t{LongFlag{.raw = "--option_b", .flag = "option_b"}}};
+
+        auto const out = compiler::compile(
+            std::span{tokens},
+            rules,
+            MutuallyExclusiveGroups<mutually_exclusive_group_0, mutually_exclusive_group_1>{});
+        REQUIRE(has_args(out));
+    }
+    SECTION("ok-case-with-args-1") {
+        auto const tokens = std::array{
+            token_t{Argument{.value = "10"}},
+            token_t{LongFlag{.raw = "--option_d=10", .flag = "option_d", .has_equal = true}},
+            token_t{Argument{.value = "10"}}};
+
+        auto const out = compiler::compile(
+            std::span{tokens},
+            rules,
+            MutuallyExclusiveGroups<mutually_exclusive_group_0, mutually_exclusive_group_1>{});
+        REQUIRE(has_args(out));
+    }
+    SECTION("not-ok-case-with-args-1") {
+        auto const tokens = std::array{
+            token_t{LongFlag{.raw = "--option_a 2", .flag = "option_a"}},
+            token_t{Argument{.value = "2"}},
+            token_t{LongFlag{.raw = "--option_b", .flag = "option_b"}},
+            token_t{Argument{.value = "8"}},
+        };
+
+        auto const out = compiler::compile(
+            std::span{tokens},
+            rules,
+            MutuallyExclusiveGroups<mutually_exclusive_group_0, mutually_exclusive_group_1>{});
+        REQUIRE(has_error(out));
+    }
+    SECTION("not-ok-case-with-args-2") {
+        auto const tokens = std::array{
+            token_t{LongFlag{.raw = "--option_a 2", .flag = "option_a"}},
+            token_t{Argument{.value = "2"}},
+            token_t{LongFlag{.raw = "--option_b", .flag = "option_b"}},
+            token_t{LongFlag{.raw = "--option_d=10", .flag = "option_d", .has_equal = true}},
+            token_t{Argument{.value = "10"}}};
+
+        auto const out = compiler::compile(
+            std::span{tokens},
+            rules,
+            MutuallyExclusiveGroups<mutually_exclusive_group_0, mutually_exclusive_group_1>{});
         REQUIRE(has_error(out));
     }
 }
