@@ -130,6 +130,28 @@ TEST_CASE("subcommand", "[compiler]") {
     REQUIRE(value == 10);
 }
 
+TEST_CASE("subcommand-flagged", "[compiler]") {
+    static constexpr auto suboption =
+        Positional{.type = tag<int>, .name = "pos-name"_str, .required = true};
+    static constexpr auto sub_rules = Rules<empty, empty, suboption>{};
+    static constexpr auto option = Subcommand{
+        .name = "subcommand-name"_str,
+        .help = "help message for value"_str,
+        .rules = sub_rules,
+        .is_flag = true};
+    static constexpr auto rules = Rules<empty, empty, option>{};
+
+
+    auto const tokens = std::array{
+        token_t{LongFlag{.raw = "--subcommand-name", .flag = "subcommand-name"}},
+        token_t{Argument{.value = "10"}}};
+    auto const out = compiler::compile(std::span{tokens}, rules);
+
+    REQUIRE(has_args(out));
+    auto const value = get_args(out).get<option, suboption>();
+    REQUIRE(value == 10);
+}
+
 TEST_CASE("subcommand-nested", "[compiler]") {
     static constexpr auto argument =
         Positional{.type = tag<int>, .name = "pos-name"_str, .required = true};

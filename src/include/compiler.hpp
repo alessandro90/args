@@ -13,6 +13,7 @@
 #include <utility>
 #include <variant>
 #include <vector>
+#include "include/type_helpers.hpp"
 #include "parsers.hpp"
 #include "tokenizer.hpp"
 #include "types.hpp"
@@ -83,6 +84,9 @@ public:
             m_mode = Mode::PositionalOnly;
             return {};
         }
+        auto const defer = args::detail::Defer{[this] {
+            m_is_first_argument = false;
+        }};
         auto compile_argument = Overload{
             compile_positional_argument(argument),
             compile_valued_short_flag(argument),
@@ -108,6 +112,9 @@ public:
     }
 
     [[nodiscard]] auto operator()(tokenizer::DoubleDash) -> std::optional<std::string> {
+        auto const defer = args::detail::Defer{[this] {
+            m_is_first_argument = false;
+        }};
         if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
             return "Cannot begin a positional only mode";
         }
@@ -150,6 +157,38 @@ public:
         if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
             return std::format("Cannot parse long flag: '{}'", long_flag.flag);
         }
+
+        auto error = std::optional<std::string>{};
+        auto const subcommand_handler =
+            [this, &error, long_flag]<auto S>(ArgValue<S> &item, std::size_t tuple_index)
+                requires(detail::ASubcommand<S> && S.is_flag)
+        {
+            if (item.spec.name.as_string_view() != long_flag.flag) {
+                return false;
+            }
+            if (long_flag.has_equal) {
+                error = std::format(
+                    "Subcommand flag does not support '='. Flag name is: '{}'", long_flag.flag);
+                return false;
+            }
+            if (!m_is_first_argument) {
+                error = std::format(
+                    "Subcommand flag must be the first parsed argument. Flag name is: '{}'",
+                    long_flag.flag);
+                return false;
+            }
+            parse_and_validate_argument(tokenizer::Argument{.value = long_flag.flag}, item, error);
+            if (error.has_value()) {
+                return false;
+            }
+            m_subcommand_tuple_index = tuple_index;
+            return true;
+        };
+        // If this is a flagged subcommand, we return immediately
+        if (handle_token(subcommand_handler)) {
+            return {};
+        }
+
         auto const handler = [this, long_flag]<auto S>(ArgValue<S> &item)
                                  requires detail::ALongFlag<S>
         {
@@ -170,8 +209,8 @@ public:
             m_compiler_state = ParsingLongFlag{.long_flag = long_flag};
             return true;
         };
-        bool const handled = try_handle_flag(long_flag.has_equal, handler_with_value, handler);
-        if (!handled) {
+
+        if (!try_handle_flag(long_flag.has_equal, handler_with_value, handler)) {
             return std::format("Cannot find match for flag: '{}'", long_flag.flag);
         }
         return {};
@@ -315,10 +354,10 @@ private:
                 [&]<auto S>(ArgValue<S> &item, std::size_t tuple_index) mutable
                 requires detail::ASubcommand<S>
             {
-                if (m_current_positional_index != 0) {
+                if (!m_is_first_argument) {
                     return false;
                 }
-                auto cloned_item = auto{item};
+                auto cloned_item = item;
                 parse_and_validate_argument(argument, cloned_item, error);
                 if (error.has_value()) {
                     return false;
@@ -326,7 +365,7 @@ private:
                 if (cloned_item.value != S.name.as_string_view()) {
                     return false;
                 }
-                item = cloned_item;
+                item = std::move(cloned_item);
                 m_subcommand_tuple_index = tuple_index;
                 return true;
             };
@@ -385,6 +424,7 @@ private:
 
     std::variant<std::monostate, ParsingShortFlag, ParsingLongFlag> m_compiler_state{};
     std::size_t m_current_positional_index{};
+    bool m_is_first_argument{true};
     std::optional<std::size_t> m_subcommand_tuple_index{};
     Mode m_mode{Mode::Normal};
 };

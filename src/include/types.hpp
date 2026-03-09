@@ -6,6 +6,7 @@
 #include <concepts>
 #include <cstddef>
 #include <optional>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -112,26 +113,6 @@ concept HasValidator = requires { S.validator; };
 
 template <auto S>
 concept HasDefault = requires { S.default_value; };
-
-template <auto S, auto... Ss>
-[[nodiscard]] consteval auto assert_valid_defaults() -> bool {
-    if constexpr (HasValidator<S> && HasDefault<S>) {
-        if constexpr (!std::is_invocable_v<decltype(S.default_value)>) {
-            if (!S.validator.fn(S.default_value)) {
-                return false;
-            }
-        } else {
-            if (!S.validator.fn(S.default_value())) {
-                return false;
-            }
-        }
-    }
-    if constexpr (sizeof...(Ss) == 0) {
-        return true;
-    } else {
-        return assert_valid_defaults<Ss...>();
-    }
-}
 }  // namespace detail
 
 /// A boolean flag descriptor
@@ -206,7 +187,6 @@ struct [[nodiscard]] Positional {
 };
 
 template <Str Usage, Str Description, auto... Specs>
-requires(sizeof...(Specs) > 0)
 struct [[nodiscard]] Rules;
 
 /// A subcommand descriptor
@@ -225,6 +205,8 @@ struct [[nodiscard]] Subcommand {
     Str<M> help{};
     /// The set of rules (arguments) for this subcommand
     Rules<Usage, Description, Specs...> rules{};
+    /// `true` if this subcommand is invoked as a long flag
+    bool is_flag{};
 
     // using value_t = strv_t;
     using value_t = std::string_view;
@@ -283,82 +265,6 @@ concept PositionalVariadic = is_positional_variadic_v<S>;
 template <auto S>
 concept IsAFlag = is_flag_v<decltype(S)> || is_flag_with_value_v<decltype(S)>;
 
-template <auto S1, auto S2, auto...>
-[[nodiscard]] consteval auto have_different_flag_names() -> bool {
-    if constexpr (!IsAFlag<S1> || !IsAFlag<S2>) {
-        return true;
-    } else {
-        if (S1.long_form.as_string_view() == S2.long_form.as_string_view()) {
-            return false;
-        }
-        return !S1.short_form.has_value || !S2.short_form.has_value
-               || S1.short_form != S2.short_form;
-    }
-}
-
-template <auto S1, auto... Ss>
-[[nodiscard]] consteval auto check_all_different_names() -> bool {
-    if constexpr (sizeof...(Ss) == 0) {
-        return true;
-    } else {
-        if (!have_different_flag_names<S1, Ss...>()) {
-            return false;
-        }
-        return check_all_different_names<Ss...>();
-    }
-}
-
-[[nodiscard]] constexpr auto is_valid_first_char(char c) -> bool {
-    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
-};
-
-[[nodiscard]] constexpr auto is_valid_non_first_char(char c) -> bool {
-    return (is_valid_first_char(c) || (c >= '0' && c <= '9')) || c == '-' || c == '_';
-};
-
-[[nodiscard]] constexpr auto is_valid_name(std::string_view name) -> bool {
-    if (name.empty()) {
-        return false;
-    }
-    if (!is_valid_first_char(name[0])) {
-        return false;
-    }
-    if (name.size() == 1) {
-        return true;
-    }
-    for (auto i = 1uz; i < name.size(); ++i) {
-        if (!is_valid_non_first_char(name[i])) {
-            return false;
-        }
-    }
-    return true;
-}
-
-template <auto S1, auto... Ss>
-[[nodiscard]] consteval auto check_valid_names() -> bool {
-    if constexpr (is_subcommand_v<decltype(S1)>) {
-        if (!is_valid_name(S1.name.as_string_view())) {
-            return false;
-        }
-    }
-    if constexpr (IsAFlag<S1>) {
-        if (!is_valid_name(S1.long_form.as_string_view())) {
-            return false;
-        }
-        if (!S1.short_form.has_value) {
-            return true;
-        }
-        if (!is_valid_first_char(S1.short_form.value)) {
-            return false;
-        }
-    }
-    if constexpr (sizeof...(Ss) > 0) {
-        return check_valid_names<Ss...>();
-    } else {
-        return true;
-    }
-}
-
 template <typename T>
 consteval auto result_type() -> std::remove_cvref_t<T>;
 
@@ -387,6 +293,125 @@ template <auto S1, auto... Ss>
     }
     if constexpr (sizeof...(Ss) > 0) {
         return check_variadics<Ss...>();
+    } else {
+        return true;
+    }
+}
+
+namespace rule_assertions {
+template <auto S, auto... Ss>
+[[nodiscard]] consteval auto assert_valid_defaults() -> bool {
+    if constexpr (HasValidator<S> && HasDefault<S>) {
+        if constexpr (!std::is_invocable_v<decltype(S.default_value)>) {
+            if (!S.validator.fn(S.default_value)) {
+                return false;
+            }
+        } else {
+            if (!S.validator.fn(S.default_value())) {
+                return false;
+            }
+        }
+    }
+    if constexpr (sizeof...(Ss) == 0) {
+        return true;
+    } else {
+        return assert_valid_defaults<Ss...>();
+    }
+}
+
+template <auto S>
+[[nodiscard]] consteval auto need_unique_name() -> bool {
+    return is_subcommand_v<decltype(S)> || IsAFlag<S>;
+}
+
+template <auto S>
+[[nodiscard]] consteval auto get_unique_name() -> std::string_view {
+    if constexpr (is_subcommand_v<decltype(S)>) {
+        return S.name.as_string_view();
+    } else if constexpr (IsAFlag<S>) {
+        return S.long_form.as_string_view();
+    } else {
+        static_assert(false, "Invalid argument");
+    }
+}
+
+template <auto S1, auto S2>
+[[nodiscard]] consteval auto have_different_flag_names() -> bool {
+    if constexpr (!need_unique_name<S1>() || !need_unique_name<S2>()) {
+        return true;
+    } else {
+        if (get_unique_name<S1>() == get_unique_name<S2>()) {
+            return false;
+        }
+        if constexpr (IsAFlag<S1> && IsAFlag<S2>) {
+            return !S1.short_form.has_value || !S2.short_form.has_value
+                   || S1.short_form != S2.short_form;
+        } else {
+            return true;
+        }
+    }
+}
+
+template <auto S1, auto S2, auto... Ss>
+[[nodiscard]] consteval auto check_all_different_names_impl() -> bool {
+    bool const s1_not_s2 = have_different_flag_names<S1, S2>();
+    if constexpr (sizeof...(Ss) == 0) {
+        return s1_not_s2;
+    } else {
+        return s1_not_s2 && check_all_different_names_impl<S1, Ss...>();
+    }
+}
+
+template <auto S, auto... Ss>
+[[nodiscard]] consteval auto check_all_different_names() -> bool {
+    if constexpr (sizeof...(Ss) == 0) {
+        return true;
+    } else {
+        return check_all_different_names_impl<S, Ss...>() && check_all_different_names<Ss...>();
+    }
+}
+
+[[nodiscard]] consteval auto is_valid_first_char(char c) -> bool {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+};
+
+[[nodiscard]] consteval auto is_valid_non_first_char(char c) -> bool {
+    return (is_valid_first_char(c) || (c >= '0' && c <= '9')) || c == '-' || c == '_';
+};
+
+[[nodiscard]] consteval auto is_valid_name(std::string_view name) -> bool {
+    if (name.empty()) {
+        return false;
+    }
+    if (!is_valid_first_char(name[0])) {
+        return false;
+    }
+    if (name.size() == 1) {
+        return true;
+    }
+    return std::ranges::all_of(name | std::views::drop(1), is_valid_non_first_char);
+}
+
+template <auto S1, auto... Ss>
+[[nodiscard]] consteval auto check_valid_names() -> bool {
+    if constexpr (is_subcommand_v<decltype(S1)>) {
+        if (!is_valid_name(S1.name.as_string_view())) {
+            return false;
+        }
+    }
+    if constexpr (IsAFlag<S1>) {
+        if (!is_valid_name(S1.long_form.as_string_view())) {
+            return false;
+        }
+        if (!S1.short_form.has_value) {
+            return true;
+        }
+        if (!is_valid_first_char(S1.short_form.value)) {
+            return false;
+        }
+    }
+    if constexpr (sizeof...(Ss) > 0) {
+        return check_valid_names<Ss...>();
     } else {
         return true;
     }
@@ -434,6 +459,26 @@ template <auto... Ss>
 [[nodiscard]] consteval auto check_variadic_is_last_positional() -> bool {
     return check_variadic_is_last_positional_rec<Ss...>(false);
 }
+
+template <auto... Specs>
+struct CheckRules {
+    static_assert(check_all_different_names<Specs...>(), "All flags must have unique identifiers");
+    static_assert(
+        check_valid_names<Specs...>(),
+        "All flags must begin with a letter, both long and short forms");
+    static_assert(detail::check_variadics<Specs...>(), "Variadics positionals must be vector<T>");
+    static_assert(
+        count_variadics<Specs...>() <= 1, "You can set at most 1 variadic positional argument");
+    static_assert(
+        check_variadic_is_last_positional<Specs...>(),
+        "Positional variadic argument must be the last positional argument because it consumes all "
+        "positionals");
+    static_assert(assert_valid_defaults<Specs...>(), "Invalid default for specification");
+};
+
+template <>
+struct CheckRules<> {};
+}  // namespace rule_assertions
 
 template <auto S>
 [[nodiscard]] auto default_arg_value() {
@@ -491,6 +536,7 @@ auto build_help_data(
                 .description = S.help.as_string_view(),
                 .is_required = S.required});
     } else if constexpr (is_subcommand_v<decltype(S)>) {
+        // TODO: handle flag subcommand
         positional.push_back(
             PositionalHelp{
                 .name = S.name.as_string_view(), .description = S.help.as_string_view()});
@@ -558,29 +604,14 @@ template <Str Usage, Str Description, auto... Specs>
 ///
 /// Provides a static member function `help` with the automatically generated help message
 template <Str Usage, Str Description, auto... Specs>
-requires(sizeof...(Specs) > 0)
 struct [[nodiscard]] Rules {
-    static_assert(
-        detail::check_all_different_names<Specs...>(), "All flags must have unique identifiers");
-    static_assert(
-        detail::check_valid_names<Specs...>(),
-        "All flags must begin with a letter, both long and short forms");
-    static_assert(detail::check_variadics<Specs...>(), "Variadics positionals must be vector<T>");
-    static_assert(
-        detail::count_variadics<Specs...>() <= 1,
-        "You can set at most 1 variadic positional argument");
-    static_assert(
-        detail::check_variadic_is_last_positional<Specs...>(),
-        "Positional variadic argument must be the last positional argument because it consumes all "
-        "positionals");
-
-    // static_assert(detail::assert_valid_defaults<Specs...>(), "Invalid default for
-    // specification");
-
     [[nodiscard]] static auto help() -> std::string_view {
         static auto help_msg = detail::make_help<Usage, Description, Specs...>();
         return std::string_view{help_msg};
     }
+
+private:
+    static constexpr detail::rule_assertions::CheckRules<Specs...> rule_checker{};
 };
 
 template <auto S>
