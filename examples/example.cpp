@@ -1,8 +1,6 @@
 #include "include/types.hpp"
 
-using args::operator""_str;
-using args::operator""_flag;
-using args::operator""_short_flag;
+using namespace args::literals;
 
 auto main() -> int {
     static constexpr auto version_subcommand_verbose = args::Flag{

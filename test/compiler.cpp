@@ -13,6 +13,7 @@
 
 using namespace args;
 using namespace args::tokenizer;
+using namespace args::literals;
 
 TEST_CASE("boolean-short-flag", "[compiler]") {
     static constexpr auto option = Flag{.long_form = "value"_flag, .short_form = "v"_short_flag};

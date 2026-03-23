@@ -94,13 +94,8 @@ struct [[nodiscard]] Str {
 template <std::size_t N>
 Str(char const (&s)[N]) -> Str<N - 1>;  // NOLINT
 
-template <Str X>
-consteval auto operator""_str() -> decltype(X) {
-    return X;
-}
-
 /// An empty `Str` object. Useful to avoid empty string creation
-inline constexpr auto empty = ""_str;
+inline constexpr auto empty = Str{""};
 
 using str_t = lazy_t<std::string>;
 
@@ -149,17 +144,6 @@ struct [[nodiscard]] FlagWithValue {
     V validator{always};
     using value_t = Value;
 };
-
-template <Str X>
-consteval auto operator""_flag() -> decltype(X) {
-    return X;
-}
-
-template <Str X>
-requires(X.chars.size() == 2 && X.chars[1] == '\0')
-consteval auto operator""_short_flag() -> Opt<char> {
-    return Opt<char>::with(X.chars[0]);
-}
 
 /// A positional value descriptor
 template <
@@ -923,6 +907,25 @@ template <auto... Ss>
 [[nodiscard]] constexpr auto get_error(compile_result_t<Ss...> &&res) -> Error {
     return std::get<Error>(std::move(res));
 }
+
+namespace literals {
+
+template <Str X>
+consteval auto operator""_str() -> decltype(X) {
+    return X;
+}
+
+template <Str X>
+consteval auto operator""_flag() -> decltype(X) {
+    return X;
+}
+
+template <Str X>
+requires(X.chars.size() == 2 && X.chars[1] == '\0')
+consteval auto operator""_short_flag() -> Opt<char> {
+    return Opt<char>::with(X.chars[0]);
+}
+}  // namespace literals
 }  // namespace args
 
 #endif
