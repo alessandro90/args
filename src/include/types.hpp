@@ -608,6 +608,13 @@ template <Str Usage, Str Description, auto... Specs>
     return help;
 }
 
+struct WithCount {
+    std::size_t count{};
+};
+
+struct DummyBase {};
+
+
 }  // namespace detail
 
 /// Collects all the descriptor to parse the arguments
@@ -627,7 +634,8 @@ private:
 };
 
 template <auto S>
-struct [[nodiscard]] CommandArgValue {
+struct [[nodiscard]] CommandArgValue
+    : std::conditional_t<is_flag_v<decltype(S)>, detail::WithCount, detail::DummyBase> {
     detail::result_type_t<S> value{detail::default_arg_value<S>()};
     bool is_used{false};
     static constexpr auto spec = S;

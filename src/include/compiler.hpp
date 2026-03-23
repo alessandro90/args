@@ -134,6 +134,9 @@ public:
             }
             item.is_used = true;
             item.value = true;
+            if constexpr (requires { item.count; }) {
+                item.count += 1;
+            }
             return true;
         };
 
@@ -197,6 +200,9 @@ public:
             }
             item.is_used = true;
             item.value = true;
+            if constexpr (requires { item.count; }) {
+                item.count += 1;
+            }
             return true;
         };
 

@@ -48,6 +48,32 @@ TEST_CASE("boolean-short-flag", "[compiler]") {
     }
 }
 
+TEST_CASE("boolean-short-flag-count", "[compiler]") {
+    static constexpr auto option = Flag{.long_form = "value"_flag, .short_form = "v"_short_flag};
+    static constexpr auto rules = Rules<empty, empty, option>{};
+
+    SECTION("count-0") {
+        auto const flag = std::array<token_t, 0>{};
+        auto const out = compiler::compile(std::span{flag}, rules, MutuallyExclusiveGroups<>{});
+        REQUIRE(has_args(out));
+        REQUIRE(get_args(out).get_with_info<option>().count == 0);
+    }
+    SECTION("count-1") {
+        auto const flag = std::array{token_t{ShortFlag{.raw = "-v", .flag = 'v'}}};
+        auto const out = compiler::compile(std::span{flag}, rules, MutuallyExclusiveGroups<>{});
+        REQUIRE(has_args(out));
+        REQUIRE(get_args(out).get_with_info<option>().count == 1);
+    }
+    SECTION("count-2") {
+        auto const flag = std::array{
+            token_t{ShortFlag{.raw = "-v", .flag = 'v'}},
+            token_t{ShortFlag{.raw = "-v", .flag = 'v'}}};
+        auto const out = compiler::compile(std::span{flag}, rules, MutuallyExclusiveGroups<>{});
+        REQUIRE(has_args(out));
+        REQUIRE(get_args(out).get_with_info<option>().count == 2);
+    }
+}
+
 TEST_CASE("short-flag-with-arithmetic-value", "[compiler]") {
     SECTION("providing-value-gets-an-int") {
         static constexpr auto option = FlagWithValue{
