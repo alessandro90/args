@@ -1,12 +1,18 @@
 #include "include/types.hpp"
 #include <algorithm>
 #include <cstddef>
+#include <cstdlib>
 #include <format>
 #include <ranges>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
+
+#if !defined _WIN32
+    #include <sys/ioctl.h>
+    #include <unistd.h>
+#endif
 
 namespace {
 [[nodiscard]] auto count_digits(std::size_t n) -> std::size_t {
@@ -21,7 +27,40 @@ namespace {
 
 constexpr auto padding_sep = ' ';
 constexpr auto extra_padding = 8uz;
-constexpr auto max_descruption_len_bytes = 50uz;
+constexpr auto default_description_len_bytes = 80uz;
+
+[[nodiscard]] auto get_terminal_columns() -> std::size_t {
+#if !defined _WIN32
+    winsize ws{};
+    if (auto const success = ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws); success == 0) {  // NOLINT
+        return static_cast<std::size_t>(ws.ws_col);
+    }
+#endif
+
+    if (auto const *ev = std::getenv("COLUMNS"); ev != nullptr) {  // NOLINT
+        return std::stoul(std::string(ev));
+    }
+    return default_description_len_bytes;
+}
+
+struct [[nodiscard]] NewLineOpts {
+    std::string_view s;
+    std::size_t max_cols;
+    std::size_t starting_index;
+};
+
+[[nodiscard]] auto find_newline_space(NewLineOpts opts) -> std::size_t {
+    auto const [s, max_cols, starting_index] = opts;
+    auto const space_index = s.find(' ', starting_index);
+    if (space_index == std::string_view::npos) {
+        return s.size();
+    }
+    if (space_index >= max_cols) {
+        return starting_index;
+    }
+    return find_newline_space(
+        NewLineOpts{.s = s, .max_cols = max_cols, .starting_index = space_index + 1uz});
+}
 
 auto apply_description(
     std::string &help,
@@ -29,31 +68,33 @@ auto apply_description(
     std::size_t padding,
     std::size_t offset,
     bool is_first_iteration) -> void {
-    if (description.empty()) {
+    static auto const terminal_cols = get_terminal_columns();
+    if (terminal_cols <= padding || description.empty()) {
         return;
     }
-    if (description.size() <= max_descruption_len_bytes) {
+    auto const max_description_cols = terminal_cols - padding;
+    auto const add_left_padding = [&] {
         if (is_first_iteration) {
             help += std::string(padding - offset, padding_sep);
         } else {
             help += std::string(padding, padding_sep);
         }
+    };
+    if (description.size() <= max_description_cols) {
+        add_left_padding();
         help += std::format("{}", description);
         return;
     }
-    auto const space_index = description.find(' ', max_descruption_len_bytes);
+    auto const space_index = find_newline_space(
+        NewLineOpts{.s = description, .max_cols = max_description_cols, .starting_index = 0});
     if (space_index == std::string_view::npos) {
         return;
     }
-    if (is_first_iteration) {
-        help += std::string(padding - offset, padding_sep);
-    } else {
-        help += std::string(padding, padding_sep);
-    }
+    add_left_padding();
     help.append_range(description.substr(0, space_index));
     if (description.size() > space_index) {
         help += '\n';
-        apply_description(help, description.substr(space_index + 1), padding, offset, false);
+        apply_description(help, description.substr(space_index), padding, offset, false);
     }
 }
 }  // namespace
