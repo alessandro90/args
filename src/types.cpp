@@ -51,7 +51,7 @@ struct [[nodiscard]] NewLineOpts {
 
 [[nodiscard]] auto find_newline_space(NewLineOpts opts) -> std::size_t {
     auto const [s, max_cols, starting_index] = opts;
-    auto const space_index = s.find(' ', starting_index);
+    auto const space_index = s.rfind(' ', starting_index);
     if (space_index == std::string_view::npos) {
         return s.size();
     }
@@ -86,7 +86,10 @@ auto apply_description(
         return;
     }
     auto const space_index = find_newline_space(
-        NewLineOpts{.s = description, .max_cols = max_description_cols, .starting_index = 0});
+        NewLineOpts{
+            .s = description.substr(0, max_description_cols),
+            .max_cols = max_description_cols,
+            .starting_index = 0});
     if (space_index == std::string_view::npos) {
         return;
     }
