@@ -4,11 +4,13 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <expected>
 #include <format>
 #include <optional>
 #include <ranges>
 #include <span>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -59,6 +61,12 @@ template <auto S>
 requires args::detail::PositionalVariadic<S>
 auto assign_parsed_value(ArgValue<S> &item, args::detail::parse_type_t<S> value) -> void {
     item.value.push_back(std::move(value));
+}
+
+template <auto S>
+requires args::detail::is_repeatable_v<S>
+auto assign_parsed_value(ArgValue<S> &item, args::detail::parse_type_t<S> value) -> void {
+    item.value.assign_range(std::move(value));
 }
 
 template <auto S>
@@ -316,7 +324,9 @@ private:
         auto parsed_value =
             parsers::parse<parse_type_t<S>>(argument.value.begin(), argument.value.end());
         if (parsed_value.has_value()) {
-            if constexpr (!is_positional_variadic_v<S> && args::detail::HasValidator<S>) {
+            if constexpr (
+                !is_positional_variadic_v<S> && !is_repeatable_v<S>
+                && args::detail::HasValidator<S>) {
                 auto validation = S.validator(parsed_value.value());
                 if (!validation.has_value()) {
                     error = std::move(validation).error();
@@ -498,23 +508,30 @@ auto assign_defaults_to_unused(std::tuple<ArgValue<Specs>...> &results) -> void 
 }
 
 template <auto... Specs>
-[[nodiscard]] auto validate_variadic_positional(std::tuple<ArgValue<Specs>...> &results)
-    -> validator_result_t {
-    auto validation_result = validator_result_t{};
+[[nodiscard]] auto validate_variadic_positional_and_repeatable(
+    std::tuple<ArgValue<Specs>...> &results)
+    -> std::expected<void, std::vector<validator_error_t>> {
+    auto validation_errors = std::vector<validator_error_t>{};
     [&]<std::size_t... Is>(std::index_sequence<Is...>) {
         (..., [&]() {
             auto &r = std::get<Is>(results);
             using arg_type_t = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
-            if constexpr (args::detail::is_positional_variadic_v<arg_type_t::spec>) {
+            if constexpr (
+                args::detail::is_positional_variadic_v<arg_type_t::spec>
+                || args::detail::is_repeatable_v<arg_type_t::spec>) {
                 if (r.is_used) {
-                    // we only get one variadic positional to check, therefore no need to
-                    // store results in a vector for example
-                    validation_result = arg_type_t::spec.validator(r.value);
+                    auto res = arg_type_t::spec.validator(r.value);
+                    if (!res.has_value()) {
+                        validation_errors.push_back(std::move(res).error());
+                    }
                 }
             }
         }());
     }(std::make_index_sequence<sizeof...(Specs)>());
-    return validation_result;
+    if (!validation_errors.empty()) {
+        return std::unexpected{validation_errors};
+    }
+    return {};
 }
 
 }  // namespace detail
@@ -560,10 +577,13 @@ template <std::size_t Extent, Str Usage, Str Description, auto... Specs, auto...
             .message = missing_args | std::views::join_with('\n') | std::ranges::to<std::string>()};
     }
     detail::assign_defaults_to_unused(token_compiler.results);
-    auto positional_variadic_validation_result =
-        detail::validate_variadic_positional(token_compiler.results);
-    if (!positional_variadic_validation_result.has_value()) {
-        return Error{.message = std::move(positional_variadic_validation_result).error()};
+    auto positional_variadic_and_repeatable_validation_result =
+        detail::validate_variadic_positional_and_repeatable(token_compiler.results);
+    if (!positional_variadic_and_repeatable_validation_result.has_value()) {
+        return Error{
+            .message = std::move(positional_variadic_and_repeatable_validation_result).error()
+                       | std::views::join_with(std::string_view{"\n"})
+                       | std::ranges::to<std::string>()};
     }
     auto result_args = Args{std::move(token_compiler).results};
     if (auto invalid_mutually_exclusive =

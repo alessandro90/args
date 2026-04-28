@@ -13,7 +13,8 @@
 
 namespace args {
 
-using validator_result_t = std::expected<void, std::string>;
+using validator_error_t = std::string;
+using validator_result_t = std::expected<void, validator_error_t>;
 
 /// Used to apply validation logic to parsed arguments
 ///

@@ -138,6 +138,9 @@ struct [[nodiscard]] FlagWithValue {
     Value default_value{};
     /// `true` if the flag is required (defaults to `false`)
     bool required{};
+    /// `true` if the flag can be specified multiple times. Default is true if `Value` is a
+    /// std::vector
+    bool repeatable{detail::IsVector<Value>::value};
     /// An optional help message
     Str<M> help{};
     /// A validator to apply to the parsed result (defaults to an infallible validator)
@@ -267,6 +270,18 @@ template <typename P>
         return false;
     }
 }
+
+template <auto S>
+[[nodiscard]] consteval auto is_repeatable() -> bool {
+    if constexpr (requires { S.repeatable; }) {
+        return S.repeatable;
+    } else {
+        return false;
+    }
+}
+
+template <auto S>
+inline constexpr auto is_repeatable_v = is_repeatable<S>();
 
 template <auto S>
 inline constexpr auto is_positional_variadic_v = is_positional_variadic(S);
@@ -472,6 +487,25 @@ template <auto... Ss>
     return check_variadic_is_last_positional_rec<Ss...>(false);
 }
 
+template <auto S>
+[[nodiscard]] consteval auto check_repeatable_is_vector_value() -> bool {
+    if constexpr (is_flag_with_value_v<decltype(S)>) {
+        if constexpr (S.repeatable) {
+            return detail::IsVector<typename decltype(S)::value_t>::value;
+        }
+    }
+    return true;
+}
+
+template <auto S, auto... Ss>
+[[nodiscard]] consteval auto check_repeatable_is_vector() -> bool {
+    if constexpr (sizeof...(Ss) == 0) {
+        return check_repeatable_is_vector_value<S>();
+    } else {
+        return check_repeatable_is_vector_value<S>() && check_repeatable_is_vector<Ss...>();
+    }
+}
+
 template <auto... Specs>
 struct CheckRules {
     static_assert(check_all_different_names<Specs...>(), "All flags must have unique identifiers");
@@ -486,6 +520,8 @@ struct CheckRules {
         "Positional variadic argument must be the last positional argument because it consumes all "
         "positionals");
     static_assert(assert_valid_defaults<Specs...>(), "Invalid default for specification");
+    static_assert(
+        check_repeatable_is_vector<Specs...>(), "Only vector flags can be made repeatable");
 };
 
 template <>
