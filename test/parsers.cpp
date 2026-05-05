@@ -15,7 +15,8 @@ TEST_CASE("empty-int-vec", "[parsers]") {
     auto const to_parse = ""sv;
     auto const v = parsers::parse<std::vector<int>>(to_parse.begin(), to_parse.end());
 
-    REQUIRE(!v.has_value());
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == std::vector<int>{});
 }
 
 TEST_CASE("one-int-vec", "[parsers]") {
@@ -27,11 +28,11 @@ TEST_CASE("one-int-vec", "[parsers]") {
 }
 
 TEST_CASE("multiple-int-vec-commas", "[parsers]") {
-    auto const to_parse = "10,11,12"sv;
+    auto const to_parse = "10,21,32"sv;
     auto const v = parsers::parse<std::vector<int>>(to_parse.begin(), to_parse.end());
 
     REQUIRE(v.has_value());
-    REQUIRE(v.value() == std::vector{10, 11, 12});
+    REQUIRE(v.value() == std::vector{10, 21, 32});
 }
 
 TEST_CASE("multiple-int-vec-spaces", "[parsers]") {
@@ -50,13 +51,21 @@ TEST_CASE("multiple-int-vec-spaces-and-commas-weird", "[parsers]") {
     REQUIRE(v.value() == std::vector{10, 11, 12, 13});
 }
 
+TEST_CASE("multiple-int-vec-spaces-and-commas-mixed", "[parsers]") {
+    auto const to_parse = "  10, 11 12  ,13"sv;
+    auto const v = parsers::parse<std::vector<int>>(to_parse.begin(), to_parse.end());
+
+    REQUIRE(!v.has_value());
+}
+
 ///
 
 TEST_CASE("empty-str-vec", "[parsers]") {
     auto const to_parse = ""sv;
     auto const v = parsers::parse<std::vector<std::string_view>>(to_parse.begin(), to_parse.end());
 
-    REQUIRE(!v.has_value());
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == std::vector<std::string_view>{});
 }
 
 TEST_CASE("one-str-vec-no-quotes", "[parsers]") {
@@ -112,7 +121,8 @@ TEST_CASE("multiple-str-vec-spaces-and-commas-weird-no-quotes", "[parsers]") {
     auto const v = parsers::parse<std::vector<std::string_view>>(to_parse.begin(), to_parse.end());
 
     REQUIRE(v.has_value());
-    REQUIRE(v.value() == std::vector{"10"sv, "11"sv, "12"sv, "13"sv});
+    // the space after '12' is not an error
+    REQUIRE(v.value() == std::vector{"10"sv, "11"sv, "12  "sv, "13"sv});
 }
 
 TEST_CASE("multiple-str-vec-spaces-and-commas-weird-quotes", "[parsers]") {
