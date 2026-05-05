@@ -13,6 +13,7 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+#include "include/types.hpp"
 #include "type_helpers.hpp"
 #include "typetag.hpp"
 
@@ -263,6 +264,33 @@ template <typename Out, typename It>
 requires args::detail::IsVector<Out>::value
 [[nodiscard]] auto parse(It begin, It end) -> std::optional<Out> {
     return detail::parse_vector<Out>(begin, end);
+}
+
+template <typename Out, typename It>
+requires args::detail::IsRepeatableParseType<Out>::value
+[[nodiscard]] auto parse(It begin, It end) -> std::optional<Out> {
+    // Is this really better than the old style implementation below?
+    // first try a parse for a single argument
+    // return parse<args::detail::repeatable_single_type_t<Out>>(begin, end)
+    //     .transform([](auto p) {
+    //         return Out{std::move(p)};
+    //     })
+    //     // otherwise try to parse a vector
+    //     .or_else([=] {
+    //         return parse<std::vector<args::detail::repeatable_single_type_t<Out>>>(begin, end)
+    //             .transform([](auto p) {
+    //                 return Out{std::move(p)};
+    //             });
+    //     });
+    auto parsed = parse<args::detail::repeatable_single_type_t<Out>>(begin, end);
+    if (parsed.has_value()) {
+        return Out{std::move(parsed).value()};
+    }
+    // otherwise try to parse a vector
+    auto parsed_v = parse<std::vector<args::detail::repeatable_single_type_t<Out>>>(begin, end);
+    return std::move(parsed_v).transform([](auto p) {
+        return Out{std::move(p)};
+    });
 }
 }  // namespace args::parsers
 #endif

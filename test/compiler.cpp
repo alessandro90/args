@@ -139,6 +139,26 @@ TEST_CASE("short-flag-with-vec-value-default", "[compiler]") {
     REQUIRE(value == std::vector{1, 2, 3});
 }
 
+TEST_CASE("repeatable-flag", "[compiler]") {
+    static constexpr auto option = FlagWithValue{
+        .long_form = "value"_flag,
+        .short_form = "v"_short_flag,
+        .default_value = args::Lazy<std::vector<int>>};
+    static constexpr auto rules = Rules<empty, empty, option>{};
+    auto const tokens = std::array{
+        token_t{tokenizer::ShortFlag{.raw = "-v", .flag = 'v'}},
+        token_t{tokenizer::Argument{.value = "1,2,3"}},
+        token_t{tokenizer::ShortFlag{.raw = "-v", .flag = 'v'}},
+        token_t{tokenizer::Argument{.value = "4"}},
+        token_t{tokenizer::LongFlag{.raw = "--value", .flag = "value"}},
+        token_t{tokenizer::Argument{.value = "5,6,7"}}};
+    auto const out = compiler::compile(std::span{tokens}, rules, MutuallyExclusiveGroups<>{});
+
+    REQUIRE(has_args(out));
+    auto const &value = get_args(out).get<option>();
+    REQUIRE(value == std::vector{1, 2, 3, 4, 5, 6, 7});
+}
+
 TEST_CASE("subcommand", "[compiler]") {
     static constexpr auto suboption =
         Positional{.type = tag<int>, .name = "pos-name"_str, .required = true};

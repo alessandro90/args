@@ -108,6 +108,19 @@ concept HasValidator = requires { S.validator; };
 
 template <auto S>
 concept HasDefault = requires { S.default_value; };
+
+template <typename T>
+consteval auto result_type() -> std::remove_cvref_t<T>;
+
+template <std::invocable T>
+consteval auto result_type() -> std::remove_cvref_t<decltype(std::declval<T>()())>;
+
+template <typename T>
+using result_type_impl_t = decltype(result_type<T>());
+
+template <auto S>
+using result_type_t = result_type_impl_t<typename decltype(S)::value_t>;
+
 }  // namespace detail
 
 /// A boolean flag descriptor
@@ -140,7 +153,7 @@ struct [[nodiscard]] FlagWithValue {
     bool required{};
     /// `true` if the flag can be specified multiple times. Default is true if `Value` is a
     /// std::vector
-    bool repeatable{detail::IsVector<Value>::value};
+    bool repeatable{args::detail::IsVector<detail::result_type_impl_t<Value>>::value};
     /// An optional help message
     Str<M> help{};
     /// A validator to apply to the parsed result (defaults to an infallible validator)
@@ -293,22 +306,32 @@ template <auto S>
 concept IsAFlag = is_flag_v<decltype(S)> || is_flag_with_value_v<decltype(S)>;
 
 template <typename T>
-consteval auto result_type() -> std::remove_cvref_t<T>;
+using RepeatableParseType = std::variant<T, std::vector<T>>;
 
-template <std::invocable T>
-consteval auto result_type() -> std::remove_cvref_t<decltype(std::declval<T>()())>;
+template <typename T>
+auto get_repeatable_single_type(RepeatableParseType<T> const &) -> T;
+
+template <typename T>
+using repeatable_single_type_t = decltype(get_repeatable_single_type(std::declval<T>()));
+
+template <typename T>
+struct IsRepeatableParseType: std::false_type {};
+
+template <typename T>
+struct IsRepeatableParseType<RepeatableParseType<T>>: std::true_type {};
 
 template <auto S>
-using result_type_t = decltype(result_type<typename decltype(S)::value_t>());
-
-template <auto S>
-requires(!is_positional_v<decltype(S)> || (is_positional_v<decltype(S)> && !S.variadic))
 consteval auto parse_type() -> result_type_t<S>;
 
 template <auto S>
 requires PositionalVariadic<S>
 consteval auto parse_type() ->
     typename result_type_t<S>::value_type;  // this is a vector, so we can get its contained type
+
+template <auto S>
+requires is_repeatable_v<S>
+consteval auto parse_type()
+    -> RepeatableParseType<typename result_type_impl_t<typename decltype(S)::value_t>::value_type>;
 
 template <auto S>
 using parse_type_t = decltype(parse_type<S>());
@@ -491,7 +514,7 @@ template <auto S>
 [[nodiscard]] consteval auto check_repeatable_is_vector_value() -> bool {
     if constexpr (is_flag_with_value_v<decltype(S)>) {
         if constexpr (S.repeatable) {
-            return detail::IsVector<typename decltype(S)::value_t>::value;
+            return detail::IsVector<result_type_impl_t<typename decltype(S)::value_t>>::value;
         }
     }
     return true;
