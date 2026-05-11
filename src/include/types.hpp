@@ -921,7 +921,7 @@ template <auto... Ss>
 
 /// Returns a reference to a constant `args::Args` object
 ///
-/// Throws if the is no such object. This function should be used after checking with `has_args`
+/// Throws if there is no such object. This function should be used after checking with `has_args`
 template <auto... Ss>
 [[nodiscard]] constexpr auto get_args(compile_result_t<Ss...> const &res) -> Args<Ss...> const & {
     return std::get<Args<Ss...>>(res);
@@ -929,7 +929,7 @@ template <auto... Ss>
 
 /// Returns a reference to a `args::Args` object
 ///
-/// Throws if the is no such object. This function should be used after checking with `has_args`
+/// Throws if there is no such object. This function should be used after checking with `has_args`
 template <auto... Ss>
 [[nodiscard]] constexpr auto get_args(compile_result_t<Ss...> &res) -> Args<Ss...> & {
     return std::get<Args<Ss...>>(res);
@@ -937,7 +937,7 @@ template <auto... Ss>
 
 /// Returns a `args::Args` object
 ///
-/// Throws if the is no such object. This function should be used after checking with `has_args`
+/// Throws if there is no such object. This function should be used after checking with `has_args`
 template <auto... Ss>
 [[nodiscard]] constexpr auto get_args(compile_result_t<Ss...> &&res) -> Args<Ss...> {
     return std::get<Args<Ss...>>(std::move(res));
@@ -945,7 +945,7 @@ template <auto... Ss>
 
 /// Returns a `args::Help` object
 ///
-/// Throws if the is no such object. This function should be used after checking with `has_help`
+/// Throws if there is no such object. This function should be used after checking with `has_help`
 template <auto... Ss>
 [[nodiscard]] constexpr auto get_help(compile_result_t<Ss...> const &res) -> Help {
     return std::get<Help>(res);
@@ -953,7 +953,7 @@ template <auto... Ss>
 
 /// Returns a reference to a constant `args::Error` object
 ///
-/// Throws if the is no such object. This function should be used after checking with `has_error`
+/// Throws if there is no such object. This function should be used after checking with `has_error`
 template <auto... Ss>
 [[nodiscard]] constexpr auto get_error(compile_result_t<Ss...> const &res) -> Error const & {
     return std::get<Error>(res);
@@ -961,7 +961,7 @@ template <auto... Ss>
 
 /// Returns a reference to a `args::Error` object
 ///
-/// Throws if the is no such object. This function should be used after checking with `has_error`
+/// Throws if there is no such object. This function should be used after checking with `has_error`
 template <auto... Ss>
 [[nodiscard]] constexpr auto get_error(compile_result_t<Ss...> &res) -> Error & {
     return std::get<Error>(res);
@@ -969,7 +969,7 @@ template <auto... Ss>
 
 /// Returns a `args::Error` object
 ///
-/// Throws if the is no such object. This function should be used after checking with `has_error`
+/// Throws if there is no such object. This function should be used after checking with `has_error`
 template <auto... Ss>
 [[nodiscard]] constexpr auto get_error(compile_result_t<Ss...> &&res) -> Error {
     return std::get<Error>(std::move(res));

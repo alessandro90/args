@@ -515,8 +515,7 @@ auto assign_defaults_to_unused(std::tuple<ArgValue<Specs>...> &results) -> void 
 }
 
 template <auto... Specs>
-[[nodiscard]] auto validate_variadic_positional_and_repeatable(
-    std::tuple<ArgValue<Specs>...> &results)
+[[nodiscard]] auto val_var_pos_and_rep(std::tuple<ArgValue<Specs>...> &results)
     -> std::expected<void, std::vector<validator_error_t>> {
     auto validation_errors = std::vector<validator_error_t>{};
     [&]<std::size_t... Is>(std::index_sequence<Is...>) {
@@ -574,21 +573,23 @@ template <std::size_t Extent, Str Usage, Str Description, auto... Specs, auto...
             break;
         }
     }
-    auto state_error = token_compiler.check_correct_final_state();
-    if (state_error.has_value()) {
+
+    if (auto state_error = token_compiler.check_correct_final_state(); state_error.has_value()) {
         return Error{.message = std::move(state_error).value()};
     }
-    auto const missing_args = detail::verify_required_args(token_compiler.results);
-    if (!missing_args.empty()) {
+
+    if (auto const missing_args = detail::verify_required_args(token_compiler.results);
+        !missing_args.empty()) {
         return Error{
             .message = missing_args | std::views::join_with('\n') | std::ranges::to<std::string>()};
     }
+
     detail::assign_defaults_to_unused(token_compiler.results);
-    auto positional_variadic_and_repeatable_validation_result =
-        detail::validate_variadic_positional_and_repeatable(token_compiler.results);
-    if (!positional_variadic_and_repeatable_validation_result.has_value()) {
+
+    if (auto posvar_and_rep_val_result = detail::val_var_pos_and_rep(token_compiler.results);
+        !posvar_and_rep_val_result.has_value()) {
         return Error{
-            .message = std::move(positional_variadic_and_repeatable_validation_result).error()
+            .message = std::move(posvar_and_rep_val_result).error()
                        | std::views::join_with(std::string_view{"\n"})
                        | std::ranges::to<std::string>()};
     }
