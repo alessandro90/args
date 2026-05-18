@@ -421,11 +421,11 @@ template <auto S, auto... Ss>
     }
 }
 
-[[nodiscard]] consteval auto is_valid_first_char(char c) -> bool {
+[[nodiscard]] constexpr auto is_valid_first_char(char c) -> bool {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
 };
 
-[[nodiscard]] consteval auto is_valid_non_first_char(char c) -> bool {
+[[nodiscard]] constexpr auto is_valid_non_first_char(char c) -> bool {
     return (is_valid_first_char(c) || (c >= '0' && c <= '9')) || c == '-' || c == '_';
 };
 

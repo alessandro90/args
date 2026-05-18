@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include "include/types.hpp"
 
 using namespace args::literals;
@@ -12,4 +13,6 @@ auto main() -> int {
         .help = "Print the version of the program"_str,
         .rules = args::Rules<args::empty, args::empty, version_subcommand_verbose>{},
         .is_flag = true};
+
+    return EXIT_SUCCESS;
 }

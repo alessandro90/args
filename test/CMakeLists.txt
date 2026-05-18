@@ -12,6 +12,7 @@ add_executable(cpp_args_test
     compiler.cpp
     parsers.cpp
     validators.cpp
+    tokenizer.cpp
 )
 
 target_link_libraries(cpp_args_test PRIVATE project_warnings)
