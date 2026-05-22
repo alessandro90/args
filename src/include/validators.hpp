@@ -146,33 +146,33 @@ namespace detail {
 
 template <std::formattable<char> Limit, std::formattable<char> Value>
 [[nodiscard]] auto less_than_error_message(Limit const &limit, Value const &value) -> std::string {
-    return std::format("Value '{}' must be less than '{}'", value, limit);
+    return std::format("value '{}' must be less than '{}'", value, limit);
 }
 
 template <typename Limit, typename Value>
 [[nodiscard]] auto less_than_error_message(Limit const &, Value const &) -> std::string {
-    return "Value must be less than target";
+    return "value must be less than target";
 }
 
 template <std::formattable<char> Target, std::formattable<char> Value>
 [[nodiscard]] auto equal_error_message(Target const &target, Value const &value) -> std::string {
-    return std::format("Value '{}' must be equal to '{}'", value, target);
+    return std::format("value '{}' must be equal to '{}'", value, target);
 }
 
 template <typename Target, typename Value>
 [[nodiscard]] auto equal_error_message(Target const &, Value const &) -> std::string {
-    return "Value must be equal to target";
+    return "value must be equal to target";
 }
 
 template <std::formattable<char> Limit, std::formattable<char> Value>
 [[nodiscard]] auto greater_than_error_message(Limit const &limit, Value const &value)
     -> std::string {
-    return std::format("Value '{}' must be greater than '{}'", value, limit);
+    return std::format("value '{}' must be greater than '{}'", value, limit);
 }
 
 template <typename Limit, typename Value>
 [[nodiscard]] auto greater_than_error_message(Limit const &, Value const &) -> std::string {
-    return "Value must be greater than target";
+    return "value must be greater than target";
 }
 
 }  // namespace detail
@@ -193,10 +193,10 @@ inline constexpr auto less_than = Validator{
         // if constexpr (requires {
         //                   requires detail::both_formattable<decltype(Limit), decltype(value)>;
         //               }) {
-        //     return std::format("Value '{}' must be less than '{}'", value, Limit);
+        //     return std::format("value '{}' must be less than '{}'", value, Limit);
         // } else {
         // static_cast<void>(value);
-        // return "Value must be less than target";
+        // return "value must be less than target";
         // }
     }};
 
@@ -216,10 +216,10 @@ inline constexpr auto equal_to = Validator{
         // if constexpr (requires {
         //                   requires detail::both_formattable<decltype(Target), decltype(value)>;
         //               }) {
-        //     return std::format("Value '{}' must be equal to '{}'", value, Target);
+        //     return std::format("value '{}' must be equal to '{}'", value, Target);
         // } else {
         // static_cast<void>(value);
-        // return "Value must be equal to target";
+        // return "value must be equal to target";
         // }
     }};
 
@@ -239,10 +239,10 @@ inline constexpr auto greater_than = Validator{
         // if constexpr (requires {
         //                   requires detail::both_formattable<decltype(Limit), decltype(value)>;
         //               }) {
-        //     return std::format("Value '{}' must be greater than '{}'", value, Limit);
+        //     return std::format("value '{}' must be greater than '{}'", value, Limit);
         // } else {
         // static_cast<void>(value);
-        // return "Value must be greater than target";
+        // return "value must be greater than target";
         // }
     }};
 
@@ -319,16 +319,17 @@ inline constexpr auto half_open_range = And<greater_or_equal<Min>, less_than<Max
 ///
 /// `fn` the transforming function, takes a reference to a constant parsed value and can return
 /// anything
-template <typename Fn>
+template <typename Fn, typename ErrFn>
 struct [[nodiscard]] ValidatorTransformer {
     Fn fn;
+    ErrFn err_fn;
 };
 
 template <typename>
 struct IsValidatorTransformer: std::false_type {};
 
-template <typename Fn>
-struct IsValidatorTransformer<ValidatorTransformer<Fn>>: std::true_type {};
+template <typename Fn, typename ErrFn>
+struct IsValidatorTransformer<ValidatorTransformer<Fn, ErrFn>>: std::true_type {};
 
 template <typename T>
 inline constexpr auto is_validator_transformer_v =
@@ -338,16 +339,25 @@ template <typename T>
 concept AValidatorTransformer = is_validator_transformer_v<T>;
 
 /// Map the provided value to its len (the value must provide a `size` method)
-inline constexpr auto len = ValidatorTransformer{.fn = [](auto const &value) -> std::size_t {
-    return value.size();
-}};
+inline constexpr auto len = ValidatorTransformer{
+    .fn = [](auto const &value) -> std::size_t {
+        return value.size();
+    },
+    .err_fn = [](std::string msg) -> std::string {
+        return std::format("len of {}", msg);
+    }};
 
 namespace detail {
 template <ValidatorTransformer T1, ValidatorTransformer T2>
 constexpr auto compose_transformers() -> AValidatorTransformer auto {
-    return ValidatorTransformer{.fn = [](auto const &value) {
-        return T2.fn(T1.fn(value));
-    }};
+    return ValidatorTransformer{
+        .fn =
+            [](auto const &value) {
+                return T2.fn(T1.fn(value));
+            },
+        .err_fn = [](std::string msg) -> std::string {
+            return T2.err_fn(std::format(" {}", T1.err_fn(msg)));
+        }};
 }
 
 template <ValidatorTransformer T1, ValidatorTransformer T2, ValidatorTransformer... Ts>
@@ -377,7 +387,10 @@ inline constexpr auto Pipe = Validator{
     .fn = [](auto const &value) -> bool {
         return V.fn(T.fn(value));
     },
-    .err_fn = V.err_fn};
+    .err_fn =
+        [](auto const &x) {
+            return T.err_fn(V.err_fn(x));
+        }};
 
 }  // namespace args
 
