@@ -570,7 +570,7 @@ template <std::size_t Extent, Str Usage, Str Description, auto... Specs, auto...
             if (std::holds_alternative<Error>(failed_subcommand)) {
                 return compile_result_t<Specs...>{std::get<Error>(std::move(failed_subcommand))};
             }
-            break;
+            return Args{std::move(token_compiler).results};
         }
     }
 

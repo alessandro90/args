@@ -47,7 +47,7 @@ struct [[nodiscard]] DoubleDash {
 
 using token_t = std::variant<ShortFlag, LongFlag, FlagGroup, Argument, DoubleDash>;
 
-[[nodiscard]] auto tokenize(std::span<char const *> src)
+[[nodiscard]] auto tokenize(std::span<char const *const> src)
     -> std::expected<std::vector<token_t>, std::string>;
 
 }  // namespace args::tokenizer

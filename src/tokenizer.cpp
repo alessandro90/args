@@ -141,7 +141,8 @@ template <std::optional<ParseResult> (&f)(std::string_view)>
 
 namespace args::tokenizer {
 
-auto tokenize(std::span<char const *> src) -> std::expected<std::vector<token_t>, std::string> {
+auto tokenize(std::span<char const *const> src)
+    -> std::expected<std::vector<token_t>, std::string> {
     auto tokens = std::vector<token_t>{};
     for (char const *arg : src) {
         auto sp_arg = std::string_view{arg};

@@ -109,6 +109,21 @@ concept HasValidator = requires { S.validator; };
 template <auto S>
 concept HasDefault = requires { S.default_value; };
 
+template <auto S>
+consteval auto is_required() -> bool {
+    if constexpr (requires { S.required; }) {
+        return S.required;
+    } else {
+        return false;
+    }
+}
+
+template <auto S>
+concept IsRequired = is_required<S>();
+
+template <auto C>
+concept Not = !C;
+
 template <typename T>
 consteval auto result_type() -> std::remove_cvref_t<T>;
 
@@ -351,7 +366,7 @@ template <auto S1, auto... Ss>
 namespace rule_assertions {
 template <auto S, auto... Ss>
 [[nodiscard]] consteval auto assert_valid_defaults() -> bool {
-    if constexpr (HasValidator<S> && HasDefault<S>) {
+    if constexpr (HasValidator<S> && HasDefault<S> && Not<IsRequired<S>>) {
         if constexpr (!std::is_invocable_v<decltype(S.default_value)>) {
             if (!S.validator.fn(S.default_value)) {
                 return false;
