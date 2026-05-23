@@ -19,7 +19,6 @@
 #include "parsers.hpp"
 #include "tokenizer.hpp"
 #include "types.hpp"
-#include "typetag.hpp"
 #include "validators.hpp"
 
 namespace args::compiler {
@@ -327,7 +326,7 @@ private:
         -> void {
         using namespace args::detail;
         using namespace args::parsers;
-        auto parsed_value = parse<parse_type_t<S>>(argument.value);
+        auto parsed_value = Parser<parse_type_t<S>>::parse(argument.value);
         if (parsed_value.has_value()) {
             if constexpr (
                 !is_positional_variadic_v<S> && !is_repeatable_v<S>
@@ -344,9 +343,7 @@ private:
             return;
         }
         error = std::format(
-            "Cannot parse '{}' into '{}'",
-            argument.value,
-            parsers::type_name(Typetag<result_type_t<S>>{}));
+            "Cannot parse '{}' into '{}'", argument.value, Parser<parse_type_t<S>>::type_name());
     }
 
     [[nodiscard]] auto try_handle_flag(

@@ -1,56 +1,56 @@
-#include <concepts>
 #include <cstdlib>
 #include <format>
 #include <iterator>
 #include <optional>
 #include <print>
 #include <ranges>
+#include "include/cpp_args.hpp"
 #include "include/parsers.hpp"
 #include "include/types.hpp"
 #include "include/validators.hpp"
 
-namespace args::parsers {
-// Custom data parsing:
-// 1. define the class in args::parsers namespace
-// 2. Definitions must be *before* inclusion of the main header
-// 3. define type_name and parse_functions
-
-struct CustomData {  // NOLINT(misc-use-internal-linkage)
+namespace {
+struct CustomData {
     int a{};
     int b{};
     int c{};
 };
+}  // namespace
 
-[[nodiscard]] consteval auto type_name(Typetag<CustomData>) -> std::string_view {
-    return "CustomData";
-}
-
-template <std::same_as<CustomData> Out, std::ranges::range R>
-[[nodiscard]] auto parse(R v) -> std::optional<CustomData> {  // NOLINT
-    namespace rng = std::ranges;
-    auto components = std::views::split(v, ',');
-    auto it = rng::begin(components);
-    auto components_end = rng::end(components);
-    if (rng::distance(it, components_end) != 3) {
-        return std::nullopt;
+// Define custom parsers by specializing the (stateless) struct args::parsers::Parser.
+namespace args::parsers {
+template <>
+struct Parser<CustomData> {
+    /// this function can return anything 'printable'
+    [[nodiscard]] static constexpr auto type_name() -> std::string_view {
+        return "CustomData";
     }
-    auto const p = [&it] {
-        return parse<int>(*it);
-    };
-    return p().and_then([&](int a) {
-        rng::advance(it, 1);
-        return p().and_then([&, a](int b) {
+
+    template <std::ranges::range R>
+    [[nodiscard]] static auto parse(R v) -> std::optional<CustomData> {
+        namespace rng = std::ranges;
+        auto components = std::views::split(v, ',');
+        auto it = rng::begin(components);
+        auto components_end = rng::end(components);
+        if (rng::distance(it, components_end) != 3) {
+            return std::nullopt;
+        }
+        auto const p = [&it] {
+            return Parser<int>::parse(*it);
+        };
+        return p().and_then([&](int a) {
             rng::advance(it, 1);
-            return p().transform([a, b](int c) {
-                return CustomData{.a = a, .b = b, .c = c};
+            return p().and_then([&, a](int b) {
+                rng::advance(it, 1);
+                return p().transform([a, b](int c) {
+                    return CustomData{.a = a, .b = b, .c = c};
+                });
             });
         });
-    });
-}
-}  // namespace args::parsers
+    }
+};
 
-// Include this after your custom parsers so ADL works
-#include "include/cpp_args.hpp"
+}  // namespace args::parsers
 
 using namespace args::literals;
 using namespace std::string_view_literals;
@@ -79,7 +79,7 @@ static constexpr auto c_version = args::Subcommand{
     .is_flag = true};
 
 static constexpr auto c_custom_data =
-    args::Positional{.type = args::tag<args::parsers::CustomData>, .name = "custom"_str};
+    args::Positional{.type = args::tag<CustomData>, .name = "custom"_str};
 
 static constexpr auto c_custom = args::Subcommand{
     .name = "custom_data"_str, .rules = args::Rules<args::empty, args::empty, c_custom_data>{}};

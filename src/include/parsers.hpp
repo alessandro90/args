@@ -20,90 +20,8 @@
 
 namespace args::parsers {
 
-[[nodiscard]] consteval auto type_name(Typetag<float>) -> std::string_view {
-    return "float";
-}
-
-[[nodiscard]] consteval auto type_name(Typetag<double>) -> std::string_view {
-    return "float";
-}
-
-[[nodiscard]] consteval auto type_name(Typetag<std::uint8_t>) -> std::string_view {
-    return "u8";
-}
-
-[[nodiscard]] consteval auto type_name(Typetag<std::int8_t>) -> std::string_view {
-    return "i8";
-}
-
-[[nodiscard]] consteval auto type_name(Typetag<std::uint16_t>) -> std::string_view {
-    return "u16";
-}
-
-[[nodiscard]] consteval auto type_name(Typetag<std::int16_t>) -> std::string_view {
-    return "i16";
-}
-
-[[nodiscard]] consteval auto type_name(Typetag<std::uint32_t>) -> std::string_view {
-    return "u32";
-}
-
-[[nodiscard]] consteval auto type_name(Typetag<std::int32_t>) -> std::string_view {
-    return "i32";
-}
-
-[[nodiscard]] consteval auto type_name(Typetag<std::uint64_t>) -> std::string_view {
-    return "u64";
-}
-
-[[nodiscard]] consteval auto type_name(Typetag<std::int64_t>) -> std::string_view {
-    return "i64";
-}
-
-[[nodiscard]] consteval auto type_name(Typetag<std::string_view>) -> std::string_view {
-    return "str(view)";
-}
-
-[[nodiscard]] consteval auto type_name(Typetag<std::string>) -> std::string_view {
-    return "str(owned)";
-}
-
-template <typename T>
-[[nodiscard]] auto type_name(Typetag<std::vector<T>>) -> std::string {
-    return std::format("[{}]", type_name(Typetag<T>{}));
-}
-
-template <typename Out, std::ranges::range R>
-requires std::is_arithmetic_v<Out>
-[[nodiscard]] auto parse(R v) -> std::optional<Out> {
-    Out value{};
-    auto const begin = std::ranges::begin(v);
-    auto const end = std::ranges::end(v);
-    auto const parsed = std::from_chars(begin, end, value);
-    // If we did not parse the whole range, we allow only for unparsed whitespaces
-    // otherwise the parsing is considered to have failed
-    if (parsed.ptr != end && !std::all_of(parsed.ptr, end, [](char c) {
-            return std::isspace(c) != 0;
-        })) {
-        return {};
-    }
-    if (parsed.ec == std::errc{}) {
-        return value;
-    }
-    return {};
-}
-
-template <typename Out, std::ranges::range R>
-requires detail::IsStringView<Out>::value
-[[nodiscard]] auto parse(R v) -> std::optional<Out> {
-    return std::string_view(std::ranges::begin(v), std::ranges::end(v));
-}
-
-template <typename Out, std::ranges::range R>
-requires detail::IsString<Out>::value
-[[nodiscard]] auto parse(R v) -> std::optional<Out> {
-    return std::string(std::ranges::begin(v), std::ranges::end(v));
-}
+template <typename>
+struct Parser;
 
 namespace detail {
 template <typename It>
@@ -155,7 +73,7 @@ struct VecParser {
             if (closing_quote == end) {
                 return {};
             }
-            auto parsed = parse<T>(std::ranges::subrange(first_char, closing_quote));
+            auto parsed = Parser<T>::parse(std::ranges::subrange(first_char, closing_quote));
             if (parsed.has_value()) {
                 values.push_back(std::move(parsed).value());
                 return std::next(closing_quote);
@@ -166,7 +84,7 @@ struct VecParser {
         auto const sep = std::ranges::find_if(begin, end, [&](char c) {
             return check_separator(c);
         });
-        auto parsed = parse<T>(std::ranges::subrange(begin, sep));
+        auto parsed = Parser<T>::parse(std::ranges::subrange(begin, sep));
         if (parsed.has_value()) {
             values.push_back(std::move(parsed).value());
             return sep;
@@ -263,37 +181,140 @@ template <typename Out, typename It>
 }
 }  // namespace detail
 
-template <typename Out, std::ranges::range R>
-requires args::detail::IsVector<Out>::value
-[[nodiscard]] auto parse(R v) -> std::optional<Out> {
-    return detail::parse_vector<Out>(std::ranges::begin(v), std::ranges::end(v));
+[[nodiscard]] constexpr auto type_name_arith(Typetag<float>) -> std::string_view {
+    return "float";
+}
+
+[[nodiscard]] constexpr auto type_name_arith(Typetag<double>) -> std::string_view {
+    return "double";
+}
+
+[[nodiscard]] constexpr auto type_name_arith(Typetag<std::uint8_t>) -> std::string_view {
+    return "u8";
+}
+
+[[nodiscard]] constexpr auto type_name_arith(Typetag<std::int8_t>) -> std::string_view {
+    return "i8";
+}
+
+[[nodiscard]] constexpr auto type_name_arith(Typetag<std::uint16_t>) -> std::string_view {
+    return "u16";
+}
+
+[[nodiscard]] constexpr auto type_name_arith(Typetag<std::int16_t>) -> std::string_view {
+    return "i16";
+}
+
+[[nodiscard]] constexpr auto type_name_arith(Typetag<std::uint32_t>) -> std::string_view {
+    return "u32";
+}
+
+[[nodiscard]] constexpr auto type_name_arith(Typetag<std::int32_t>) -> std::string_view {
+    return "i32";
+}
+
+[[nodiscard]] constexpr auto type_name_arith(Typetag<std::uint64_t>) -> std::string_view {
+    return "u64";
+}
+
+[[nodiscard]] constexpr auto type_name_arith(Typetag<std::int64_t>) -> std::string_view {
+    return "i64";
 }
 
 template <typename Out, std::ranges::range R>
-requires args::detail::IsRepeatableParseType<Out>::value
-[[nodiscard]] auto parse(R v) -> std::optional<Out> {
-    // Is this really better than the old style implementation below?
-    // first try a parse for a single argument
-    // return parse<args::detail::repeatable_single_type_t<Out>>(begin, end)
-    //     .transform([](auto p) {
-    //         return Out{std::move(p)};
-    //     })
-    //     // otherwise try to parse a vector
-    //     .or_else([=] {
-    //         return parse<std::vector<args::detail::repeatable_single_type_t<Out>>>(begin, end)
-    //             .transform([](auto p) {
-    //                 return Out{std::move(p)};
-    //             });
-    //     });
-    auto parsed = parse<args::detail::repeatable_single_type_t<Out>>(v);
-    if (parsed.has_value()) {
-        return Out{std::move(parsed).value()};
+requires std::is_arithmetic_v<Out>
+[[nodiscard]] auto parse_arithmetic(R v) -> std::optional<Out> {
+    Out value{};
+    auto const begin = std::ranges::begin(v);
+    auto const end = std::ranges::end(v);
+    auto const parsed = std::from_chars(begin, end, value);
+    // If we did not parse the whole range, we allow only for unparsed whitespaces
+    // otherwise the parsing is considered to have failed
+    if (parsed.ptr != end && !std::all_of(parsed.ptr, end, [](char c) {
+            return std::isspace(c) != 0;
+        })) {
+        return {};
     }
-    // otherwise try to parse a vector
-    auto parsed_v = parse<std::vector<args::detail::repeatable_single_type_t<Out>>>(v);
-    return std::move(parsed_v).transform([](auto p) {
-        return Out{std::move(p)};
-    });
+    if (parsed.ec == std::errc{}) {
+        return value;
+    }
+    return {};
 }
+
+template <typename T>
+struct Parser {};
+
+template <typename T>
+requires std::is_arithmetic_v<T>
+struct Parser<T> {
+    [[nodiscard]] static constexpr auto type_name() -> std::string_view {
+        return type_name_arith(Typetag<T>{});
+    }
+
+    template <std::ranges::range R>
+    [[nodiscard]] static auto parse(R v) -> std::optional<T> {
+        return parse_arithmetic<T>(v);
+    }
+};
+
+template <typename T>
+requires args::detail::IsStringView<T>::value
+struct Parser<T> {
+    [[nodiscard]] static constexpr auto type_name() -> std::string_view {
+        return "str(view)";
+    }
+
+    template <std::ranges::range R>
+    [[nodiscard]] static auto parse(R v) -> std::optional<std::string_view> {
+        return std::string_view(std::ranges::begin(v), std::ranges::end(v));
+    }
+};
+
+template <typename T>
+requires args::detail::IsString<T>::value
+struct Parser<T> {
+    [[nodiscard]] static constexpr auto type_name() -> std::string_view {
+        return "str(owned)";
+    }
+
+    template <std::ranges::range R>
+    [[nodiscard]] static auto parse(R v) -> std::optional<std::string> {
+        return std::string(std::ranges::begin(v), std::ranges::end(v));
+    }
+};
+
+template <typename T>
+requires args::detail::IsVector<T>::value
+struct Parser<T> {
+    [[nodiscard]] static auto type_name() -> std::string {
+        return std::format("[{}]", Parser<args::detail::repeatable_single_type_t<T>>::type_name());
+    }
+
+    template <std::ranges::range R>
+    [[nodiscard]] static auto parse(R v) -> std::optional<T> {
+        return detail::parse_vector<T>(std::ranges::begin(v), std::ranges::end(v));
+    }
+};
+
+template <typename T>
+requires args::detail::IsRepeatableParseType<T>::value
+struct Parser<T> {
+    [[nodiscard]] static auto type_name() -> std::string {
+        return std::format("[{}]", Parser<args::detail::repeatable_single_type_t<T>>::type_name());
+    }
+
+    template <std::ranges::range R>
+    [[nodiscard]] static auto parse(R v) -> std::optional<T> {
+        auto parsed = Parser<args::detail::repeatable_single_type_t<T>>::parse(v);
+        if (parsed.has_value()) {
+            return T{std::move(parsed).value()};
+        }
+        // otherwise try to parse a vector
+        auto parsed_v = Parser<std::vector<args::detail::repeatable_single_type_t<T>>>::parse(v);
+        return std::move(parsed_v).transform([](auto p) {
+            return T{std::move(p)};
+        });
+    }
+};
 }  // namespace args::parsers
 #endif
