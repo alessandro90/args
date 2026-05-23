@@ -17,6 +17,7 @@ Checks: >
   -altera-id-dependent-backward-branch,
   -hicpp-uppercase-literal-suffix,
   -readability-uppercase-literal-suffix,
+  -bugprone-exception-escape
   -readability-redundant-member-init,
   -cppcoreguidelines-avoid-const-or-ref-data-members
 CheckOptions:
@@ -26,6 +27,8 @@ CheckOptions:
     value: true
   - key: modernize-use-trailing-return-type.TransformLambdas
     value: none
+  - key: bugprone-exception-escape.CheckMain
+    value: false
 WarningsAsErrors: '*'
 HeaderFilterRegex: '.*'
 FormatStyle: none

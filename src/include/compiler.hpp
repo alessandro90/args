@@ -141,8 +141,7 @@ public:
         if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
             return std::format("Cannot parse short flag: '{}'", short_flag.flag);
         }
-        auto const handler = [this, short_flag]<auto S>(ArgValue<S> &item)
-                                 requires detail::AShortFlag<S>
+        auto const handler = [short_flag]<auto S>(ArgValue<S> &item) requires detail::AShortFlag<S>
         {
             if (item.spec.short_form.value != short_flag.flag) {
                 return false;
@@ -207,8 +206,7 @@ public:
             return {};
         }
 
-        auto const handler = [this, long_flag]<auto S>(ArgValue<S> &item)
-                                 requires detail::ALongFlag<S>
+        auto const handler = [long_flag]<auto S>(ArgValue<S> &item) requires detail::ALongFlag<S>
         {
             if (item.spec.long_form.as_string_view() != long_flag.flag) {
                 return false;
@@ -328,8 +326,8 @@ private:
         tokenizer::Argument argument, ArgValue<S> &item, std::optional<std::string> &error)
         -> void {
         using namespace args::detail;
-        auto parsed_value =
-            parsers::parse<parse_type_t<S>>(argument.value.begin(), argument.value.end());
+        using namespace args::parsers;
+        auto parsed_value = parse<parse_type_t<S>>(argument.value.begin(), argument.value.end());
         if (parsed_value.has_value()) {
             if constexpr (
                 !is_positional_variadic_v<S> && !is_repeatable_v<S>

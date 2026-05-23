@@ -801,7 +801,14 @@ template <auto... Rs, auto... Ss>
 template <auto... Rs, auto... Ss>
 [[nodiscard]] consteval auto are_valid_mutually_exclusive_groups(
     Rules<Rs...> rules, MutuallyExclusiveGroups<Ss...>) -> bool {
-    return (... && are_valid_mutually_exclusive_flags(rules, Ss));
+    // This 'if' is not needed, but on gcc 16.1.1 it removes a warning
+    // for 'rules' being unused
+    if constexpr (sizeof...(Ss) == 0) {
+        static_cast<void>(rules);
+        return true;
+    } else {
+        return (... && are_valid_mutually_exclusive_flags(rules, Ss));
+    }
 }
 }  // namespace detail
 
