@@ -8,6 +8,7 @@
 #include <format>
 #include <iterator>
 #include <optional>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -72,10 +73,12 @@ template <typename T>
     return std::format("[{}]", type_name(Typetag<T>{}));
 }
 
-template <typename Out, typename It>
+template <typename Out, std::ranges::range R>
 requires std::is_arithmetic_v<Out>
-[[nodiscard]] auto parse(It begin, It end) -> std::optional<Out> {
+[[nodiscard]] auto parse(R v) -> std::optional<Out> {
     Out value{};
+    auto const begin = std::ranges::begin(v);
+    auto const end = std::ranges::end(v);
     auto const parsed = std::from_chars(begin, end, value);
     // If we did not parse the whole range, we allow only for unparsed whitespaces
     // otherwise the parsing is considered to have failed
@@ -90,16 +93,16 @@ requires std::is_arithmetic_v<Out>
     return {};
 }
 
-template <typename Out, typename It>
+template <typename Out, std::ranges::range R>
 requires detail::IsStringView<Out>::value
-[[nodiscard]] auto parse(It begin, It end) -> std::optional<Out> {
-    return std::string_view(begin, end);
+[[nodiscard]] auto parse(R v) -> std::optional<Out> {
+    return std::string_view(std::ranges::begin(v), std::ranges::end(v));
 }
 
-template <typename Out, typename It>
+template <typename Out, std::ranges::range R>
 requires detail::IsString<Out>::value
-[[nodiscard]] auto parse(It begin, It end) -> std::optional<Out> {
-    return std::string(begin, end);
+[[nodiscard]] auto parse(R v) -> std::optional<Out> {
+    return std::string(std::ranges::begin(v), std::ranges::end(v));
 }
 
 namespace detail {
@@ -152,7 +155,7 @@ struct VecParser {
             if (closing_quote == end) {
                 return {};
             }
-            auto parsed = parse<T>(first_char, closing_quote);
+            auto parsed = parse<T>(std::ranges::subrange(first_char, closing_quote));
             if (parsed.has_value()) {
                 values.push_back(std::move(parsed).value());
                 return std::next(closing_quote);
@@ -163,7 +166,7 @@ struct VecParser {
         auto const sep = std::ranges::find_if(begin, end, [&](char c) {
             return check_separator(c);
         });
-        auto parsed = parse<T>(begin, sep);
+        auto parsed = parse<T>(std::ranges::subrange(begin, sep));
         if (parsed.has_value()) {
             values.push_back(std::move(parsed).value());
             return sep;
@@ -260,15 +263,15 @@ template <typename Out, typename It>
 }
 }  // namespace detail
 
-template <typename Out, typename It>
+template <typename Out, std::ranges::range R>
 requires args::detail::IsVector<Out>::value
-[[nodiscard]] auto parse(It begin, It end) -> std::optional<Out> {
-    return detail::parse_vector<Out>(begin, end);
+[[nodiscard]] auto parse(R v) -> std::optional<Out> {
+    return detail::parse_vector<Out>(std::ranges::begin(v), std::ranges::end(v));
 }
 
-template <typename Out, typename It>
+template <typename Out, std::ranges::range R>
 requires args::detail::IsRepeatableParseType<Out>::value
-[[nodiscard]] auto parse(It begin, It end) -> std::optional<Out> {
+[[nodiscard]] auto parse(R v) -> std::optional<Out> {
     // Is this really better than the old style implementation below?
     // first try a parse for a single argument
     // return parse<args::detail::repeatable_single_type_t<Out>>(begin, end)
@@ -282,12 +285,12 @@ requires args::detail::IsRepeatableParseType<Out>::value
     //                 return Out{std::move(p)};
     //             });
     //     });
-    auto parsed = parse<args::detail::repeatable_single_type_t<Out>>(begin, end);
+    auto parsed = parse<args::detail::repeatable_single_type_t<Out>>(v);
     if (parsed.has_value()) {
         return Out{std::move(parsed).value()};
     }
     // otherwise try to parse a vector
-    auto parsed_v = parse<std::vector<args::detail::repeatable_single_type_t<Out>>>(begin, end);
+    auto parsed_v = parse<std::vector<args::detail::repeatable_single_type_t<Out>>>(v);
     return std::move(parsed_v).transform([](auto p) {
         return Out{std::move(p)};
     });

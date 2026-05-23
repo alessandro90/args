@@ -12,7 +12,7 @@
 namespace args::parsers {
 // Custom data parsing:
 // 1. define the class in args::parsers namespace
-// 2. Definitions must be *before* inclusion of the main header for ADL lookup
+// 2. Definitions must be *before* inclusion of the main header
 // 3. define type_name and parse_functions
 
 struct CustomData {  // NOLINT(misc-use-internal-linkage)
@@ -25,18 +25,17 @@ struct CustomData {  // NOLINT(misc-use-internal-linkage)
     return "CustomData";
 }
 
-template <std::same_as<CustomData> Out, typename It>
-[[nodiscard]] auto parse(It begin, It end) -> std::optional<CustomData> {  // NOLINT
+template <std::same_as<CustomData> Out, std::ranges::range R>
+[[nodiscard]] auto parse(R v) -> std::optional<CustomData> {  // NOLINT
     namespace rng = std::ranges;
-    auto r = rng::subrange(begin, end);
-    auto components = std::views::split(r, ',');
+    auto components = std::views::split(v, ',');
     auto it = rng::begin(components);
     auto components_end = rng::end(components);
     if (rng::distance(it, components_end) != 3) {
         return std::nullopt;
     }
     auto const p = [&it] {
-        return parse<int>(rng::begin(*it), rng::end(*it));
+        return parse<int>(*it);
     };
     return p().and_then([&](int a) {
         rng::advance(it, 1);

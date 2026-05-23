@@ -327,7 +327,7 @@ private:
         -> void {
         using namespace args::detail;
         using namespace args::parsers;
-        auto parsed_value = parse<parse_type_t<S>>(argument.value.begin(), argument.value.end());
+        auto parsed_value = parse<parse_type_t<S>>(argument.value);
         if (parsed_value.has_value()) {
             if constexpr (
                 !is_positional_variadic_v<S> && !is_repeatable_v<S>
