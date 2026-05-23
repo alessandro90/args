@@ -707,6 +707,9 @@ private:
     static constexpr detail::rule_assertions::CheckRules<Specs...> rule_checker{};
 };
 
+template <Str Usage, Str Description, auto... Specs>
+constexpr auto rules = Rules<Usage, Description, Specs...>{};
+
 template <auto S>
 struct [[nodiscard]] CommandArgValue
     : std::conditional_t<is_flag_v<decltype(S)>, detail::WithCount, detail::DummyBase> {

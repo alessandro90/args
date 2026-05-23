@@ -93,22 +93,21 @@ static constexpr auto c_count = args::Flag{
 static constexpr auto c_name = args::FlagWithValue{
     .long_form = "name"_flag,
     .short_form = "n"_short_flag,
-    .default_value =
-        [] {
-            return ""sv;
-        },
+    // clang-format off
+    .default_value = [] { return ""sv; },
+    // clang-format on
     .required = true,
     .repeatable = false,
     .help = "Your name"_str,
     .validator = args::And<args::Pipe<args::len, args::greater_than<1>>, capitalized>};
 
-static constexpr auto rules = args::Rules<
+static constexpr auto rules = args::rules<
     "example usage description"_str,
     "A simple example program"_str,
     c_custom,
     c_name,
     c_count,
-    c_version>{};
+    c_version>;
 
 auto main(int argc, char **argv) -> int {
     auto const commands = args::parse_or_exit(argc, argv, rules);
