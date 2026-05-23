@@ -68,7 +68,7 @@ static constexpr auto capitalized = args::Validator{
         }};
 
 static constexpr auto c_verbose = args::Flag{
-    .long_form = "verbose"_str,
+    .long_form = "verbose"_flag,
     .short_form = "v"_short_flag,
     .help = "Add verbose information"_str};
 
@@ -85,13 +85,13 @@ static constexpr auto c_custom = args::Subcommand{
     .name = "custom_data"_str, .rules = args::Rules<args::empty, args::empty, c_custom_data>{}};
 
 static constexpr auto c_count = args::Flag{
-    .long_form = "count"_str,
+    .long_form = "count"_flag,
     .short_form = "c"_short_flag,
     .default_value = false,
     .help = "Just a counter flag"_str};
 
 static constexpr auto c_name = args::FlagWithValue{
-    .long_form = "name"_str,
+    .long_form = "name"_flag,
     .short_form = "n"_short_flag,
     .default_value =
         [] {
