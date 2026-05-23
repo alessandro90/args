@@ -15,14 +15,12 @@ add_executable(cpp_args_test
     tokenizer.cpp
 )
 
-target_link_libraries(cpp_args_test PRIVATE project_warnings)
-
-# target_include_directories(cpp_args_test PRIVATE "${PROJECT_SOURCE_DIR}/src")
-target_link_libraries(cpp_args_test PRIVATE cpp_args Catch2::Catch2WithMain)
+target_link_libraries(cpp_args_test PRIVATE project_warnings cpp_args Catch2::Catch2WithMain)
 
 list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
-include(CTest)
+# include(CTest)
 include(Catch)
 catch_discover_tests(cpp_args_test)
 
-add_test(NAME cpp_args_test COMMAND cpp_args_test)
+add_dependencies(build_all_tests cpp_args_test)
+# add_test(NAME cpp_args_test COMMAND cpp_args_test)

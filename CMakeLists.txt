@@ -57,9 +57,12 @@ add_library(cpp_args STATIC
 	src/tokenizer.cpp
 	src/types.cpp
 )
+
+add_library(cpp_args::cpp_args ALIAS cpp_args)
+
 target_link_libraries(cpp_args PRIVATE project_warnings)
 
-target_include_directories(cpp_args PUBLIC ${PROJECT_SOURCE_DIR}/src)
+target_include_directories(cpp_args PUBLIC ${PROJECT_SOURCE_DIR}/include)
 
 if( supported )
     message(STATUS "IPO / LTO enabled")
@@ -68,15 +71,19 @@ else()
     message(STATUS "IPO / LTO not supported: <${error}>")
 endif()
 
-option(BUILD_TESTING "Build tests" ON)
-if(BUILD_TESTS)
-    include(CTest)
-    add_subdirectory(test)
-endif()
+add_custom_target(build_all_tests)
+add_custom_target(build_all_examples)
 
-option(BUILD_EXAMPLES "Build examples" ON)
-if(BUILD_EXAMPLES)
-    add_subdirectory(examples)
+if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+    option(BUILD_TESTING "Build tests" ON)
+    if(BUILD_TESTING)
+        include(CTest)
+        add_subdirectory(test)
+    endif()
+
+    option(BUILD_EXAMPLES "Build examples" ON)
+    if(BUILD_EXAMPLES)
+        add_subdirectory(examples)
+    endif()
 endif()
-# add_custom_target(examples)
 
