@@ -45,7 +45,7 @@ template <Str Usage, Str Description, auto... Specs>
 }
 
 template <Str Usage, Str Description, auto... Specs, auto... Gg>
-[[nodiscard]] auto try_parse_or_exit_program(
+[[nodiscard]] auto parse_or_exit(
     int argc,
     char **argv,
     Rules<Usage, Description, Specs...> rules,
@@ -66,9 +66,9 @@ template <Str Usage, Str Description, auto... Specs, auto... Gg>
 }
 
 template <Str Usage, Str Description, auto... Specs>
-[[nodiscard]] auto try_parse_or_exit_program(
-    int argc, char **argv, Rules<Usage, Description, Specs...> rules) -> Args<Specs...> {
-    return try_parse_or_exit_program(argc, argv, rules, MutuallyExclusiveGroups<>{});
+[[nodiscard]] auto parse_or_exit(int argc, char **argv, Rules<Usage, Description, Specs...> rules)
+    -> Args<Specs...> {
+    return parse_or_exit(argc, argv, rules, MutuallyExclusiveGroups<>{});
 }
 }  // namespace args
 

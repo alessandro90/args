@@ -111,7 +111,7 @@ static constexpr auto rules = args::Rules<
     c_version>{};
 
 auto main(int argc, char **argv) -> int {
-    auto const commands = args::try_parse_or_exit_program(argc, argv, rules);
+    auto const commands = args::parse_or_exit(argc, argv, rules);
 
     auto const version = commands.get_with_info<c_version>();
     if (version.is_used) {
