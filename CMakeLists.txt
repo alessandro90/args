@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 4.0.0)
-project(CPP_ARGS LANGUAGES CXX)
+project(args LANGUAGES CXX)
 
 
 set(CMAKE_CXX_STANDARD 23)
@@ -52,21 +52,20 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address,undefined
 include(CheckIPOSupported)
 check_ipo_supported(RESULT supported OUTPUT error)
 
-add_library(cpp_args STATIC
-	src/cpp_args.cpp
+add_library(args STATIC
 	src/tokenizer.cpp
 	src/types.cpp
 )
 
-add_library(cpp_args::cpp_args ALIAS cpp_args)
+add_library(args::args ALIAS args)
 
-target_link_libraries(cpp_args PRIVATE project_warnings)
+target_link_libraries(args PRIVATE project_warnings)
 
-target_include_directories(cpp_args PUBLIC ${PROJECT_SOURCE_DIR}/include)
+target_include_directories(args PUBLIC ${PROJECT_SOURCE_DIR}/include)
 
 if( supported )
     message(STATUS "IPO / LTO enabled")
-    set_property(TARGET cpp_args PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+    set_property(TARGET args PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 else()
     message(STATUS "IPO / LTO not supported: <${error}>")
 endif()

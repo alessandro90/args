@@ -1,5 +1,5 @@
-#ifndef CPP_ARGS_TYPETAG
-#define CPP_ARGS_TYPETAG
+#ifndef ARGS_TYPETAG
+#define ARGS_TYPETAG
 
 namespace args {
 template <typename T>

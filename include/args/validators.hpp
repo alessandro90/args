@@ -1,5 +1,5 @@
-#ifndef CPP_ARGS_VALIDATORS
-#define CPP_ARGS_VALIDATORS
+#ifndef ARGS_VALIDATORS
+#define ARGS_VALIDATORS
 
 #include <algorithm>
 #include <array>

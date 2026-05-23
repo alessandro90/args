@@ -1,5 +1,5 @@
-#ifndef CPP_ARGS_HEADER
-#define CPP_ARGS_HEADER
+#ifndef ARGS_HEADER
+#define ARGS_HEADER
 
 #include <cstddef>
 #include <cstdio>

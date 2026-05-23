@@ -1,5 +1,5 @@
-#ifndef CPP_ARGS_TYPE_HELPERS
-#define CPP_ARGS_TYPE_HELPERS
+#ifndef ARGS_TYPE_HELPERS
+#define ARGS_TYPE_HELPERS
 
 #include <concepts>
 #include <string_view>

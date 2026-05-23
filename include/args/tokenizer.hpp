@@ -1,5 +1,5 @@
-#ifndef CPP_ARGS_TOKENIZER_HEADER
-#define CPP_ARGS_TOKENIZER_HEADER
+#ifndef ARGS_TOKENIZER_HEADER
+#define ARGS_TOKENIZER_HEADER
 
 #include <expected>
 #include <span>

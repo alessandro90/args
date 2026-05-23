@@ -1,5 +1,5 @@
-#ifndef CPP_ARGS_TYPES
-#define CPP_ARGS_TYPES
+#ifndef ARGS_TYPES
+#define ARGS_TYPES
 
 #include <algorithm>
 #include <array>

@@ -1,5 +1,5 @@
-#ifndef CPP_ARGS_PARSERS
-#define CPP_ARGS_PARSERS
+#ifndef ARGS_PARSERS
+#define ARGS_PARSERS
 
 #include <algorithm>
 #include <cctype>
@@ -14,8 +14,8 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
-#include "args/types.hpp"
 #include "type_helpers.hpp"
+#include "types.hpp"
 #include "typetag.hpp"
 
 namespace args::parsers {
