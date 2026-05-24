@@ -24,6 +24,9 @@
 namespace args::compiler {
 namespace detail {
 
+static constexpr auto help_str = std::string_view{"help"};
+using TokenCompileResult = std::variant<std::monostate, Help, Error>;
+
 template <auto S>
 concept AShortFlag =
     S.short_form.has_value && is_flag_v<decltype(S)> && !is_flag_with_value_v<decltype(S)>;
@@ -81,7 +84,7 @@ auto assign_parsed_value(ArgValue<S> &item, args::detail::parse_type_t<S> value)
     item.value = std::move(value);
 }
 
-template <auto... Specs>
+template <Str Usage, Str Description, auto... Specs>
 struct [[nodiscard]] TokenCompiler {
 private:
     enum class [[nodiscard]] Mode : std::uint8_t {
@@ -91,9 +94,12 @@ private:
     };
 
 public:
+    explicit TokenCompiler(Rules<Usage, Description, Specs...> compile_rules)
+        : m_compile_rules{compile_rules} {}
+
     std::tuple<ArgValue<Specs>...> results{};
 
-    [[nodiscard]] auto operator()(tokenizer::Argument argument) -> std::optional<std::string> {
+    [[nodiscard]] auto operator()(tokenizer::Argument argument) -> TokenCompileResult {
         if (m_mode == Mode::PositionalOnlySkipNext) {
             m_mode = Mode::PositionalOnly;
             return {};
@@ -109,7 +115,7 @@ public:
         return std::visit(compile_argument, m_compiler_state);
     }
 
-    [[nodiscard]] auto operator()(auto flag) -> std::optional<std::string> {
+    [[nodiscard]] auto operator()(auto flag) -> TokenCompileResult {
         if (m_mode == Mode::Normal) {
             return compile_flag(flag);
         }
@@ -125,20 +131,20 @@ public:
         return result;
     }
 
-    [[nodiscard]] auto operator()(tokenizer::DoubleDash) -> std::optional<std::string> {
+    [[nodiscard]] auto operator()(tokenizer::DoubleDash) -> TokenCompileResult {
         auto const defer = args::detail::Defer{[this] {
             m_is_first_argument = false;
         }};
         if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
-            return "Cannot begin a positional only mode";
+            return Error{"Cannot begin a positional only mode"};
         }
         m_mode = Mode::PositionalOnly;
         return {};
     }
 
-    [[nodiscard]] auto compile_flag(tokenizer::ShortFlag short_flag) -> std::optional<std::string> {
+    [[nodiscard]] auto compile_flag(tokenizer::ShortFlag short_flag) -> TokenCompileResult {
         if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
-            return std::format("Cannot parse short flag: '{}'", short_flag.flag);
+            return Error{std::format("Cannot parse short flag: '{}'", short_flag.flag)};
         }
         auto const handler = [short_flag]<auto S>(ArgValue<S> &item) requires detail::AShortFlag<S>
         {
@@ -164,14 +170,14 @@ public:
         };
         bool const handled = try_handle_flag(short_flag.has_equal, handler_with_value, handler);
         if (!handled) {
-            return std::format("Cannot find match for flag: '{}'", short_flag.flag);
+            return Error{std::format("Cannot find match for flag: '{}'", short_flag.flag)};
         }
         return {};
     }
 
-    [[nodiscard]] auto compile_flag(tokenizer::LongFlag long_flag) -> std::optional<std::string> {
+    [[nodiscard]] auto compile_flag(tokenizer::LongFlag long_flag) -> TokenCompileResult {
         if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
-            return std::format("Cannot parse long flag: '{}'", long_flag.flag);
+            return Error{std::format("Cannot parse long flag: '{}'", long_flag.flag)};
         }
 
         auto error = std::optional<std::string>{};
@@ -204,9 +210,19 @@ public:
         if (handle_token(subcommand_handler)) {
             return {};
         }
+        if (error.has_value()) {
+            return Error{std::move(error).value()};
+        }
 
-        auto const handler = [long_flag]<auto S>(ArgValue<S> &item) requires detail::ALongFlag<S>
+        auto help = std::optional<std::string_view>{};
+        auto const handler = [this, &help, long_flag]<auto S>(ArgValue<S> &item)
+                                 requires detail::ALongFlag<S>
         {
+            if (long_flag.flag == help_str) {
+                // help requested: skip everything else and return
+                help = m_compile_rules.help();
+                return true;
+            }
             if (item.spec.long_form.as_string_view() != long_flag.flag) {
                 return false;
             }
@@ -229,12 +245,15 @@ public:
         };
 
         if (!try_handle_flag(long_flag.has_equal, handler_with_value, handler)) {
-            return std::format("Cannot find match for flag: '{}'", long_flag.flag);
+            return Error{std::format("Cannot find match for flag: '{}'", long_flag.flag)};
+        }
+        if (help.has_value()) {
+            return Help{help.value()};
         }
         return {};
     }
 
-    [[nodiscard]] auto compile_flag(tokenizer::FlagGroup flag_group) -> std::optional<std::string> {
+    [[nodiscard]] auto compile_flag(tokenizer::FlagGroup flag_group) -> TokenCompileResult {
         auto const flags_nr = flag_group.group.size();
         for (auto const [idx, short_flag] : flag_group.group | std::views::enumerate) {
             bool const is_last =
@@ -243,7 +262,7 @@ public:
                 .raw = flag_group.raw,
                 .flag = short_flag,
                 .has_equal = is_last && flag_group.has_equal});
-            if (res.has_value()) {
+            if (std::holds_alternative<Error>(res)) {
                 return res;
             }
         }
@@ -269,8 +288,8 @@ public:
     [[nodiscard]] constexpr auto compile_subcommand(
         std::span<tokenizer::token_t const, Extent> tokens,
         Compiler compiler,
-        std::size_t subcommand_tuple_index) -> std::variant<std::monostate, Help, Error> {
-        std::variant<std::monostate, Help, Error> error_or_help{};
+        std::size_t subcommand_tuple_index) -> TokenCompileResult {
+        auto error_or_help = TokenCompileResult{};
         auto const handled = [&]<std::size_t... Is>(std::index_sequence<Is...>) {
             return (... || [&]() {  // 'or' will execute until the first 'true'
                 if (Is != subcommand_tuple_index) {
@@ -353,7 +372,7 @@ private:
     }
 
     [[nodiscard]] auto compile_positional_argument(tokenizer::Argument argument) {
-        return [this, argument](std::monostate) -> std::optional<std::string> {
+        return [this, argument](std::monostate) -> TokenCompileResult {
             auto error = std::optional<std::string>{};
             auto const positional_handler = [&, counter = 0uz]<auto S>(ArgValue<S> &item) mutable
                 requires detail::APositional<S>
@@ -390,19 +409,25 @@ private:
             };
 
             if (!handle_token(subcommand_handler) && !handle_token(positional_handler)) {
-                return std::format(
-                    "Cannot find match for positional argument number '{}' named '{}' with "
-                    "provided '{}'",
-                    m_current_positional_index,
-                    nth_positional_argument_name<Specs...>(m_current_positional_index),
-                    argument.value);
+                auto
+                        msg =
+                            std::format(
+                                "Cannot find match for positional argument number '{}' named '{}' "
+                                "with " "provided '{}'",
+                                m_current_positional_index,
+                                nth_positional_argument_name<Specs...>(m_current_positional_index),
+                                argument.value);
+                return Error{std::move(msg)};
             }
-            return error;
+            if (error.has_value()) {
+                return Error{std::move(error).value()};
+            }
+            return {};
         };
     }
 
     [[nodiscard]] auto compile_valued_short_flag(tokenizer::Argument argument) {
-        return [this, argument](ParsingShortFlag short_flag_state) -> std::optional<std::string> {
+        return [this, argument](ParsingShortFlag short_flag_state) -> TokenCompileResult {
             auto error = std::optional<std::string>{};
             auto const handler = [&]<auto S>(ArgValue<S> &item)
                                      requires detail::AShortFlagWithValue<S>
@@ -414,15 +439,19 @@ private:
                 return true;
             };
             if (!handle_token(handler)) {
-                return std::format(
-                    "Cannot find match for flag: '{}'", short_flag_state.short_flag.flag);
+                return Error{std::format(
+                    "Cannot find match for flag: '{}'", short_flag_state.short_flag.flag)};
             }
-            return error;
+
+            if (error.has_value()) {
+                return Error{std::move(error).value()};
+            }
+            return {};
         };
     }
 
     [[nodiscard]] auto compile_valued_long_flag(tokenizer::Argument argument) {
-        return [this, argument](ParsingLongFlag long_flag_state) -> std::optional<std::string> {
+        return [this, argument](ParsingLongFlag long_flag_state) -> TokenCompileResult {
             auto error = std::optional<std::string>{};
             auto const handler = [&]<auto S>(ArgValue<S> &item)
                                      requires detail::ALongFlagWithValue<S>
@@ -437,13 +466,17 @@ private:
             };
 
             if (!handle_token(handler)) {
-                return std::format(
-                    "Cannot find match for flag: '{}'", long_flag_state.long_flag.flag);
+                return Error{std::format(
+                    "Cannot find match for flag: '{}'", long_flag_state.long_flag.flag)};
             }
-            return error;
+            if (error.has_value()) {
+                return Error{std::move(error).value()};
+            }
+            return {};
         };
     }
 
+    Rules<Usage, Description, Specs...> m_compile_rules;
     std::variant<std::monostate, ParsingShortFlag, ParsingLongFlag> m_compiler_state{};
     std::size_t m_current_positional_index{};
     bool m_is_first_argument{true};
@@ -543,13 +576,16 @@ template <auto... Specs>
 template <std::size_t Extent, Str Usage, Str Description, auto... Specs, auto... Gg>
 [[nodiscard]] constexpr auto compile(
     std::span<tokenizer::token_t const, Extent> tokens,
-    Rules<Usage, Description, Specs...>,
+    Rules<Usage, Description, Specs...> compile_rules,
     MutuallyExclusiveGroups<Gg...> mutually_exclusive) -> compile_result_t<Specs...> {
-    auto token_compiler = detail::TokenCompiler<Specs...>{};
+    auto token_compiler = detail::TokenCompiler{compile_rules};
     for (auto const [index, token] : std::views::enumerate(tokens)) {
-        auto err_msg = std::visit(token_compiler, token);
-        if (err_msg.has_value()) {
-            return Error{.message = std::move(err_msg).value()};
+        auto tok_compile_result = std::visit(token_compiler, token);
+        if (std::holds_alternative<Help>(tok_compile_result)) {
+            return compile_result_t<Specs...>{std::get<Help>(std::move(tok_compile_result))};
+        }
+        if (std::holds_alternative<Error>(tok_compile_result)) {
+            return compile_result_t<Specs...>{std::get<Error>(std::move(tok_compile_result))};
         }
         if (token_compiler.subcommand_index().has_value()) {
             if (tokens.size() <= static_cast<std::size_t>(index)) {

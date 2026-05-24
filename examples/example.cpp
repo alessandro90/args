@@ -67,13 +67,6 @@ static constexpr auto capitalized = args::Validator{
             return std::format("name '{}' must be capitalized", s);
         }};
 
-// Help is just a flag-like subcommand
-static constexpr auto c_help = args::Subcommand{
-    .name = "help"_str,
-    .help = "Print help message"_str,
-    .rules = args::Rules<args::empty, args::empty>{},
-    .is_flag = true};
-
 static constexpr auto c_verbose = args::Flag{
     .long_form = "verbose"_flag,
     .short_form = "v"_short_flag,
@@ -117,8 +110,7 @@ static constexpr auto rules = args::rules<
     c_custom,
     c_name,
     c_count,
-    c_version,
-    c_help>;
+    c_version>;
 
 using rules_t = decltype(rules);
 
@@ -127,11 +119,6 @@ auto main(int argc, char **argv) -> int {
     // No cast is performed when retrieving the data, the struct Args
     // already contains the correct types
     auto const commands = args::parse_or_exit(argc, argv, rules);
-
-    if (commands.get_with_info<c_help>().is_used) {
-        std::println("{}", rules_t::help());
-        return EXIT_SUCCESS;
-    }
 
     auto const version = commands.get_with_info<c_version>();
     if (version.is_used) {
