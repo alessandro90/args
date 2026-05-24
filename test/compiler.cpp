@@ -16,7 +16,7 @@ using namespace args::tokenizer;
 using namespace args::literals;
 
 TEST_CASE("boolean-short-flag", "[compiler]") {
-    static constexpr auto option = Flag{.long_form = "value"_flag, .short_form = "v"_short_flag};
+    static constexpr auto option = Flag{.long_form = "value"_flag, .short_form = "v"_sflag};
     static constexpr auto rules = Rules<empty, empty, option>{};
 
     SECTION("providing-value-gets-true") {
@@ -37,7 +37,7 @@ TEST_CASE("boolean-short-flag", "[compiler]") {
     }
     SECTION("not-providing-a-required-value-is-an-error") {
         static constexpr auto required_option =
-            Flag{.long_form = "value"_flag, .short_form = "v"_short_flag, .required = true};
+            Flag{.long_form = "value"_flag, .short_form = "v"_sflag, .required = true};
         static constexpr auto required_rules =
             Rules<"usage description"_str, empty, required_option>{};
         auto const flag = std::array<token_t, 0>{};
@@ -49,7 +49,7 @@ TEST_CASE("boolean-short-flag", "[compiler]") {
 }
 
 TEST_CASE("boolean-short-flag-count", "[compiler]") {
-    static constexpr auto option = Flag{.long_form = "value"_flag, .short_form = "v"_short_flag};
+    static constexpr auto option = Flag{.long_form = "value"_flag, .short_form = "v"_sflag};
     static constexpr auto rules = Rules<empty, empty, option>{};
 
     SECTION("count-0") {
@@ -76,8 +76,8 @@ TEST_CASE("boolean-short-flag-count", "[compiler]") {
 
 TEST_CASE("short-flag-with-arithmetic-value", "[compiler]") {
     SECTION("providing-value-gets-an-int") {
-        static constexpr auto option = FlagWithValue{
-            .long_form = "value"_flag, .short_form = "v"_short_flag, .default_value = 0};
+        static constexpr auto option =
+            FlagWithValue{.long_form = "value"_flag, .short_form = "v"_sflag, .default_value = 0};
         static constexpr auto rules = Rules<empty, empty, option>{};
         auto const tokens = std::array{
             token_t{ShortFlag{.raw = "-v", .flag = 'v'}}, token_t{Argument{.value = "10"}}};
@@ -88,8 +88,8 @@ TEST_CASE("short-flag-with-arithmetic-value", "[compiler]") {
         REQUIRE(value == 10);
     }
     SECTION("providing-value-gets-a-float") {
-        static constexpr auto option = FlagWithValue{
-            .long_form = "value"_flag, .short_form = "v"_short_flag, .default_value = 0.f};
+        static constexpr auto option =
+            FlagWithValue{.long_form = "value"_flag, .short_form = "v"_sflag, .default_value = 0.f};
         static constexpr auto rules = Rules<empty, empty, option>{};
         auto const tokens = std::array{
             token_t{ShortFlag{.raw = "-v", .flag = 'v'}}, token_t{Argument{.value = "10.5"}}};
@@ -127,7 +127,7 @@ TEST_CASE("positional-with-arithmetic-value", "[compiler]") {
 TEST_CASE("short-flag-with-vec-value-default", "[compiler]") {
     static constexpr auto option = FlagWithValue{
         .long_form = "value"_flag,
-        .short_form = "v"_short_flag,
+        .short_form = "v"_sflag,
         .default_value = args::Lazy<std::vector<int>, 1, 2, 3>,
         .help = "help message for value"_str};
     static constexpr auto rules = Rules<empty, empty, option>{};
@@ -142,7 +142,7 @@ TEST_CASE("short-flag-with-vec-value-default", "[compiler]") {
 TEST_CASE("repeatable-flag", "[compiler]") {
     static constexpr auto option = FlagWithValue{
         .long_form = "value"_flag,
-        .short_form = "v"_short_flag,
+        .short_form = "v"_sflag,
         .default_value = args::Lazy<std::vector<int>>};
     static constexpr auto rules = Rules<empty, empty, option>{};
     auto const tokens = std::array{
@@ -269,7 +269,7 @@ TEST_CASE("forced-positional-variadic", "[compiler]") {
 TEST_CASE("short-flag-with-arithmetic-value-validation", "[compiler]") {
     static constexpr auto option = FlagWithValue{
         .long_form = "value"_flag,
-        .short_form = "v"_short_flag,
+        .short_form = "v"_sflag,
         .default_value = 0,
         .validator = less_than<10>};
     static constexpr auto rules = Rules<empty, empty, option>{};

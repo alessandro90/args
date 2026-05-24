@@ -1064,7 +1064,7 @@ consteval auto operator""_flag() -> decltype(X) {
 
 template <Str X>
 requires(X.chars.size() == 2 && X.chars[1] == '\0')
-consteval auto operator""_short_flag() -> Opt<char> {
+consteval auto operator""_sflag() -> Opt<char> {
     return Opt<char>::with(X.chars[0]);
 }
 }  // namespace literals

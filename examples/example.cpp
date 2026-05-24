@@ -69,9 +69,7 @@ static constexpr auto capitalized = args::Validator{
         }};
 
 static constexpr auto c_verbose = args::Flag{
-    .long_form = "verbose"_flag,
-    .short_form = "v"_short_flag,
-    .help = "Add verbose information"_str};
+    .long_form = "verbose"_flag, .short_form = "v"_sflag, .help = "Add verbose information"_str};
 
 static constexpr auto c_version = args::Subcommand{
     .name = "version"_str,
@@ -88,13 +86,13 @@ static constexpr auto c_custom = args::Subcommand{
 
 static constexpr auto c_count = args::Flag{
     .long_form = "count"_flag,
-    .short_form = "c"_short_flag,
+    .short_form = "c"_sflag,
     .default_value = false,
     .help = "Just a counter flag"_str};
 
 static constexpr auto c_name = args::FlagWithValue{
     .long_form = "name"_flag,
-    .short_form = "n"_short_flag,
+    .short_form = "n"_sflag,
     // clang-format off
     .default_value = [] { return ""sv; },
     // clang-format on
