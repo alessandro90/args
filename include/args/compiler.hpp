@@ -391,8 +391,11 @@ private:
 
             if (!handle_token(subcommand_handler) && !handle_token(positional_handler)) {
                 return std::format(
-                    "Cannot find match for positional argument number: '{}'",
-                    m_current_positional_index);
+                    "Cannot find match for positional argument number '{}' named '{}' with "
+                    "provided '{}'",
+                    m_current_positional_index,
+                    nth_positional_argument_name<Specs...>(m_current_positional_index),
+                    argument.value);
             }
             return error;
         };

@@ -9,6 +9,7 @@
 #include <ranges>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -750,6 +751,34 @@ template <auto S>
 struct ArgValue
     : std::conditional_t<is_subcommand_v<decltype(S)>, SubcommandArgValue<S>, CommandArgValue<S>> {
 };
+
+template <auto S>
+[[nodiscard]] constexpr auto arg_value_parameter(Typetag<ArgValue<S>>) -> decltype(S) const & {
+    return S;
+}
+
+template <auto... Specs>
+[[nodiscard]] auto nth_positional_argument_name(std::size_t nth) -> std::string_view {
+    auto name = std::string_view{};
+    auto position_count = 0uz;
+    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+        return (... || [&]() {  // 'or' will execute until the first 'true'
+            using arg_type_t = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
+            auto const &parameter = arg_value_parameter(Typetag<arg_type_t>{});
+            if constexpr (is_positional_v<decltype(parameter)>) {
+                ++position_count;
+                if (position_count == nth) {
+                    name = parameter.name.as_string_view();
+                    return true;
+                }
+                return false;
+            } else {
+                return false;
+            }
+        }());
+    }(std::make_index_sequence<sizeof...(Specs)>());
+    return name;
+}
 
 namespace detail {
 template <auto S, auto... Ss>

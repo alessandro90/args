@@ -67,6 +67,13 @@ static constexpr auto capitalized = args::Validator{
             return std::format("name '{}' must be capitalized", s);
         }};
 
+// Help is just a flag-like subcommand
+static constexpr auto c_help = args::Subcommand{
+    .name = "help"_str,
+    .help = "Print help message"_str,
+    .rules = args::Rules<args::empty, args::empty>{},
+    .is_flag = true};
+
 static constexpr auto c_verbose = args::Flag{
     .long_form = "verbose"_flag,
     .short_form = "v"_short_flag,
@@ -78,6 +85,7 @@ static constexpr auto c_version = args::Subcommand{
     .rules = args::Rules<args::empty, args::empty, c_verbose>{},
     .is_flag = true};
 
+// A positional argument expecting our custom data type
 static constexpr auto c_custom_data =
     args::Positional{.type = args::tag<CustomData>, .name = "custom"_str};
 
@@ -101,16 +109,29 @@ static constexpr auto c_name = args::FlagWithValue{
     .help = "Your name"_str,
     .validator = args::And<args::Pipe<args::len, args::greater_than<1>>, capitalized>};
 
+// All the information to parse the command lines into the desired structures
+// is specified in the template arguments of this type
 static constexpr auto rules = args::rules<
     "example usage description"_str,
     "A simple example program"_str,
     c_custom,
     c_name,
     c_count,
-    c_version>;
+    c_version,
+    c_help>;
+
+using rules_t = decltype(rules);
 
 auto main(int argc, char **argv) -> int {
+    // Commands has the right shape based on the rules provided
+    // No cast is performed when retrieving the data, the struct Args
+    // already contains the correct types
     auto const commands = args::parse_or_exit(argc, argv, rules);
+
+    if (commands.get_with_info<c_help>().is_used) {
+        std::println("{}", rules_t::help());
+        return EXIT_SUCCESS;
+    }
 
     auto const version = commands.get_with_info<c_version>();
     if (version.is_used) {
