@@ -214,15 +214,13 @@ public:
             return Error{std::move(error).value()};
         }
 
-        auto help = std::optional<std::string_view>{};
-        auto const handler = [this, &help, long_flag]<auto S>(ArgValue<S> &item)
+        // help requested: skip everything else and return
+        if (long_flag.flag == help_str) {
+            return Help{m_compile_rules.help()};
+        }
+        auto const handler = [this, long_flag]<auto S>(ArgValue<S> &item)
                                  requires detail::ALongFlag<S>
         {
-            if (long_flag.flag == help_str) {
-                // help requested: skip everything else and return
-                help = m_compile_rules.help();
-                return true;
-            }
             if (item.spec.long_form.as_string_view() != long_flag.flag) {
                 return false;
             }
@@ -246,9 +244,6 @@ public:
 
         if (!try_handle_flag(long_flag.has_equal, handler_with_value, handler)) {
             return Error{std::format("Cannot find match for flag: '{}'", long_flag.flag)};
-        }
-        if (help.has_value()) {
-            return Help{help.value()};
         }
         return {};
     }
@@ -591,18 +586,18 @@ template <std::size_t Extent, Str Usage, Str Description, auto... Specs, auto...
             if (tokens.size() <= static_cast<std::size_t>(index)) {
                 return Error{.message = "Missing tokens to parse subcommand"};
             }
-            auto failed_subcommand = token_compiler.compile_subcommand(
+            auto subcommand_result = token_compiler.compile_subcommand(
                 tokens.subspan(static_cast<std::size_t>(index + 1)),
                 []<std::size_t SpanExtent>(
                     std::span<tokenizer::token_t const, SpanExtent> tks, auto rs, auto me) {
                     return compile(tks, rs, me);
                 },
                 token_compiler.subcommand_index().value());
-            if (std::holds_alternative<Help>(failed_subcommand)) {
-                return compile_result_t<Specs...>{std::get<Help>(std::move(failed_subcommand))};
+            if (std::holds_alternative<Help>(subcommand_result)) {
+                return compile_result_t<Specs...>{std::get<Help>(std::move(subcommand_result))};
             }
-            if (std::holds_alternative<Error>(failed_subcommand)) {
-                return compile_result_t<Specs...>{std::get<Error>(std::move(failed_subcommand))};
+            if (std::holds_alternative<Error>(subcommand_result)) {
+                return compile_result_t<Specs...>{std::get<Error>(std::move(subcommand_result))};
             }
             return Args{std::move(token_compiler).results};
         }
