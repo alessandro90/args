@@ -258,7 +258,7 @@ struct Parser<T> {
 };
 
 template <typename T>
-requires args::detail::IsStringView<T>::value
+requires args::detail::is_string_view_v<T>
 struct Parser<T> {
     [[nodiscard]] static constexpr auto type_name() -> std::string_view {
         return "str(view)";
@@ -271,7 +271,7 @@ struct Parser<T> {
 };
 
 template <typename T>
-requires args::detail::IsString<T>::value
+requires args::detail::is_string_v<T>
 struct Parser<T> {
     [[nodiscard]] static constexpr auto type_name() -> std::string_view {
         return "str(owned)";
@@ -284,7 +284,7 @@ struct Parser<T> {
 };
 
 template <typename T>
-requires args::detail::IsVector<T>::value
+requires args::detail::is_vector_v<T>
 struct Parser<T> {
     [[nodiscard]] static auto type_name() -> std::string {
         return std::format("[{}]", Parser<args::detail::repeatable_single_type_t<T>>::type_name());

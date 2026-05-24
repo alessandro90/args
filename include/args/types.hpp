@@ -170,7 +170,7 @@ struct [[nodiscard]] FlagWithValue {
     bool required{};
     /// `true` if the flag can be specified multiple times. Default is true if `Value` is a
     /// std::vector
-    bool repeatable{args::detail::IsVector<detail::result_type_impl_t<Value>>::value};
+    bool repeatable{args::detail::is_vector_v<detail::result_type_impl_t<Value>>};
     /// An optional help message
     Str<M> help{};
     /// A validator to apply to the parsed result (defaults to an infallible validator)
@@ -356,7 +356,7 @@ using parse_type_t = decltype(parse_type<S>());
 template <auto S1, auto... Ss>
 [[nodiscard]] consteval auto check_variadics() -> bool {
     if constexpr (is_positional_variadic_v<S1>) {
-        return IsVector<result_type_t<S1>>::value;
+        return is_vector_v<result_type_t<S1>>;
     }
     if constexpr (sizeof...(Ss) > 0) {
         return check_variadics<Ss...>();
@@ -550,7 +550,7 @@ template <auto S>
 [[nodiscard]] consteval auto check_repeatable_is_vector_value() -> bool {
     if constexpr (is_flag_with_value_v<decltype(S)>) {
         if constexpr (S.repeatable) {
-            return detail::IsVector<result_type_impl_t<typename decltype(S)::value_t>>::value;
+            return detail::is_vector_v<result_type_impl_t<typename decltype(S)::value_t>>;
         }
     }
     return true;
@@ -773,34 +773,6 @@ struct ArgValue
     : std::conditional_t<is_subcommand_v<decltype(S)>, SubcommandArgValue<S>, CommandArgValue<S>> {
 };
 
-template <auto S>
-[[nodiscard]] constexpr auto arg_value_parameter(Typetag<ArgValue<S>>) -> decltype(S) const & {
-    return S;
-}
-
-template <auto... Specs>
-[[nodiscard]] auto nth_positional_argument_name(std::size_t nth) -> std::string_view {
-    auto name = std::string_view{};
-    auto position_count = 0uz;
-    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-        return (... || [&]() {  // 'or' will execute until the first 'true'
-            using arg_type_t = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
-            auto const &parameter = arg_value_parameter(Typetag<arg_type_t>{});
-            if constexpr (is_positional_v<decltype(parameter)>) {
-                ++position_count;
-                if (position_count == nth) {
-                    name = parameter.name.as_string_view();
-                    return true;
-                }
-                return false;
-            } else {
-                return false;
-            }
-        }());
-    }(std::make_index_sequence<sizeof...(Specs)>());
-    return name;
-}
-
 namespace detail {
 template <auto S, auto... Ss>
 struct GetRet {
@@ -925,6 +897,53 @@ private:
 };
 
 namespace detail {
+template <auto S>
+concept AShortFlag =
+    S.short_form.has_value && is_flag_v<decltype(S)> && !is_flag_with_value_v<decltype(S)>;
+
+template <auto S>
+concept AShortFlagWithValue = S.short_form.has_value && is_flag_with_value_v<decltype(S)>;
+
+template <auto S>
+concept ALongFlag = is_flag_v<decltype(S)> && !is_flag_with_value_v<decltype(S)>;
+
+template <auto S>
+concept ALongFlagWithValue = is_flag_with_value_v<decltype(S)>;
+
+template <auto S>
+concept APositional = is_positional_v<decltype(S)>;
+
+template <auto S>
+concept ASubcommand = is_subcommand_v<decltype(S)>;
+
+template <auto S>
+[[nodiscard]] constexpr auto arg_value_parameter(Typetag<ArgValue<S>>) -> decltype(S) const & {
+    return S;
+}
+
+template <auto... Specs>
+[[nodiscard]] auto nth_positional_argument_name(std::size_t nth) -> std::string_view {
+    auto name = std::string_view{};
+    auto position_count = 0uz;
+    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+        return (... || [&]() {  // 'or' will execute until the first 'true'
+            using arg_type_t = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
+            auto const &parameter = arg_value_parameter(Typetag<arg_type_t>{});
+            if constexpr (is_positional_v<decltype(parameter)>) {
+                ++position_count;
+                if (position_count == nth) {
+                    name = parameter.name.as_string_view();
+                    return true;
+                }
+                return false;
+            } else {
+                return false;
+            }
+        }());
+    }(std::make_index_sequence<sizeof...(Specs)>());
+    return name;
+}
+
 template <auto... Ss, auto... Gg>
 [[nodiscard]] auto check_mutually_exclusive_set_satisfied(
     Args<Ss...> const &args, MutuallyExclusive<Gg...> mutually_exclusive, std::size_t index)
