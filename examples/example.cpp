@@ -4,6 +4,7 @@
 #include <optional>
 #include <print>
 #include <ranges>
+#include <string_view>
 #include "args/args.hpp"
 #include "args/parsers.hpp"
 #include "args/types.hpp"

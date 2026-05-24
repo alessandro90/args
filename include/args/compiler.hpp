@@ -24,7 +24,6 @@
 namespace args::compiler {
 namespace detail {
 
-static constexpr auto help_str = std::string_view{"help"};
 using TokenCompileResult = std::variant<std::monostate, Help, Error>;
 
 template <auto S>
@@ -215,7 +214,7 @@ public:
         }
 
         // help requested: skip everything else and return
-        if (long_flag.flag == help_str) {
+        if (long_flag.flag == args::detail::help_str) {
             return Help{m_compile_rules.help()};
         }
         auto const handler = [this, long_flag]<auto S>(ArgValue<S> &item)

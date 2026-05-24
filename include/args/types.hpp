@@ -103,6 +103,7 @@ using str_t = lazy_t<std::string>;
 using strv_t = lazy_t<std::string_view>;
 
 namespace detail {
+constexpr auto help_str = std::string_view{"help"};
 
 template <auto S>
 concept HasValidator = requires { S.validator; };
@@ -484,6 +485,25 @@ template <auto S1, auto... Ss>
 }
 
 template <auto S1, auto... Ss>
+[[nodiscard]] consteval auto check_help_reserved() -> bool {
+    if constexpr (is_subcommand_v<decltype(S1)>) {
+        if (S1.name.as_string_view() == help_str) {
+            return false;
+        }
+    }
+    if constexpr (IsAFlag<S1>) {
+        if constexpr (S1.long_form.as_string_view() == help_str) {
+            return false;
+        }
+    }
+    if constexpr (sizeof...(Ss) > 0) {
+        return check_help_reserved<Ss...>();
+    } else {
+        return true;
+    }
+}
+
+template <auto S1, auto... Ss>
 [[nodiscard]] consteval auto count_variadics() -> std::size_t {
     if constexpr (is_positional_v<decltype(S1)>) {
         if constexpr (sizeof...(Ss) > 0) {
@@ -551,6 +571,7 @@ struct CheckRules {
     static_assert(
         check_valid_names<Specs...>(),
         "All flags must begin with a letter, both long and short forms");
+    static_assert(check_help_reserved<Specs...>(), "'help' is a reserved flag name");
     static_assert(detail::check_variadics<Specs...>(), "Variadics positionals must be vector<T>");
     static_assert(
         count_variadics<Specs...>() <= 1, "You can set at most 1 variadic positional argument");
