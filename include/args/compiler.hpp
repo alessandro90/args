@@ -15,9 +15,9 @@
 #include <utility>
 #include <variant>
 #include <vector>
+#include "helpers.hpp"
 #include "parsers.hpp"
 #include "tokenizer.hpp"
-#include "type_helpers.hpp"
 #include "types.hpp"
 
 namespace args::compiler {
@@ -121,7 +121,7 @@ public:
             return Error{std::format("Cannot parse short flag: '{}'", short_flag.flag)};
         }
         auto const handler = [short_flag]<auto S>(ArgValue<S> &item)
-                                 requires args::detail::AShortFlag<S>
+                                 requires args::detail::ShortFlagObject<S>
         {
             if (item.spec.short_form.value != short_flag.flag) {
                 return false;
@@ -135,7 +135,7 @@ public:
         };
 
         auto const handler_with_value = [this, short_flag]<auto S>(ArgValue<S> &item)
-                                            requires args::detail::AShortFlagWithValue<S>
+                                            requires args::detail::ShortFlagWithValueObject<S>
         {
             if (item.spec.short_form.value != short_flag.flag) {
                 return false;
@@ -158,7 +158,7 @@ public:
         auto error = std::optional<std::string>{};
         auto const subcommand_handler =
             [this, &error, long_flag]<auto S>(ArgValue<S> &item, std::size_t tuple_index)
-                requires(args::detail::ASubcommand<S> && S.is_flag)
+                requires(args::detail::SubcommandObject<S> && S.is_flag)
         {
             if (item.spec.name.as_string_view() != long_flag.flag) {
                 return false;
@@ -194,7 +194,7 @@ public:
             return Help{m_compile_rules.help()};
         }
         auto const handler = [this, long_flag]<auto S>(ArgValue<S> &item)
-                                 requires args::detail::ALongFlag<S>
+                                 requires args::detail::LongFlagObject<S>
         {
             if (item.spec.long_form.as_string_view() != long_flag.flag) {
                 return false;
@@ -208,7 +208,7 @@ public:
         };
 
         auto const handler_with_value = [this, long_flag]<auto S>(ArgValue<S> &item)
-                                            requires args::detail::ALongFlagWithValue<S>
+                                            requires args::detail::LongFlagWithValueObject<S>
         {
             if (item.spec.long_form.as_string_view() != long_flag.flag) {
                 return false;
@@ -342,46 +342,44 @@ private:
     }
 
     [[nodiscard]] auto compile_positional_argument(tokenizer::Argument argument) {
-        return
-            [this, argument](std::monostate) -> TokenCompileResult {
-                auto error = std::optional<std::string>{};
-                auto const positional_handler =
-                    [&, counter = 0uz]<auto S>(ArgValue<S> &item) mutable
-                    requires args::detail::APositional<S>
-                {
-                    if constexpr (!S.variadic) {
-                        if (counter != m_current_positional_index) {
-                            ++counter;
-                            return false;
-                        }
-                        ++m_current_positional_index;
+        return [this, argument](std::monostate) -> TokenCompileResult {
+            auto error = std::optional<std::string>{};
+            auto const positional_handler = [&, counter = 0uz]<auto S>(ArgValue<S> &item) mutable
+                requires args::detail::PositionalObject<S>
+            {
+                if constexpr (!S.variadic) {
+                    if (counter != m_current_positional_index) {
+                        ++counter;
+                        return false;
                     }
-                    parse_and_validate_argument(argument, item, error);
-                    return !error.has_value();
-                };
+                    ++m_current_positional_index;
+                }
+                parse_and_validate_argument(argument, item, error);
+                return !error.has_value();
+            };
 
-                auto const subcommand_handler =
-                    [&]<auto S>(ArgValue<S> &item, std::size_t tuple_index) mutable
-                    requires args::detail::ASubcommand<S>
-                {
-                    if (!m_is_first_argument) {
-                        return false;
-                    }
-                    auto cloned_item = item;
-                    parse_and_validate_argument(argument, cloned_item, error);
-                    if (error.has_value()) {
-                        return false;
-                    }
-                    if (cloned_item.value != S.name.as_string_view()) {
-                        return false;
-                    }
-                    item = std::move(cloned_item);
-                    m_subcommand_tuple_index = tuple_index;
-                    return true;
-                };
+            auto const subcommand_handler =
+                [&]<auto S>(ArgValue<S> &item, std::size_t tuple_index) mutable
+                requires args::detail::SubcommandObject<S>
+            {
+                if (!m_is_first_argument) {
+                    return false;
+                }
+                auto cloned_item = item;
+                parse_and_validate_argument(argument, cloned_item, error);
+                if (error.has_value()) {
+                    return false;
+                }
+                if (cloned_item.value != S.name.as_string_view()) {
+                    return false;
+                }
+                item = std::move(cloned_item);
+                m_subcommand_tuple_index = tuple_index;
+                return true;
+            };
 
-                if (!handle_token(subcommand_handler) && !handle_token(positional_handler)) {
-                    auto
+            if (!handle_token(subcommand_handler) && !handle_token(positional_handler)) {
+                auto
                         msg =
                             std::format(
                                 "Cannot find match for positional argument number '{}' named '{}' "
@@ -390,20 +388,20 @@ private:
                                 args::detail::nth_positional_argument_name<Specs...>(
                                     m_current_positional_index),
                                 argument.value);
-                    return Error{std::move(msg)};
-                }
-                if (error.has_value()) {
-                    return Error{std::move(error).value()};
-                }
-                return {};
-            };
+                return Error{std::move(msg)};
+            }
+            if (error.has_value()) {
+                return Error{std::move(error).value()};
+            }
+            return {};
+        };
     }
 
     [[nodiscard]] auto compile_valued_short_flag(tokenizer::Argument argument) {
         return [this, argument](ParsingShortFlag short_flag_state) -> TokenCompileResult {
             auto error = std::optional<std::string>{};
             auto const handler = [&]<auto S>(ArgValue<S> &item)
-                                     requires args::detail::AShortFlagWithValue<S>
+                                     requires args::detail::ShortFlagWithValueObject<S>
             {
                 if (item.spec.short_form.value != short_flag_state.short_flag.flag) {
                     return false;
@@ -427,7 +425,7 @@ private:
         return [this, argument](ParsingLongFlag long_flag_state) -> TokenCompileResult {
             auto error = std::optional<std::string>{};
             auto const handler = [&]<auto S>(ArgValue<S> &item)
-                                     requires args::detail::ALongFlagWithValue<S>
+                                     requires args::detail::LongFlagWithValueObject<S>
 
             {
                 if (item.spec.long_form.as_string_view() != long_flag_state.long_flag.flag) {
@@ -478,7 +476,7 @@ template <auto... Specs>
                                 "Missing positional argument number {}",
                                 positional_argument_count));
                     }
-                } else if constexpr (args::detail::IsAFlag<arg_type_t::spec>) {
+                } else if constexpr (args::detail::FlagObject<arg_type_t::spec>) {
                     if constexpr (arg_type_t::spec.required) {
                         if (!r.is_used) {
                             auto err = std::format(

@@ -14,7 +14,7 @@
 #include <utility>
 #include <variant>
 #include <vector>
-#include "type_helpers.hpp"
+#include "helpers.hpp"
 #include "typetag.hpp"
 #include "validators.hpp"
 
@@ -123,9 +123,6 @@ consteval auto is_required() -> bool {
 template <auto S>
 concept IsRequired = is_required<S>();
 
-template <auto C>
-concept Not = !C;
-
 template <typename T>
 consteval auto result_type() -> std::remove_cvref_t<T>;
 
@@ -158,7 +155,7 @@ struct [[nodiscard]] Flag {
 };
 
 /// A flag with value descriptor
-template <Trivial Value, std::size_t N, std::size_t M = 0, AValidator V = always_t>
+template <Trivial Value, std::size_t N, std::size_t M = 0, ValidatorObject V = always_t>
 struct [[nodiscard]] FlagWithValue {
     /// The long form of the flag (e.g. `"verbose"_str` will parse `--verbose`)
     Str<N> long_form;
@@ -183,7 +180,7 @@ template <
     std::default_initializable P,
     std::size_t N = 0,
     std::size_t M = 0,
-    AValidator V = always_t>
+    ValidatorObject V = always_t>
 struct [[nodiscard]] Positional {
     /// A tag to indicate the target type (specify as `tag<target_type>`)
     Typetag<P> type;
@@ -265,13 +262,13 @@ inline constexpr bool is_flag_v = IsFlag<std::remove_cvref_t<T>>::value;
 template <typename>
 struct IsFlagWithValue: std::false_type {};
 
-template <Trivial Value, std::size_t N, std::size_t M, AValidator V>
+template <Trivial Value, std::size_t N, std::size_t M, ValidatorObject V>
 struct IsFlagWithValue<FlagWithValue<Value, N, M, V>>: std::true_type {};
 
 template <typename P>
 struct IsPositional: std::false_type {};
 
-template <typename P, std::size_t N, std::size_t M, AValidator V>
+template <typename P, std::size_t N, std::size_t M, ValidatorObject V>
 struct IsPositional<Positional<P, N, M, V>>: std::true_type {};
 
 template <typename P>
@@ -320,7 +317,7 @@ template <auto S>
 concept PositionalVariadic = is_positional_variadic_v<S>;
 
 template <auto S>
-concept IsAFlag = is_flag_v<decltype(S)> || is_flag_with_value_v<decltype(S)>;
+concept FlagObject = is_flag_v<decltype(S)> || is_flag_with_value_v<decltype(S)>;
 
 template <typename T>
 using RepeatableParseType = std::variant<T, std::vector<T>>;
@@ -388,14 +385,14 @@ template <auto S, auto... Ss>
 
 template <auto S>
 [[nodiscard]] consteval auto need_unique_name() -> bool {
-    return is_subcommand_v<decltype(S)> || IsAFlag<S>;
+    return is_subcommand_v<decltype(S)> || FlagObject<S>;
 }
 
 template <auto S>
 [[nodiscard]] consteval auto get_unique_name() -> std::string_view {
     if constexpr (is_subcommand_v<decltype(S)>) {
         return S.name.as_string_view();
-    } else if constexpr (IsAFlag<S>) {
+    } else if constexpr (FlagObject<S>) {
         return S.long_form.as_string_view();
     } else {
         static_assert(false, "Invalid argument");
@@ -410,7 +407,7 @@ template <auto S1, auto S2>
         if (get_unique_name<S1>() == get_unique_name<S2>()) {
             return false;
         }
-        if constexpr (IsAFlag<S1> && IsAFlag<S2>) {
+        if constexpr (FlagObject<S1> && FlagObject<S2>) {
             return !S1.short_form.has_value || !S2.short_form.has_value
                    || S1.short_form != S2.short_form;
         } else {
@@ -466,7 +463,7 @@ template <auto S1, auto... Ss>
             return false;
         }
     }
-    if constexpr (IsAFlag<S1>) {
+    if constexpr (FlagObject<S1>) {
         if (!is_valid_name(S1.long_form.as_string_view())) {
             return false;
         }
@@ -491,7 +488,7 @@ template <auto S1, auto... Ss>
             return false;
         }
     }
-    if constexpr (IsAFlag<S1>) {
+    if constexpr (FlagObject<S1>) {
         if constexpr (S1.long_form.as_string_view() == help_str) {
             return false;
         }
@@ -898,23 +895,23 @@ private:
 
 namespace detail {
 template <auto S>
-concept AShortFlag =
+concept ShortFlagObject =
     S.short_form.has_value && is_flag_v<decltype(S)> && !is_flag_with_value_v<decltype(S)>;
 
 template <auto S>
-concept AShortFlagWithValue = S.short_form.has_value && is_flag_with_value_v<decltype(S)>;
+concept ShortFlagWithValueObject = S.short_form.has_value && is_flag_with_value_v<decltype(S)>;
 
 template <auto S>
-concept ALongFlag = is_flag_v<decltype(S)> && !is_flag_with_value_v<decltype(S)>;
+concept LongFlagObject = is_flag_v<decltype(S)> && !is_flag_with_value_v<decltype(S)>;
 
 template <auto S>
-concept ALongFlagWithValue = is_flag_with_value_v<decltype(S)>;
+concept LongFlagWithValueObject = is_flag_with_value_v<decltype(S)>;
 
 template <auto S>
-concept APositional = is_positional_v<decltype(S)>;
+concept PositionalObject = is_positional_v<decltype(S)>;
 
 template <auto S>
-concept ASubcommand = is_subcommand_v<decltype(S)>;
+concept SubcommandObject = is_subcommand_v<decltype(S)>;
 
 template <auto S>
 [[nodiscard]] constexpr auto arg_value_parameter(Typetag<ArgValue<S>>) -> decltype(S) const & {

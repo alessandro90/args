@@ -1,5 +1,5 @@
-#ifndef ARGS_TYPE_HELPERS
-#define ARGS_TYPE_HELPERS
+#ifndef ARGS_HELPERS
+#define ARGS_HELPERS
 
 #include <concepts>
 #include <string_view>
@@ -53,6 +53,9 @@ public:
 private:
     F m_f;
 };
+
+template <auto C>
+concept Not = !C;
 
 template <typename... F>
 struct [[nodiscard]] Overload: F... {

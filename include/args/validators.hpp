@@ -52,11 +52,11 @@ template <typename T>
 inline constexpr auto is_validator_v = IsValidator<std::remove_cvref_t<T>>::value;
 
 template <typename T>
-concept AValidator = is_validator_v<T>;
+concept ValidatorObject = is_validator_v<T>;
 
 namespace detail {
 [[nodiscard]] auto make_error_char_range(
-    auto const &value, std::string_view joiner, AValidator auto const &...validators)
+    auto const &value, std::string_view joiner, ValidatorObject auto const &...validators)
     -> std::ranges::range auto {
     return std::array{std::format("'{}'", validators.err_fn(value))...}
            | std::views::join_with(joiner);
@@ -336,7 +336,7 @@ inline constexpr auto is_validator_transformer_v =
     IsValidatorTransformer<std::remove_cvref_t<T>>::value;
 
 template <typename T>
-concept AValidatorTransformer = is_validator_transformer_v<T>;
+concept ValidatorTransformerObject = is_validator_transformer_v<T>;
 
 /// Map the provided value to its len (the value must provide a `size` method)
 inline constexpr auto len = ValidatorTransformer{
@@ -349,7 +349,7 @@ inline constexpr auto len = ValidatorTransformer{
 
 namespace detail {
 template <ValidatorTransformer T1, ValidatorTransformer T2>
-constexpr auto compose_transformers() -> AValidatorTransformer auto {
+constexpr auto compose_transformers() -> ValidatorTransformerObject auto {
     return ValidatorTransformer{
         .fn =
             [](auto const &value) {
@@ -362,7 +362,7 @@ constexpr auto compose_transformers() -> AValidatorTransformer auto {
 
 template <ValidatorTransformer T1, ValidatorTransformer T2, ValidatorTransformer... Ts>
 requires(sizeof...(Ts) > 0)
-constexpr auto compose_transformers() -> AValidatorTransformer auto {
+constexpr auto compose_transformers() -> ValidatorTransformerObject auto {
     return compose_transformers<compose_transformers<T1, T2>(), Ts...>();
 }
 }  // namespace detail
@@ -373,7 +373,7 @@ constexpr auto compose_transformers() -> AValidatorTransformer auto {
 ///
 /// `Compose<t0, t1, t2, ...>`
 template <ValidatorTransformer... Ts>
-inline constexpr AValidatorTransformer auto Compose = detail::compose_transformers<Ts...>();
+inline constexpr ValidatorTransformerObject auto Compose = detail::compose_transformers<Ts...>();
 
 /// Creates a transformed validator
 ///

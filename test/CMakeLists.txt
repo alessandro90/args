@@ -1,5 +1,8 @@
 include(FetchContent)
 
+set(FETCHCONTENT_TRY_FIND_PACKAGE_MODE NEVER) # (Optional safety guard)
+set(CMAKE_FETCHCONTENT_OVERHUNG_SYSTEM TRUE) # Treats Fetched content headers as SYSTEM
+
 FetchContent_Declare(
     catch2
     GIT_REPOSITORY https://github.com/catchorg/Catch2.git
@@ -7,6 +10,17 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(catch2)
 
+# Suppress warnigns coming from Catch2 header files
+# note: target the real concrete targets, not the aliases
+if(TARGET Catch2)
+    get_target_property(CATCH2_INCLUDES Catch2 INTERFACE_INCLUDE_DIRECTORIES)
+    set_target_properties(Catch2 PROPERTIES INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${CATCH2_INCLUDES}")
+endif()
+
+if(TARGET Catch2WithMain)
+    get_target_property(CATCH2_MAIN_INCLUDES Catch2WithMain INTERFACE_INCLUDE_DIRECTORIES)
+    set_target_properties(Catch2WithMain PROPERTIES INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${CATCH2_MAIN_INCLUDES}")
+endif()
 
 add_executable(args_test
     compiler.cpp
