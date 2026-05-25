@@ -2,6 +2,7 @@
 // readability-function-congnitive-complexity)
 #include "args/compiler.hpp"
 #include <array>
+#include <print>
 #include <span>
 #include <variant>
 #include <vector>
@@ -379,6 +380,9 @@ TEST_CASE("mutually-exclusive-multiple-groups", "[compiler]") {
             std::span{tokens},
             rules,
             MutuallyExclusiveGroups<mutually_exclusive_group_0, mutually_exclusive_group_1>{});
+        if (has_error(out)) {
+            std::println("ERROR: {}", get_error(out).message);
+        }
         REQUIRE(has_args(out));
     }
     SECTION("not-ok-case-with-args-1") {

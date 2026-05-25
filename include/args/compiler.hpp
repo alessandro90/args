@@ -259,33 +259,26 @@ public:
         std::span<tokenizer::token_t const, Extent> tokens,
         Compiler compiler,
         std::size_t subcommand_tuple_index) -> TokenCompileResult {
-        auto error_or_help = TokenCompileResult{};
-        auto const handled = [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            return (... || [&]() {  // 'or' will execute until the first 'true'
-                if (Is != subcommand_tuple_index) {
-                    return false;
+        template for (constexpr auto Is : std::views::iota(0uz, sizeof...(Specs))) {
+            if (Is != subcommand_tuple_index) {
+                continue;
+            }
+            using arg_value_t = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
+            if constexpr (is_subcommand_v<decltype(arg_value_t::spec)>) {
+                auto &subcommand = std::get<Is>(results);
+                auto subcommand_result =
+                    compiler(tokens, arg_value_t::spec.rules, arg_value_t::spec.mutually_exclusive);
+                if (has_args(subcommand_result)) {
+                    subcommand.subcommands = get_args(std::move(subcommand_result));
+                } else if (has_error(subcommand_result)) {
+                    return get_error(std::move(subcommand_result));
+                } else {
+                    return get_help(std::move(subcommand_result));
                 }
-                using arg_value_t = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
-                if constexpr (is_subcommand_v<decltype(arg_value_t::spec)>) {
-                    auto &subcommand = std::get<Is>(results);
-                    auto subcommand_result = compiler(
-                        tokens, arg_value_t::spec.rules, arg_value_t::spec.mutually_exclusive);
-                    if (has_args(subcommand_result)) {
-                        subcommand.subcommands = get_args(std::move(subcommand_result));
-                    } else if (has_error(subcommand_result)) {
-                        error_or_help = get_error(std::move(subcommand_result));
-                    } else {
-                        error_or_help = get_help(std::move(subcommand_result));
-                    }
-                    return true;
-                }
-                return false;
-            }());
-        }(std::make_index_sequence<sizeof...(Specs)>());
-        if (!handled) {
-            return Error{.message = "Cannot found subcommand"};
+                return {};
+            }
         }
-        return error_or_help;
+        return Error{.message = "Cannot found subcommand"};
     }
 
     [[nodiscard]] auto subcommand_index() -> std::optional<std::size_t> {
@@ -295,18 +288,21 @@ public:
 private:
     template <typename Handler>
     [[nodiscard]] auto handle_token(Handler handler) -> bool {
-        return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            return (... || [&]() {  // 'or' will execute until the first 'true'
-                using arg_type_t = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
-                if constexpr (std::is_invocable_v<Handler, arg_type_t &>) {
-                    return handler(std::get<Is>(results));
-                } else if constexpr (std::is_invocable_v<Handler, arg_type_t &, std::size_t>) {
-                    return handler(std::get<Is>(results), Is);
-                } else {
-                    return false;  // not callable, keep looping
+        static constexpr auto specs = std::forward_as_tuple(Specs...);
+        auto index = 0uz;
+        template for (constexpr auto &spec : specs) {
+            if constexpr (std::is_invocable_v<Handler, ArgValue<spec> &>) {
+                if (handler(std::get<ArgValue<spec>>(results))) {
+                    return true;
                 }
-            }());
-        }(std::make_index_sequence<sizeof...(Specs)>());
+            } else if constexpr (std::is_invocable_v<Handler, ArgValue<spec> &, std::size_t>) {
+                if (handler(std::get<ArgValue<spec>>(results), index)) {
+                    return true;
+                }
+            }
+            ++index;
+        }
+        return false;
     }
 
     template <auto S>
@@ -462,37 +458,32 @@ template <auto... Specs>
     // NOTE: an empty vec (meaning no errors) does not allocate, so we are good
     auto v = std::vector<std::string>{};
     std::size_t positional_argument_count = 0;
-    // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-        (..., [&]() {
-            auto const &r = std::get<Is>(results);
-            using arg_type_t = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
-            if constexpr (!is_subcommand_v<decltype(arg_type_t::spec)>) {
-                if constexpr (is_positional_v<decltype(arg_type_t::spec)>) {
-                    ++positional_argument_count;
-                    if (!r.is_used && arg_type_t::spec.required) {
-                        v.push_back(
-                            std::format(
-                                "Missing positional argument number {}",
-                                positional_argument_count));
-                    }
-                } else if constexpr (args::detail::FlagObject<arg_type_t::spec>) {
-                    if constexpr (arg_type_t::spec.required) {
-                        if (!r.is_used) {
-                            auto err = std::format(
-                                "Missing required flag. Long form: '{}'.",
-                                arg_type_t::spec.long_form.as_string_view());
-                            if (arg_type_t::spec.short_form.has_value) {
-                                err += std::format(
-                                    " Short form: '{}'.", arg_type_t::spec.short_form.value);
-                            }
-                            v.push_back(std::move(err));
+    template for (auto const &r : results) {
+        using arg_type_t = std::remove_cvref_t<decltype(r)>;
+        if constexpr (!is_subcommand_v<decltype(arg_type_t::spec)>) {
+            if constexpr (is_positional_v<decltype(arg_type_t::spec)>) {
+                ++positional_argument_count;
+                if (!r.is_used && arg_type_t::spec.required) {
+                    v.push_back(
+                        std::format(
+                            "Missing positional argument number {}", positional_argument_count));
+                }
+            } else if constexpr (args::detail::FlagObject<arg_type_t::spec>) {
+                if constexpr (arg_type_t::spec.required) {
+                    if (!r.is_used) {
+                        auto err = std::format(
+                            "Missing required flag. Long form: '{}'.",
+                            arg_type_t::spec.long_form.as_string_view());
+                        if (arg_type_t::spec.short_form.has_value) {
+                            err += std::format(
+                                " Short form: '{}'.", arg_type_t::spec.short_form.value);
                         }
+                        v.push_back(std::move(err));
                     }
                 }
             }
-        }());
-    }(std::make_index_sequence<sizeof...(Specs)>());
+        }
+    }
     return v;
 }
 
@@ -502,40 +493,34 @@ template <auto... Specs>
 /// of `default_value`
 template <auto... Specs>
 auto assign_defaults_to_unused(std::tuple<ArgValue<Specs>...> &results) -> void {
-    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-        (..., [&]() {
-            auto &r = std::get<Is>(results);
-            using arg_type_t = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
-            using S_t = decltype(arg_type_t::spec);
-            if constexpr (is_flag_with_value_v<S_t> && std::is_invocable_v<typename S_t::value_t>) {
-                if (!r.is_used) {
-                    r.value = arg_type_t::spec.default_value();
-                }
+    template for (auto &r : results) {
+        using arg_type_t = std::remove_cvref_t<decltype(r)>;
+        using S_t = decltype(arg_type_t::spec);
+        if constexpr (is_flag_with_value_v<S_t> && std::is_invocable_v<typename S_t::value_t>) {
+            if (!r.is_used) {
+                r.value = arg_type_t::spec.default_value();
             }
-        }());
-    }(std::make_index_sequence<sizeof...(Specs)>());
+        }
+    }
 }
 
 template <auto... Specs>
 [[nodiscard]] auto val_var_pos_and_rep(std::tuple<ArgValue<Specs>...> &results)
     -> std::expected<void, std::vector<validator_error_t>> {
     auto validation_errors = std::vector<validator_error_t>{};
-    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-        (..., [&]() {
-            auto &r = std::get<Is>(results);
-            using arg_type_t = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
-            if constexpr (
-                args::detail::is_positional_variadic_v<arg_type_t::spec>
-                || args::detail::is_repeatable_v<arg_type_t::spec>) {
-                if (r.is_used) {
-                    auto res = arg_type_t::spec.validator(r.value);
-                    if (!res.has_value()) {
-                        validation_errors.push_back(std::move(res).error());
-                    }
+    template for (auto &r : results) {
+        using arg_type_t = std::remove_cvref_t<decltype(r)>;
+        if constexpr (
+            args::detail::is_positional_variadic_v<arg_type_t::spec>
+            || args::detail::is_repeatable_v<arg_type_t::spec>) {
+            if (r.is_used) {
+                auto res = arg_type_t::spec.validator(r.value);
+                if (!res.has_value()) {
+                    validation_errors.push_back(std::move(res).error());
                 }
             }
-        }());
-    }(std::make_index_sequence<sizeof...(Specs)>());
+        }
+    }
     if (!validation_errors.empty()) {
         return std::unexpected{validation_errors};
     }

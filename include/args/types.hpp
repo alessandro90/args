@@ -920,25 +920,16 @@ template <auto S>
 
 template <auto... Specs>
 [[nodiscard]] auto nth_positional_argument_name(std::size_t nth) -> std::string_view {
-    auto name = std::string_view{};
     auto position_count = 0uz;
-    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-        return (... || [&]() {  // 'or' will execute until the first 'true'
-            using arg_type_t = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
-            auto const &parameter = arg_value_parameter(Typetag<arg_type_t>{});
-            if constexpr (is_positional_v<decltype(parameter)>) {
-                ++position_count;
-                if (position_count == nth) {
-                    name = parameter.name.as_string_view();
-                    return true;
-                }
-                return false;
-            } else {
-                return false;
+    template for (auto const &S : std::forward_as_tuple(Specs...)) {
+        if constexpr (is_positional_v<decltype(S)>) {
+            ++position_count;
+            if (position_count == nth) {
+                return S.name.as_string_view();
             }
-        }());
-    }(std::make_index_sequence<sizeof...(Specs)>());
-    return name;
+        }
+    }
+    return "";
 }
 
 template <auto... Ss, auto... Gg>
@@ -969,13 +960,13 @@ template <auto... Ss, auto... Gg>
     } else {
         auto errors = std::vector<std::string>{};
         auto index = 0uz;
-        (..., [&] {
-            if (auto err = check_mutually_exclusive_set_satisfied(args, Gg, index);
+        template for (auto gg : {Gg...}) {
+            if (auto err = check_mutually_exclusive_set_satisfied(args, gg, index);
                 err.has_value()) {
                 errors.push_back(std::move(err).value());
             }
             ++index;
-        }());
+        }
         if (!errors.empty()) {
             return std::move(errors) | std::views::join_with('\n') | std::ranges::to<std::string>();
         }
