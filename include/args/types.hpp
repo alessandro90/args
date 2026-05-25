@@ -929,6 +929,7 @@ template <auto... Specs>
             }
         }
     }
+    args_log_and_abort(std::format("cannot find name of positional argument number {}", nth));
     return "";
 }
 

@@ -2,6 +2,12 @@
 #define ARGS_HELPERS
 
 #include <concepts>
+#include <print>
+#ifndef NDUBUG
+    #include <cstdio>
+    #include <cstdlib>
+    #include <source_location>
+#endif
 #include <string_view>
 #include <type_traits>
 #include <utility>
@@ -63,5 +69,23 @@ struct [[nodiscard]] Overload: F... {
 };
 
 }  // namespace args::detail
+
+#ifndef NDEBUG
+[[noreturn]] inline auto args_log_and_abort(
+    std::string_view msg, std::source_location loc = std::source_location::current()) -> void {
+    std::println(
+        stderr,
+        "File: {} ({}:{}) `{}`: {}",
+        loc.file_name(),
+        loc.line(),
+        loc.column(),
+        loc.function_name(),
+        msg);
+    std::abort();
+}
+#else
+    #define args_log_and_abort(...)
+#endif
+
 
 #endif
