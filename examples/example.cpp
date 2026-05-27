@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include <format>
 #include <iterator>
+#include <meta>
 #include <optional>
 #include <print>
 #include <ranges>
@@ -64,8 +65,8 @@ static constexpr auto capitalized = args::Validator{
             return std::format("name '{}' must be capitalized", s);
         }};
 
-static constexpr auto c_verbose = args::Flag{
-    .long_form = "verbose"_flag, .short_form = "v"_sflag, .help = "Add verbose information"_str};
+static constexpr auto c_verbose =
+    args::flag().Long("verbose"_flag).Short('c').Help("Add verbose information"_str);
 
 static constexpr auto c_version = args::Subcommand{
     .name = "version"_str,
@@ -86,25 +87,20 @@ static constexpr auto c_count = args::Flag{
     .default_value = false,
     .help = "Just a counter flag"_str};
 
-static constexpr auto c_name = args::FlagWithValue{
-    .long_form = "name"_flag,
-    .short_form = "n"_sflag,
-    // clang-format off
-    .default_value = [] { return ""sv; },
-    // clang-format on
-    .required = true,
-    .repeatable = false,
-    .help = "Your name"_str,
-    .validator = args::And<args::Pipe<args::len, args::greater_than<1>>, capitalized>};
+static constexpr auto c_name =
+    args::flag_with_value<std::string_view>()
+        .Long("name"_flag)
+        .Short('n')
+        .Required(true)
+        .Repeatable(false)
+        .Help("Your name"_str)
+        .Validator(args::And<args::Pipe<args::len, args::greater_than<1>>, capitalized>);
 
-static constexpr auto c_int = args::FlagWithValue{
-    .long_form = "number"_flag,
-    .short_form = "i"_sflag,
-    // clang-format off
-    .default_value = 0,
-    // clang-format on
-    .repeatable = false,
-    .help = "an integer"_str};
+static constexpr auto c_int = args::flag_with_value<int>()
+                                  .Long("number"_flag)
+                                  .Short('i')
+                                  .Repeatable(false)
+                                  .Help("an integer"_str);
 
 // All the information to parse the command lines into the desired structures
 // is specified in the template arguments of this type
