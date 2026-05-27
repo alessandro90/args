@@ -57,6 +57,8 @@ add_library(args STATIC
 	src/types.cpp
 )
 
+target_compile_options(args PUBLIC -freflection)
+
 add_library(args::args ALIAS args)
 
 target_link_libraries(args PRIVATE project_warnings)

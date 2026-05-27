@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <expected>
 #include <format>
+#include <meta>
 #include <optional>
 #include <ranges>
 #include <span>
@@ -22,6 +23,11 @@
 
 namespace args::compiler {
 namespace detail {
+
+template <typename T>
+consteval auto name_of() -> std::string_view {
+    return std::meta::display_string_of(^^T);
+}
 
 using TokenCompileResult = std::variant<std::monostate, Help, Error>;
 
@@ -328,7 +334,7 @@ private:
             return;
         }
         error = std::format(
-            "Cannot parse '{}' into '{}'", argument.value, Parser<parse_type_t<S>>::type_name());
+            "Cannot parse '{}' into '{}'", argument.value, detail::name_of<parse_type_t<S>>());
     }
 
     [[nodiscard]] auto try_handle_flag(

@@ -16,7 +16,6 @@
 #include <vector>
 #include "helpers.hpp"
 #include "types.hpp"
-#include "typetag.hpp"
 
 namespace args::parsers {
 
@@ -181,46 +180,6 @@ template <typename Out, typename It>
 }
 }  // namespace detail
 
-[[nodiscard]] constexpr auto type_name_arith(Typetag<float>) -> std::string_view {
-    return "float";
-}
-
-[[nodiscard]] constexpr auto type_name_arith(Typetag<double>) -> std::string_view {
-    return "double";
-}
-
-[[nodiscard]] constexpr auto type_name_arith(Typetag<std::uint8_t>) -> std::string_view {
-    return "u8";
-}
-
-[[nodiscard]] constexpr auto type_name_arith(Typetag<std::int8_t>) -> std::string_view {
-    return "i8";
-}
-
-[[nodiscard]] constexpr auto type_name_arith(Typetag<std::uint16_t>) -> std::string_view {
-    return "u16";
-}
-
-[[nodiscard]] constexpr auto type_name_arith(Typetag<std::int16_t>) -> std::string_view {
-    return "i16";
-}
-
-[[nodiscard]] constexpr auto type_name_arith(Typetag<std::uint32_t>) -> std::string_view {
-    return "u32";
-}
-
-[[nodiscard]] constexpr auto type_name_arith(Typetag<std::int32_t>) -> std::string_view {
-    return "i32";
-}
-
-[[nodiscard]] constexpr auto type_name_arith(Typetag<std::uint64_t>) -> std::string_view {
-    return "u64";
-}
-
-[[nodiscard]] constexpr auto type_name_arith(Typetag<std::int64_t>) -> std::string_view {
-    return "i64";
-}
-
 template <typename Out, std::ranges::range R>
 requires std::is_arithmetic_v<Out>
 [[nodiscard]] auto parse_arithmetic(R v) -> std::optional<Out> {
@@ -247,10 +206,6 @@ struct Parser {};
 template <typename T>
 requires std::is_arithmetic_v<T>
 struct Parser<T> {
-    [[nodiscard]] static constexpr auto type_name() -> std::string_view {
-        return type_name_arith(Typetag<T>{});
-    }
-
     template <std::ranges::range R>
     [[nodiscard]] static auto parse(R v) -> std::optional<T> {
         return parse_arithmetic<T>(v);
@@ -260,10 +215,6 @@ struct Parser<T> {
 template <typename T>
 requires args::detail::is_string_view_v<T>
 struct Parser<T> {
-    [[nodiscard]] static constexpr auto type_name() -> std::string_view {
-        return "str(view)";
-    }
-
     template <std::ranges::range R>
     [[nodiscard]] static auto parse(R v) -> std::optional<std::string_view> {
         return std::string_view(std::ranges::begin(v), std::ranges::end(v));
@@ -273,10 +224,6 @@ struct Parser<T> {
 template <typename T>
 requires args::detail::is_string_v<T>
 struct Parser<T> {
-    [[nodiscard]] static constexpr auto type_name() -> std::string_view {
-        return "str(owned)";
-    }
-
     template <std::ranges::range R>
     [[nodiscard]] static auto parse(R v) -> std::optional<std::string> {
         return std::string(std::ranges::begin(v), std::ranges::end(v));
@@ -286,10 +233,6 @@ struct Parser<T> {
 template <typename T>
 requires args::detail::is_vector_v<T>
 struct Parser<T> {
-    [[nodiscard]] static auto type_name() -> std::string {
-        return std::format("[{}]", Parser<args::detail::repeatable_single_type_t<T>>::type_name());
-    }
-
     template <std::ranges::range R>
     [[nodiscard]] static auto parse(R v) -> std::optional<T> {
         return detail::parse_vector<T>(std::ranges::begin(v), std::ranges::end(v));
@@ -299,10 +242,6 @@ struct Parser<T> {
 template <typename T>
 requires args::detail::IsRepeatableParseType<T>::value
 struct Parser<T> {
-    [[nodiscard]] static auto type_name() -> std::string {
-        return std::format("[{}]", Parser<args::detail::repeatable_single_type_t<T>>::type_name());
-    }
-
     template <std::ranges::range R>
     [[nodiscard]] static auto parse(R v) -> std::optional<T> {
         auto parsed = Parser<args::detail::repeatable_single_type_t<T>>::parse(v);

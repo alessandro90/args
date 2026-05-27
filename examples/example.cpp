@@ -5,6 +5,7 @@
 #include <print>
 #include <ranges>
 #include <string_view>
+#include <type_traits>
 #include "args/args.hpp"
 #include "args/parsers.hpp"
 #include "args/types.hpp"
@@ -22,11 +23,6 @@ struct CustomData {
 namespace args::parsers {
 template <>
 struct Parser<CustomData> {
-    /// this function can return anything 'printable'
-    [[nodiscard]] static constexpr auto type_name() -> std::string_view {
-        return "CustomData";
-    }
-
     template <std::ranges::range R>
     [[nodiscard]] static auto parse(R v) -> std::optional<CustomData> {
         namespace rng = std::ranges;
@@ -74,7 +70,7 @@ static constexpr auto c_verbose = args::Flag{
 static constexpr auto c_version = args::Subcommand{
     .name = "version"_str,
     .help = "Print the version of the program"_str,
-    .rules = args::Rules<args::empty, args::empty, c_verbose>{},
+    .rules = args::rules<args::empty, args::empty, c_verbose>,
     .is_flag = true};
 
 // A positional argument expecting our custom data type
@@ -82,7 +78,7 @@ static constexpr auto c_custom_data =
     args::Positional{.type = args::tag<CustomData>, .name = "custom"_str};
 
 static constexpr auto c_custom = args::Subcommand{
-    .name = "custom_data"_str, .rules = args::Rules<args::empty, args::empty, c_custom_data>{}};
+    .name = "custom_data"_str, .rules = args::rules<args::empty, args::empty, c_custom_data>};
 
 static constexpr auto c_count = args::Flag{
     .long_form = "count"_flag,
@@ -101,6 +97,15 @@ static constexpr auto c_name = args::FlagWithValue{
     .help = "Your name"_str,
     .validator = args::And<args::Pipe<args::len, args::greater_than<1>>, capitalized>};
 
+static constexpr auto c_int = args::FlagWithValue{
+    .long_form = "number"_flag,
+    .short_form = "i"_sflag,
+    // clang-format off
+    .default_value = 0,
+    // clang-format on
+    .repeatable = false,
+    .help = "an integer"_str};
+
 // All the information to parse the command lines into the desired structures
 // is specified in the template arguments of this type
 static constexpr auto rules = args::rules<
@@ -109,6 +114,7 @@ static constexpr auto rules = args::rules<
     c_custom,
     c_name,
     c_count,
+    c_int,
     c_version>;
 
 using rules_t = decltype(rules);

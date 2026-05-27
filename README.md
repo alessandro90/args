@@ -131,7 +131,7 @@ static constexpr auto name = args::FlagWithValue{
 
 ## Custom parsers
 
-Custom objects can be parsed. To write a custom parsed write a specialization of `args::parsers::Parser<T>`. See the examples for more details.
+Custom objects can be parsed. To write a custom parser write a specialization of `args::parsers::Parser<T>`. See the examples for more details.
 
 ## Integration
 
@@ -153,7 +153,7 @@ Headers are then imported as `args/args.hpp`, etc..
 
 ## Building from source
 
-The project builds with Cmake. Tested only using gcc. C++26 support is required. At the moment there really no support for other compilers. Many several warnings exists only for C++. However the code is fully portable and the CMakeLists could be adjust to support multiple compilrs.
+The project builds with Cmake. Tested only using gcc. _C++26 and reflection_ (via `-freflection`) support is required. At the moment there really no support for other compilers. Many several warnings exists only for C++. However the code is fully portable and the CMakeLists could be adjust to support multiple compilrs.
 
 ```bash
 mkdir build && cd build

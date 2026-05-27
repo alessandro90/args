@@ -1,8 +1,9 @@
 #add_executable(args_example
-    #01_basic.cpp
-    #02_subcommand.cpp
-    #03_validation.cpp
-    #04_custom_parser.cpp
+    #00_basic.cpp
+    #01_subcommand.cpp
+    #02_validation.cpp
+    #03_custom_parser.cpp
+    #04_mutually_exclusive.cpp
 #)
 
 add_executable(args_example
