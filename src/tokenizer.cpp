@@ -27,6 +27,18 @@ namespace {
     return static_cast<std::size_t>(std::ranges::distance(std::ranges::begin(arg), group_it));
 }
 
+[[nodiscard]] auto is_digit(char x) -> bool {
+    return x >= '0' && x <= '9';
+}
+
+[[nodiscard]] auto is_quote(char x) -> bool {
+    return x == '"' || x == '\'';
+}
+
+[[nodiscard]] auto is_clumped(char x) -> bool {
+    return is_digit(x) || is_quote(x);
+}
+
 struct [[nodiscard]] ParseResult {
     token_t token;
     std::string_view remaining;
@@ -60,7 +72,16 @@ template <std::optional<ParseResult> (&f)(std::string_view)>
         return std::nullopt;
     }
     auto is_long = arg.size() > 2;
+
     if (is_long && arg[2] != '=') {
+        if (is_clumped(arg[2])) {
+            // short flag with something != '=' after the char -> clumped case like '-c6' or
+            // '-c"some-string"'
+            return ParseResult{
+                .token = ShortFlag{.raw = arg, .flag = arg[1], .has_equal = false},
+                .remaining = std::string_view(&arg[2])
+            };
+        }
         return std::nullopt;
     }
     auto const remaining = is_long ? std::string_view(&arg[3]) : std::string_view{};
@@ -87,7 +108,16 @@ template <std::optional<ParseResult> (&f)(std::string_view)>
     }
     auto const group_idx = index_of(arg, group_it);
     if (arg[group_idx] != '=') {
-        return std::nullopt;
+        if (is_clumped(arg[group_idx])) {
+            // short flag with something != '=' after the char -> clumped case like '-c6' or
+            // '-c"some-string"'
+            return ParseResult{
+                .token =
+                    FlagGroup{
+                              .raw = arg, .group = arg.substr(1, group_idx - 1), .has_equal = false},
+                .remaining = std::string_view(&arg[group_idx])
+            };
+        }
     }
 
     return ParseResult{

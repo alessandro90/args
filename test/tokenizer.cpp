@@ -1,9 +1,11 @@
 // NOLINTBEGIN(cppcoreguidelines-avoid-do-while, misc-use-anonymous-namespace,
 // readability-function-congnitive-complexity)
 
+#include <catch2/generators/catch_generators.hpp>
 #include "catch2/catch_test_macros.hpp"
 
 #include <span>
+#include <string_view>
 #include <variant>
 #include "args/tokenizer.hpp"
 
@@ -61,6 +63,51 @@ TEST_CASE("integer-short-flag-no-equal", "[tokenizer]") {
     REQUIRE(!k.has_equal);
 
     REQUIRE(v.value == "10");
+}
+
+TEST_CASE("integer-short-flag-clumped", "[tokenizer]") {
+    auto input = std::array{"-v10"};
+    auto const toks = tokenize(input);
+
+    REQUIRE(toks.has_value());
+    REQUIRE(toks.value().size() == 2);
+
+    auto const key = toks.value()[0];
+    auto const value = toks.value()[1];
+
+    REQUIRE(std::holds_alternative<ShortFlag>(key));
+    auto const k = std::get<ShortFlag>(key);
+    REQUIRE(std::holds_alternative<Argument>(value));
+    auto const v = std::get<Argument>(value);
+
+    REQUIRE(k.raw == "-v10");
+    REQUIRE(k.flag == 'v');
+    REQUIRE(!k.has_equal);
+
+    REQUIRE(v.value == "10");
+}
+
+TEST_CASE("string-short-flag-clumped", "[tokenizer]") {
+    auto const input_str = GENERATE("-v\"hellp\"", "-v'hellp'");
+
+    auto input = std::array{input_str};
+    auto const toks = tokenize(input);
+
+    REQUIRE(toks.has_value());
+    REQUIRE(toks.value().size() == 2);
+
+    auto const key = toks.value()[0];
+    auto const value = toks.value()[1];
+
+    REQUIRE(std::holds_alternative<ShortFlag>(key));
+    auto const k = std::get<ShortFlag>(key);
+    REQUIRE(std::holds_alternative<Argument>(value));
+    auto const v = std::get<Argument>(value);
+
+    REQUIRE(k.raw == input_str);
+    REQUIRE(k.flag == 'v');
+    REQUIRE(v.value == std::string_view{&input_str[2]});
+    REQUIRE(!k.has_equal);
 }
 
 TEST_CASE("integer-short-flag-with-equal", "[tokenizer]") {
@@ -171,6 +218,51 @@ TEST_CASE("integer-group-flag-with-equal", "[tokenizer]") {
     REQUIRE(k.has_equal);
 
     REQUIRE(v.value == "10");
+}
+
+TEST_CASE("integer-group-flag-clumped", "[tokenizer]") {
+    auto input = std::array{"-abc10"};
+    auto const toks = tokenize(input);
+
+    REQUIRE(toks.has_value());
+    REQUIRE(toks.value().size() == 2);
+
+    auto const key = toks.value()[0];
+    auto const value = toks.value()[1];
+
+    REQUIRE(std::holds_alternative<FlagGroup>(key));
+    auto const k = std::get<FlagGroup>(key);
+    REQUIRE(std::holds_alternative<Argument>(value));
+    auto const v = std::get<Argument>(value);
+
+    REQUIRE(k.raw == "-abc10");
+    REQUIRE(k.group == "abc");
+    REQUIRE(!k.has_equal);
+
+    REQUIRE(v.value == "10");
+}
+
+TEST_CASE("string-group-flag-clumped", "[tokenizer]") {
+    auto const input_str = GENERATE("-abc'hello'", "-abc\"hello\"");
+    auto input = std::array{input_str};
+    auto const toks = tokenize(input);
+
+    REQUIRE(toks.has_value());
+    REQUIRE(toks.value().size() == 2);
+
+    auto const key = toks.value()[0];
+    auto const value = toks.value()[1];
+
+    REQUIRE(std::holds_alternative<FlagGroup>(key));
+    auto const k = std::get<FlagGroup>(key);
+    REQUIRE(std::holds_alternative<Argument>(value));
+    auto const v = std::get<Argument>(value);
+
+    REQUIRE(k.raw == input_str);
+    REQUIRE(k.group == "abc");
+    REQUIRE(!k.has_equal);
+
+    REQUIRE(v.value == std::string_view{&input_str[4]});
 }
 
 TEST_CASE("double-dash", "[tokenizer]") {
