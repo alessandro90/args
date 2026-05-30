@@ -937,10 +937,16 @@ auto build_help_data(
                 .description = S.help.as_string_view(),
                 .is_required = S.required});
     } else if constexpr (is_subcommand_v<s_t>) {
-        // TODO: handle flag subcommand
-        positional.push_back(
-            PositionalHelp{
-                .name = S.name.as_string_view(), .description = S.help.as_string_view()});
+        if (S.is_flag) {
+            pure_flags.push_back(
+                FlagHelp{
+                    .long_name = S.name.as_string_view(), .description = S.help.as_string_view()});
+
+        } else {
+            positional.push_back(
+                PositionalHelp{
+                    .name = S.name.as_string_view(), .description = S.help.as_string_view()});
+        }
     } else {
         static_assert(false, "Invalid spec");
     }
