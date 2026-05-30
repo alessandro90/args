@@ -288,7 +288,7 @@ struct [[nodiscard]] FlagWithValue {
         };
     }
 
-    template <typename D>
+    template <Trivial D>
     consteval auto Default(D new_default_value) const
         -> FlagWithValue<detail::result_type_impl_t<D>, N, M, V, D>
         requires std::same_as<detail::result_type_impl_t<D>, Tag>
