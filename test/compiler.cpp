@@ -2,8 +2,8 @@
 // readability-function-congnitive-complexity)
 #include "args/compiler.hpp"
 #include <array>
-#include <print>
 #include <span>
+#include <string_view>
 #include <variant>
 #include <vector>
 #include "args/tokenizer.hpp"
@@ -37,8 +37,7 @@ TEST_CASE("boolean-short-flag", "[compiler]") {
         REQUIRE(!value);
     }
     SECTION("not-providing-a-required-value-is-an-error") {
-        static constexpr auto required_option =
-            Flag{.long_form = "value"_flag, .short_form = "v"_sflag, .required = true};
+        static constexpr auto required_option = flag().Long("value").Short('v').Required(true);
         static constexpr auto required_rules =
             Rules<"usage description"_str, empty, required_option>{};
         auto const flag = std::array<token_t, 0>{};
@@ -50,7 +49,7 @@ TEST_CASE("boolean-short-flag", "[compiler]") {
 }
 
 TEST_CASE("boolean-short-flag-count", "[compiler]") {
-    static constexpr auto option = Flag{.long_form = "value"_flag, .short_form = "v"_sflag};
+    static constexpr auto option = flag().Long("value").Short('v');
     static constexpr auto rules = Rules<empty, empty, option>{};
 
     SECTION("count-0") {
@@ -102,7 +101,7 @@ TEST_CASE("short-flag-with-arithmetic-value", "[compiler]") {
 
 TEST_CASE("positional-with-arithmetic-value", "[compiler]") {
     SECTION("with-integer-value") {
-        static constexpr auto option = Positional{.type = tag<int>, .name = "pos-name"_str};
+        static constexpr auto option = positional<int>().Name("pos-name");
         static constexpr auto rules = Rules<empty, empty, option>{};
         auto const tokens = std::array{token_t{Argument{.value = "10"}}};
         auto const out = compiler::compile(std::span{tokens}, rules, MutuallyExclusiveGroups<>{});
@@ -112,7 +111,7 @@ TEST_CASE("positional-with-arithmetic-value", "[compiler]") {
         REQUIRE(value == 10);
     }
     SECTION("with-integer-value-not-provided") {
-        static constexpr auto option = Positional{.type = tag<int>, .name = "pos-name"_str};
+        static constexpr auto option = positional<int>().Name("pos-name");
         static constexpr auto rules = Rules<empty, empty, option>{};
         auto const tokens = std::array<token_t, 0>{};
         auto const out = compiler::compile(std::span{tokens}, rules, MutuallyExclusiveGroups<>{});
@@ -158,11 +157,10 @@ TEST_CASE("repeatable-flag", "[compiler]") {
 }
 
 TEST_CASE("subcommand", "[compiler]") {
-    static constexpr auto suboption =
-        Positional{.type = tag<int>, .name = "pos-name"_str, .required = true};
+    static constexpr auto suboption = positional<int>().Name("pos-name").Required(true);
     static constexpr auto sub_rules = Rules<empty, empty, suboption>{};
-    static constexpr auto option = Subcommand{
-        .name = "subcommand-name"_str, .help = "help message for value"_str, .rules = sub_rules};
+    static constexpr auto option =
+        subcommand().Name("subcommand-name").Help("help message for value").WithRules(sub_rules);
     static constexpr auto rules = Rules<empty, empty, option>{};
 
 
@@ -176,14 +174,13 @@ TEST_CASE("subcommand", "[compiler]") {
 }
 
 TEST_CASE("subcommand-flagged", "[compiler]") {
-    static constexpr auto suboption =
-        Positional{.type = tag<int>, .name = "pos-name"_str, .required = true};
+    static constexpr auto suboption = positional<int>().Name("pos-name").Required(true);
     static constexpr auto sub_rules = Rules<empty, empty, suboption>{};
-    static constexpr auto option = Subcommand{
-        .name = "subcommand-name"_str,
-        .help = "help message for value"_str,
-        .rules = sub_rules,
-        .is_flag = true};
+    static constexpr auto option = subcommand()
+                                       .Name("subcommand-name")
+                                       .Help("help message for value")
+                                       .IsFlag(true)
+                                       .WithRules(sub_rules);
     static constexpr auto rules = Rules<empty, empty, option>{};
 
 
@@ -198,14 +195,13 @@ TEST_CASE("subcommand-flagged", "[compiler]") {
 }
 
 TEST_CASE("subcommand-nested", "[compiler]") {
-    static constexpr auto argument =
-        Positional{.type = tag<int>, .name = "pos-name"_str, .required = true};
+    static constexpr auto argument = positional<int>().Name("pos-name").Required(true);
     static constexpr auto nested_rules = Rules<empty, empty, argument>{};
     static constexpr auto nested_subcommand =
-        Subcommand{.name = "nested-command"_str, .rules = nested_rules};
-    static constexpr auto subcommand = Subcommand{
-        .name = "subcommand-name"_str, .rules = Rules<empty, empty, nested_subcommand>{}};
-    static constexpr auto rules = Rules<empty, empty, subcommand>{};
+        subcommand().Name("nested-command").WithRules(nested_rules);
+    static constexpr auto subc =
+        subcommand().Name("subcommand-name").WithRules(rules<empty, empty, nested_subcommand>);
+    static constexpr auto rules = Rules<empty, empty, subc>{};
 
     auto const tokens = std::array{
         token_t{Argument{.value = "subcommand-name"}},
@@ -214,13 +210,12 @@ TEST_CASE("subcommand-nested", "[compiler]") {
     auto const out = compiler::compile(std::span{tokens}, rules, MutuallyExclusiveGroups<>{});
 
     REQUIRE(has_args(out));
-    auto const value = get_args(out).get_with_info<subcommand, nested_subcommand, argument>().value;
+    auto const value = get_args(out).get_with_info<subc, nested_subcommand, argument>().value;
     REQUIRE(value == 10);
 }
 
 TEST_CASE("positional", "[compiler]") {
-    static constexpr auto option =
-        Positional{.type = tag<std::vector<int>>, .name = "pos-name"_str, .variadic = true};
+    static constexpr auto option = positional<std::vector<int>>().Name("pos-name").Variadic(true);
     static constexpr auto rules = Rules<empty, empty, option>{};
     auto const tokens = std::array{
         token_t{Argument{.value = "1"}},
@@ -234,11 +229,9 @@ TEST_CASE("positional", "[compiler]") {
 }
 
 TEST_CASE("forced-positional-variadic", "[compiler]") {
-    static constexpr auto dummy_flag = Flag{.long_form = "dummy-flag"_str, .required = true};
-    static constexpr auto forced_positionals = Positional{
-        .type = tag<std::vector<std::string_view>>,
-        .name = "forced-positionals"_str,
-        .variadic = true};
+    static constexpr auto dummy_flag = flag().Long("dummy-flag").Required(true);
+    static constexpr auto forced_positionals =
+        positional<std::vector<std::string_view>>().Name("forced-positionals").Variadic(true);
     static constexpr auto rules = Rules<empty, empty, dummy_flag, forced_positionals>{};
     auto const tokens = std::array{
         token_t{LongFlag{.raw = "--dummy-flag", .flag = "dummy-flag"}},
@@ -290,8 +283,8 @@ TEST_CASE("short-flag-with-arithmetic-value-validation", "[compiler]") {
 TEST_CASE("mutually-exclusive-single-group", "[compiler]") {
     static constexpr auto option_a = flag_with_value<int>().Long("option_a");
 
-    static constexpr auto option_b = Flag{.long_form = "option_b"_flag};
-    static constexpr auto option_c = Positional{.type = tag<int>, .name = "option_c"_str};
+    static constexpr auto option_b = flag().Long("option_b");
+    static constexpr auto option_c = positional<int>().Name("option_c");
     static constexpr auto rules = Rules<empty, empty, option_a, option_b, option_c>{};
 
     static constexpr auto mutually_exclusive = MutuallyExclusive<option_a, option_c>{};
@@ -339,8 +332,8 @@ TEST_CASE("mutually-exclusive-single-group", "[compiler]") {
 TEST_CASE("mutually-exclusive-multiple-groups", "[compiler]") {
     static constexpr auto option_a = flag_with_value<int>().Long("option_a");
 
-    static constexpr auto option_b = Flag{.long_form = "option_b"_str};
-    static constexpr auto option_c = Positional{.type = tag<int>, .name = "option_c"_str};
+    static constexpr auto option_b = flag().Long("option_b");
+    static constexpr auto option_c = positional<int>().Name("option_c");
     static constexpr auto option_d = flag_with_value<int>().Long("option_d");
     static constexpr auto rules = Rules<empty, empty, option_a, option_b, option_c, option_d>{};
 

@@ -68,24 +68,22 @@ static constexpr auto capitalized = args::Validator{
 static constexpr auto c_verbose =
     args::flag().Long("verbose").Short('c').Help("Add verbose information");
 
-static constexpr auto c_version = args::Subcommand{
-    .name = "version"_str,
-    .help = "Print the version of the program"_str,
-    .rules = args::rules<args::empty, args::empty, c_verbose>,
-    .is_flag = true};
+static constexpr auto c_version = args::subcommand()
+                                      .Name("version")
+                                      .WithRules(args::rules<args::empty, args::empty, c_verbose>)
+                                      .IsFlag(true)
+                                      .Help("Print the version of the program");
 
 // A positional argument expecting our custom data type
-static constexpr auto c_custom_data =
-    args::Positional{.type = args::tag<CustomData>, .name = "custom"_str};
+static constexpr auto c_custom_data = args::positional<CustomData>().Name("custom");
 
-static constexpr auto c_custom = args::Subcommand{
-    .name = "custom_data"_str, .rules = args::rules<args::empty, args::empty, c_custom_data>};
+static constexpr auto c_custom =
+    args::subcommand()
+        .Name("custom_data")
+        .WithRules(args::rules<args::empty, args::empty, c_custom_data>);
 
-static constexpr auto c_count = args::Flag{
-    .long_form = "count"_flag,
-    .short_form = "c"_sflag,
-    .default_value = false,
-    .help = "Just a counter flag"_str};
+static constexpr auto c_count =
+    args::flag().Long("count").Short('c').Default(false).Help("Just a counter flag");
 
 static constexpr auto c_name =
     args::flag_with_value<std::string_view>()
