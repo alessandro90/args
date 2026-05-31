@@ -62,6 +62,8 @@ concept Trivial = std::is_trivial_v<T>;
 /// `"a compile-time string-like object"_str`
 template <std::size_t N>
 struct [[nodiscard]] Str {
+    static constexpr auto s_size = N;
+
     std::array<char, N + 1> chars{};
 
     consteval Str() noexcept = default;
@@ -168,9 +170,9 @@ struct [[nodiscard]] Flag {
     using value_t = bool;
 
     template <std::size_t Nx>
-    consteval auto Long(Str<Nx> new_long_form) const -> Flag<Nx, M> {
-        return Flag<Nx, M>{
-            .long_form = new_long_form,
+    consteval auto Long(char const (&new_long_form)[Nx]) const -> Flag<Nx - 1, M> {
+        return Flag<Nx - 1, M>{
+            .long_form = Str<Nx - 1>{new_long_form},
             .short_form = short_form,
             .default_value = default_value,
             .required = required,
@@ -179,13 +181,13 @@ struct [[nodiscard]] Flag {
     }
 
     template <std::size_t Mx>
-    consteval auto Help(Str<Mx> new_help) const -> Flag<N, Mx> {
-        return Flag<N, Mx>{
+    consteval auto Help(char const (&new_help)[Mx]) const -> Flag<N, Mx - 1> {
+        return Flag<N, Mx - 1>{
             .long_form = long_form,
             .short_form = short_form,
             .default_value = default_value,
             .required = required,
-            .help = new_help,
+            .help = Str<Mx - 1>{new_help},
         };
     }
 
@@ -251,9 +253,10 @@ struct [[nodiscard]] FlagWithValue {
     using value_t = detail::tag_to_default_type_t<Tag>;
 
     template <std::size_t Nx>
-    consteval auto Long(Str<Nx> new_long_form) const -> FlagWithValue<Tag, Nx, M, V, DefaultType> {
-        return FlagWithValue<Tag, Nx, M, V, DefaultType>{
-            .long_form = new_long_form,
+    consteval auto Long(char const (&new_long_form)[Nx]) const
+        -> FlagWithValue<Tag, Nx - 1, M, V, DefaultType> {
+        return FlagWithValue<Tag, Nx - 1, M, V, DefaultType>{
+            .long_form = Str<Nx - 1>{new_long_form},
             .short_form = short_form,
             .default_value = default_value,
             .required = required,
@@ -264,8 +267,9 @@ struct [[nodiscard]] FlagWithValue {
     }
 
     template <std::size_t Mx>
-    consteval auto Help(Str<Mx> new_help) const -> FlagWithValue<Tag, N, Mx, V, DefaultType> {
-        return FlagWithValue<Tag, N, Mx, V, DefaultType>{
+    consteval auto Help(char const (&new_help)[Mx]) const
+        -> FlagWithValue<Tag, N, Mx - 1, V, DefaultType> {
+        return FlagWithValue<Tag, N, Mx - 1, V, DefaultType>{
             .long_form = long_form,
             .short_form = short_form,
             .default_value = default_value,
@@ -373,10 +377,10 @@ struct [[nodiscard]] Positional {
     using value_t = P;
 
     template <std::size_t Nx>
-    consteval auto Name(Str<Nx> new_name) const -> Positional<P, Nx, M, V> {
-        return Positional<P, Nx, M, V>{
+    consteval auto Name(char const (&new_name)[Nx]) const -> Positional<P, Nx - 1, M, V> {
+        return Positional<P, Nx - 1, M, V>{
             .type = type,
-            .name = new_name,
+            .name = Str<Nx - 1>{new_name},
             .help = help,
             .required = required,
             .variadic = variadic,
@@ -385,11 +389,11 @@ struct [[nodiscard]] Positional {
     }
 
     template <std::size_t Mx>
-    consteval auto Help(Str<Mx> new_help) const -> Positional<P, N, Mx, V> {
-        return Positional<P, N, Mx, V>{
+    consteval auto Help(char const (&new_help)[Mx]) const -> Positional<P, N, Mx - 1, V> {
+        return Positional<P, N, Mx - 1, V>{
             .type = type,
             .name = name,
-            .help = new_help,
+            .help = Str<Mx - 1>{new_help},
             .required = required,
             .variadic = variadic,
             .validator = validator,
@@ -486,10 +490,10 @@ struct [[nodiscard]] Subcommand {
     using value_t = std::string_view;
 
     template <std::size_t Nx>
-    consteval auto Name(Str<Nx> new_name) const
-        -> Subcommand<Nx, M, Usage, Description, Me, Specs...> {
-        return Subcommand<Nx, M, Usage, Description, Me, Specs...>{
-            .name = new_name,
+    consteval auto Name(char const (&new_name)[Nx]) const
+        -> Subcommand<Nx - 1, M, Usage, Description, Me, Specs...> {
+        return Subcommand<Nx - 1, M, Usage, Description, Me, Specs...>{
+            .name = Str<Nx - 1>{new_name},
             .help = help,
             .rules = rules,
             .is_flag = is_flag,
@@ -498,11 +502,11 @@ struct [[nodiscard]] Subcommand {
     }
 
     template <std::size_t Mx>
-    consteval auto Help(Str<Mx> new_help) const
-        -> Subcommand<N, Mx, Usage, Description, Me, Specs...> {
-        return Subcommand<N, Mx, Usage, Description, Me, Specs...>{
+    consteval auto Help(char const (&new_help)[Mx]) const
+        -> Subcommand<N, Mx - 1, Usage, Description, Me, Specs...> {
+        return Subcommand<N, Mx - 1, Usage, Description, Me, Specs...>{
             .name = name,
-            .help = new_help,
+            .help = Str<Mx - 1>{new_help},
             .rules = rules,
             .is_flag = is_flag,
             .mutually_exclusive = mutually_exclusive,

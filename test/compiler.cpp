@@ -17,7 +17,7 @@ using namespace args::tokenizer;
 using namespace args::literals;
 
 TEST_CASE("boolean-short-flag", "[compiler]") {
-    static constexpr auto option = Flag{.long_form = "value"_flag, .short_form = "v"_sflag};
+    static constexpr auto option = flag().Long("value").Short('v');
     static constexpr auto rules = Rules<empty, empty, option>{};
 
     SECTION("providing-value-gets-true") {
@@ -77,7 +77,7 @@ TEST_CASE("boolean-short-flag-count", "[compiler]") {
 
 TEST_CASE("short-flag-with-arithmetic-value", "[compiler]") {
     SECTION("providing-value-gets-an-int") {
-        static constexpr auto option = flag_with_value<int>().Long("value"_flag).Short('v');
+        static constexpr auto option = flag_with_value<int>().Long("value").Short('v');
         static constexpr auto rules = Rules<empty, empty, option>{};
         auto const tokens = std::array{
             token_t{ShortFlag{.raw = "-v", .flag = 'v'}}, token_t{Argument{.value = "10"}}};
@@ -88,7 +88,7 @@ TEST_CASE("short-flag-with-arithmetic-value", "[compiler]") {
         REQUIRE(value == 10);
     }
     SECTION("providing-value-gets-a-float") {
-        static constexpr auto option = flag_with_value<float>().Long("value"_flag).Short('v');
+        static constexpr auto option = flag_with_value<float>().Long("value").Short('v');
         static constexpr auto rules = Rules<empty, empty, option>{};
         auto const tokens = std::array{
             token_t{ShortFlag{.raw = "-v", .flag = 'v'}}, token_t{Argument{.value = "10.5"}}};
@@ -125,12 +125,12 @@ TEST_CASE("positional-with-arithmetic-value", "[compiler]") {
 
 TEST_CASE("short-flag-with-vec-value-default", "[compiler]") {
     static constexpr auto option = flag_with_value<std::vector<int>>()
-                                       .Long("value"_flag)
+                                       .Long("value")
                                        .Short('v')
                                        .Default([] {
                                            return std::vector{1, 2, 3};
                                        })
-                                       .Help("help message for value"_str);
+                                       .Help("help message for value");
     static constexpr auto rules = Rules<empty, empty, option>{};
     auto const tokens = std::array<token_t, 0>{};
     auto const out = compiler::compile(std::span{tokens}, rules, MutuallyExclusiveGroups<>{});
@@ -141,8 +141,7 @@ TEST_CASE("short-flag-with-vec-value-default", "[compiler]") {
 }
 
 TEST_CASE("repeatable-flag", "[compiler]") {
-    static constexpr auto option =
-        flag_with_value<std::vector<int>>().Long("value"_flag).Short('v');
+    static constexpr auto option = flag_with_value<std::vector<int>>().Long("value").Short('v');
     static constexpr auto rules = Rules<empty, empty, option>{};
     auto const tokens = std::array{
         token_t{tokenizer::ShortFlag{.raw = "-v", .flag = 'v'}},
@@ -267,7 +266,7 @@ TEST_CASE("forced-positional-variadic", "[compiler]") {
 
 TEST_CASE("short-flag-with-arithmetic-value-validation", "[compiler]") {
     static constexpr auto option =
-        flag_with_value<int>().Long("value"_flag).Short('v').Validator(less_than<10>);
+        flag_with_value<int>().Long("value").Short('v').Validator(less_than<10>);
     static constexpr auto rules = Rules<empty, empty, option>{};
 
     SECTION("validation-correct") {
@@ -289,7 +288,7 @@ TEST_CASE("short-flag-with-arithmetic-value-validation", "[compiler]") {
 }
 
 TEST_CASE("mutually-exclusive-single-group", "[compiler]") {
-    static constexpr auto option_a = flag_with_value<int>().Long("option_a"_flag);
+    static constexpr auto option_a = flag_with_value<int>().Long("option_a");
 
     static constexpr auto option_b = Flag{.long_form = "option_b"_flag};
     static constexpr auto option_c = Positional{.type = tag<int>, .name = "option_c"_str};
@@ -338,11 +337,11 @@ TEST_CASE("mutually-exclusive-single-group", "[compiler]") {
 }
 
 TEST_CASE("mutually-exclusive-multiple-groups", "[compiler]") {
-    static constexpr auto option_a = flag_with_value<int>().Long("option_a"_flag);
+    static constexpr auto option_a = flag_with_value<int>().Long("option_a");
 
-    static constexpr auto option_b = Flag{.long_form = "option_b"_flag};
+    static constexpr auto option_b = Flag{.long_form = "option_b"_str};
     static constexpr auto option_c = Positional{.type = tag<int>, .name = "option_c"_str};
-    static constexpr auto option_d = flag_with_value<int>().Long("option_d"_flag);
+    static constexpr auto option_d = flag_with_value<int>().Long("option_d");
     static constexpr auto rules = Rules<empty, empty, option_a, option_b, option_c, option_d>{};
 
     static constexpr auto mutually_exclusive_group_0 = MutuallyExclusive<option_a, option_c>{};

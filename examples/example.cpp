@@ -66,7 +66,7 @@ static constexpr auto capitalized = args::Validator{
         }};
 
 static constexpr auto c_verbose =
-    args::flag().Long("verbose"_flag).Short('c').Help("Add verbose information"_str);
+    args::flag().Long("verbose").Short('c').Help("Add verbose information");
 
 static constexpr auto c_version = args::Subcommand{
     .name = "version"_str,
@@ -89,18 +89,15 @@ static constexpr auto c_count = args::Flag{
 
 static constexpr auto c_name =
     args::flag_with_value<std::string_view>()
-        .Long("name"_flag)
+        .Long("name")
         .Short('n')
         .Required(true)
         .Repeatable(false)
-        .Help("Your name"_str)
+        .Help("Your name")
         .Validator(args::And<args::Pipe<args::len, args::greater_than<1>>, capitalized>);
 
-static constexpr auto c_int = args::flag_with_value<int>()
-                                  .Long("number"_flag)
-                                  .Short('i')
-                                  .Repeatable(false)
-                                  .Help("an integer"_str);
+static constexpr auto c_int =
+    args::flag_with_value<int>().Long("number").Short('i').Repeatable(false).Help("an integer");
 
 // All the information to parse the command lines into the desired structures
 // is specified in the template arguments of this type
