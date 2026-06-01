@@ -108,15 +108,15 @@ namespace detail {
 constexpr auto help_str = std::string_view{"help"};
 
 template <auto S>
-concept HasValidator = requires { S.validator; };
+concept HasValidator = requires { S._validator; };
 
 template <auto S>
-concept HasDefault = requires { S.default_value; };
+concept HasDefault = requires { S._default_value; };
 
 template <auto S>
 consteval auto is_required() -> bool {
-    if constexpr (requires { S.required; }) {
-        return S.required;
+    if constexpr (requires { S._required; }) {
+        return S._required;
     } else {
         return false;
     }
@@ -157,67 +157,67 @@ using tag_to_default_type_t = decltype(tag_to_default_type<T>());
 template <std::size_t N, std::size_t M = 0>
 struct [[nodiscard]] Flag {
     /// The long form of the flag (e.g. `"verbose"_str` will parse `--verbose`)
-    Str<N> long_form;
+    Str<N> _long_form;
     /// The short form, a `char` (e.g. `"j"_str` will parse `-j`)
-    Opt<char> short_form{Opt<char>::empty()};
+    Opt<char> _short_form{Opt<char>::empty()};
     /// The default value if no flag is parsed (defaults to `false`)
-    bool default_value{};
+    bool _default_value{};
     /// `true` if the flag is required (defaults to `false`)
-    bool required{};
+    bool _required{};
     /// An optional help message
-    Str<M> help{};
+    Str<M> _help{};
 
     using value_t = bool;
 
     template <std::size_t Nx>
     consteval auto Long(char const (&new_long_form)[Nx]) const -> Flag<Nx - 1, M> {
         return Flag<Nx - 1, M>{
-            .long_form = Str<Nx - 1>{new_long_form},
-            .short_form = short_form,
-            .default_value = default_value,
-            .required = required,
-            .help = help,
+            ._long_form = Str<Nx - 1>{new_long_form},
+            ._short_form = _short_form,
+            ._default_value = _default_value,
+            ._required = _required,
+            ._help = _help,
         };
     }
 
     template <std::size_t Mx>
     consteval auto Help(char const (&new_help)[Mx]) const -> Flag<N, Mx - 1> {
         return Flag<N, Mx - 1>{
-            .long_form = long_form,
-            .short_form = short_form,
-            .default_value = default_value,
-            .required = required,
-            .help = Str<Mx - 1>{new_help},
+            ._long_form = _long_form,
+            ._short_form = _short_form,
+            ._default_value = _default_value,
+            ._required = _required,
+            ._help = Str<Mx - 1>{new_help},
         };
     }
 
     consteval auto Short(char new_short_form) const -> Flag<N, M> {
         return Flag<N, M>{
-            .long_form = long_form,
-            .short_form = Opt<char>::with(new_short_form),
-            .default_value = default_value,
-            .required = required,
-            .help = help,
+            ._long_form = _long_form,
+            ._short_form = Opt<char>::with(new_short_form),
+            ._default_value = _default_value,
+            ._required = _required,
+            ._help = _help,
         };
     }
 
     consteval auto Default(bool new_default_value) const -> Flag<N, M> {
         return Flag<N, M>{
-            .long_form = long_form,
-            .short_form = short_form,
-            .default_value = new_default_value,
-            .required = required,
-            .help = help,
+            ._long_form = _long_form,
+            ._short_form = _short_form,
+            ._default_value = new_default_value,
+            ._required = _required,
+            ._help = _help,
         };
     }
 
     consteval auto Required(bool new_required) const -> Flag<N, M> {
         return Flag<N, M>{
-            .long_form = long_form,
-            .short_form = short_form,
-            .default_value = default_value,
-            .required = new_required,
-            .help = help,
+            ._long_form = _long_form,
+            ._short_form = _short_form,
+            ._default_value = _default_value,
+            ._required = new_required,
+            ._help = _help,
         };
     }
 };
@@ -235,20 +235,20 @@ template <
     typename DefaultType = detail::tag_to_default_type_t<Tag>>
 struct [[nodiscard]] FlagWithValue {
     /// The long form of the flag (e.g. `"verbose"_str` will parse `--verbose`)
-    Str<N> long_form;
+    Str<N> _long_form;
     /// The short form, a `char` (e.g. `"j"_str` will parse `-j`)
-    Opt<char> short_form{Opt<char>::empty()};
+    Opt<char> _short_form{Opt<char>::empty()};
     /// The default value if no flag is parsed (defaults to a default constructed `Value`)
-    DefaultType default_value{};
+    DefaultType _default_value{};
     /// `true` if the flag is required (defaults to `false`)
-    bool required{};
+    bool _required{};
     /// `true` if the flag can be specified multiple times. Default is true if `Value` is a
     /// std::vector
-    bool repeatable{args::detail::is_vector_v<Tag>};
+    bool _repeatable{args::detail::is_vector_v<Tag>};
     /// An optional help message
-    Str<M> help{};
+    Str<M> _help{};
     /// A validator to apply to the parsed result (defaults to an infallible validator)
-    V validator{always};
+    V _validator{always};
 
     using value_t = detail::tag_to_default_type_t<Tag>;
 
@@ -256,13 +256,13 @@ struct [[nodiscard]] FlagWithValue {
     consteval auto Long(char const (&new_long_form)[Nx]) const
         -> FlagWithValue<Tag, Nx - 1, M, V, DefaultType> {
         return FlagWithValue<Tag, Nx - 1, M, V, DefaultType>{
-            .long_form = Str<Nx - 1>{new_long_form},
-            .short_form = short_form,
-            .default_value = default_value,
-            .required = required,
-            .repeatable = repeatable,
-            .help = help,
-            .validator = validator,
+            ._long_form = Str<Nx - 1>{new_long_form},
+            ._short_form = _short_form,
+            ._default_value = _default_value,
+            ._required = _required,
+            ._repeatable = _repeatable,
+            ._help = _help,
+            ._validator = _validator,
         };
     }
 
@@ -270,25 +270,25 @@ struct [[nodiscard]] FlagWithValue {
     consteval auto Help(char const (&new_help)[Mx]) const
         -> FlagWithValue<Tag, N, Mx - 1, V, DefaultType> {
         return FlagWithValue<Tag, N, Mx - 1, V, DefaultType>{
-            .long_form = long_form,
-            .short_form = short_form,
-            .default_value = default_value,
-            .required = required,
-            .repeatable = repeatable,
-            .help = new_help,
-            .validator = validator,
+            ._long_form = _long_form,
+            ._short_form = _short_form,
+            ._default_value = _default_value,
+            ._required = _required,
+            ._repeatable = _repeatable,
+            ._help = new_help,
+            ._validator = _validator,
         };
     }
 
     consteval auto Short(char new_short_form) const -> FlagWithValue<Tag, N, M, V, DefaultType> {
         return FlagWithValue<Tag, N, M, V, DefaultType>{
-            .long_form = long_form,
-            .short_form = Opt<char>::with(new_short_form),
-            .default_value = default_value,
-            .required = required,
-            .repeatable = repeatable,
-            .help = help,
-            .validator = validator,
+            ._long_form = _long_form,
+            ._short_form = Opt<char>::with(new_short_form),
+            ._default_value = _default_value,
+            ._required = _required,
+            ._repeatable = _repeatable,
+            ._help = _help,
+            ._validator = _validator,
         };
     }
 
@@ -298,51 +298,51 @@ struct [[nodiscard]] FlagWithValue {
         requires std::same_as<detail::result_type_impl_t<D>, Tag>
     {
         return FlagWithValue<detail::result_type_impl_t<D>, N, M, V, D>{
-            .long_form = long_form,
-            .short_form = short_form,
-            .default_value = new_default_value,
-            .required = required,
-            .repeatable = repeatable,
-            .help = help,
-            .validator = validator,
+            ._long_form = _long_form,
+            ._short_form = _short_form,
+            ._default_value = new_default_value,
+            ._required = _required,
+            ._repeatable = _repeatable,
+            ._help = _help,
+            ._validator = _validator,
         };
     }
 
     consteval auto Required(bool new_required) const -> FlagWithValue<Tag, N, M, V, DefaultType> {
         return FlagWithValue<Tag, N, M, V, DefaultType>{
-            .long_form = long_form,
-            .short_form = short_form,
-            .default_value = default_value,
-            .required = new_required,
-            .repeatable = repeatable,
-            .help = help,
-            .validator = validator,
+            ._long_form = _long_form,
+            ._short_form = _short_form,
+            ._default_value = _default_value,
+            ._required = new_required,
+            ._repeatable = _repeatable,
+            ._help = _help,
+            ._validator = _validator,
         };
     }
 
     consteval auto Repeatable(bool new_repeatable) const
         -> FlagWithValue<Tag, N, M, V, DefaultType> {
         return FlagWithValue<Tag, N, M, V, DefaultType>{
-            .long_form = long_form,
-            .short_form = short_form,
-            .default_value = default_value,
-            .required = required,
-            .repeatable = new_repeatable,
-            .help = help,
-            .validator = validator,
+            ._long_form = _long_form,
+            ._short_form = _short_form,
+            ._default_value = _default_value,
+            ._required = _required,
+            ._repeatable = new_repeatable,
+            ._help = _help,
+            ._validator = _validator,
         };
     }
 
     template <ValidatorObject Vx>
     consteval auto Validator(Vx new_validator) const -> FlagWithValue<Tag, N, M, Vx, DefaultType> {
         return FlagWithValue<Tag, N, M, Vx, DefaultType>{
-            .long_form = long_form,
-            .short_form = short_form,
-            .default_value = default_value,
-            .required = required,
-            .repeatable = repeatable,
-            .help = help,
-            .validator = new_validator,
+            ._long_form = _long_form,
+            ._short_form = _short_form,
+            ._default_value = _default_value,
+            ._required = _required,
+            ._repeatable = _repeatable,
+            ._help = _help,
+            ._validator = new_validator,
         };
     }
 };
@@ -360,77 +360,77 @@ template <
     ValidatorObject V = always_t>
 struct [[nodiscard]] Positional {
     /// A tag to indicate the target type (specify as `tag<target_type>`)
-    Typetag<P> type;
+    Typetag<P> _type;
     /// Optional name to be displayed int the help message
-    Str<N> name{};
+    Str<N> _name{};
     /// Optional help message
-    Str<M> help{};
+    Str<M> _help{};
     /// `true` if the flag is required (defaults to `false`)
-    bool required{};
+    bool _required{};
     /// If `true` the parsed value must be a `std::vector`. Successive values will be stored into
     /// the vecotor, e.g. `value_1 value_2 value_3` will be parsed into a unique vector of
     /// appropriately parsed values
-    bool variadic{};
+    bool _variadic{};
     /// A validator to apply to the parsed result (defaults to an infallible validator)
-    V validator{always};
+    V _validator{always};
 
     using value_t = P;
 
     template <std::size_t Nx>
     consteval auto Name(char const (&new_name)[Nx]) const -> Positional<P, Nx - 1, M, V> {
         return Positional<P, Nx - 1, M, V>{
-            .type = type,
-            .name = Str<Nx - 1>{new_name},
-            .help = help,
-            .required = required,
-            .variadic = variadic,
-            .validator = validator,
+            ._type = _type,
+            ._name = Str<Nx - 1>{new_name},
+            ._help = _help,
+            ._required = _required,
+            ._variadic = _variadic,
+            ._validator = _validator,
         };
     }
 
     template <std::size_t Mx>
     consteval auto Help(char const (&new_help)[Mx]) const -> Positional<P, N, Mx - 1, V> {
         return Positional<P, N, Mx - 1, V>{
-            .type = type,
-            .name = name,
-            .help = Str<Mx - 1>{new_help},
-            .required = required,
-            .variadic = variadic,
-            .validator = validator,
+            ._type = _type,
+            ._name = _name,
+            ._help = Str<Mx - 1>{new_help},
+            ._required = _required,
+            ._variadic = _variadic,
+            ._validator = _validator,
         };
     }
 
     consteval auto Required(bool new_required) const -> Positional<P, N, M, V> {
         return Positional<P, N, M, V>{
-            .type = type,
-            .name = name,
-            .help = help,
-            .required = new_required,
-            .variadic = variadic,
-            .validator = validator,
+            ._type = _type,
+            ._name = _name,
+            ._help = _help,
+            ._required = new_required,
+            ._variadic = _variadic,
+            ._validator = _validator,
         };
     }
 
     consteval auto Variadic(bool new_variadic) const -> Positional<P, N, M, V> {
         return Positional<P, N, M, V>{
-            .type = type,
-            .name = name,
-            .help = help,
-            .required = required,
-            .variadic = new_variadic,
-            .validator = validator,
+            ._type = _type,
+            ._name = _name,
+            ._help = _help,
+            ._required = _required,
+            ._variadic = new_variadic,
+            ._validator = _validator,
         };
     }
 
     template <ValidatorObject Vx>
     consteval auto Validator(Vx new_validator) const -> Positional<P, N, M, Vx> {
         return Positional<P, N, M, Vx>{
-            .type = type,
-            .name = name,
-            .help = help,
-            .required = required,
-            .variadic = variadic,
-            .validator = new_validator,
+            ._type = _type,
+            ._name = _name,
+            ._help = _help,
+            ._required = _required,
+            ._variadic = _variadic,
+            ._validator = new_validator,
         };
     }
 };
@@ -472,15 +472,15 @@ template <
     auto... Specs>
 struct [[nodiscard]] Subcommand {
     /// The name to parse
-    Str<N> name{};
+    Str<N> _name{};
     /// An optional help message
-    Str<M> help{};
+    Str<M> _help{};
     /// The set of rules (arguments) for this subcommand
-    Rules<Usage, Description, Specs...> rules{};
+    Rules<Usage, Description, Specs...> _rules{};
     /// `true` if this subcommand is invoked as a long flag
-    bool is_flag{};
+    bool _is_flag{};
     /// Arbitrary mutually exclusive groups
-    Me mutually_exclusive{};
+    Me _mutually_exclusive{};
 
     static_assert(
         detail::IsMutuallyExclusiveGroup<Me>::value,
@@ -493,11 +493,11 @@ struct [[nodiscard]] Subcommand {
     consteval auto Name(char const (&new_name)[Nx]) const
         -> Subcommand<Nx - 1, M, Usage, Description, Me, Specs...> {
         return Subcommand<Nx - 1, M, Usage, Description, Me, Specs...>{
-            .name = Str<Nx - 1>{new_name},
-            .help = help,
-            .rules = rules,
-            .is_flag = is_flag,
-            .mutually_exclusive = mutually_exclusive,
+            ._name = Str<Nx - 1>{new_name},
+            ._help = _help,
+            ._rules = _rules,
+            ._is_flag = _is_flag,
+            ._mutually_exclusive = _mutually_exclusive,
         };
     }
 
@@ -505,22 +505,22 @@ struct [[nodiscard]] Subcommand {
     consteval auto Help(char const (&new_help)[Mx]) const
         -> Subcommand<N, Mx - 1, Usage, Description, Me, Specs...> {
         return Subcommand<N, Mx - 1, Usage, Description, Me, Specs...>{
-            .name = name,
-            .help = Str<Mx - 1>{new_help},
-            .rules = rules,
-            .is_flag = is_flag,
-            .mutually_exclusive = mutually_exclusive,
+            ._name = _name,
+            ._help = Str<Mx - 1>{new_help},
+            ._rules = _rules,
+            ._is_flag = _is_flag,
+            ._mutually_exclusive = _mutually_exclusive,
         };
     }
 
     consteval auto IsFlag(bool new_is_flag) const
         -> Subcommand<N, M, Usage, Description, Me, Specs...> {
         return Subcommand<N, M, Usage, Description, Me, Specs...>{
-            .name = name,
-            .help = help,
-            .rules = rules,
-            .is_flag = new_is_flag,
-            .mutually_exclusive = mutually_exclusive,
+            ._name = _name,
+            ._help = _help,
+            ._rules = _rules,
+            ._is_flag = new_is_flag,
+            ._mutually_exclusive = _mutually_exclusive,
         };
     }
 
@@ -528,11 +528,11 @@ struct [[nodiscard]] Subcommand {
     consteval auto MutuallyExclusive(NewMe new_groups) const
         -> Subcommand<N, M, Usage, Description, NewMe, Specs...> {
         return Subcommand<N, M, Usage, Description, NewMe, Specs...>{
-            .name = name,
-            .help = help,
-            .rules = rules,
-            .is_flag = is_flag,
-            .mutually_exclusive = new_groups,
+            ._name = _name,
+            ._help = _help,
+            ._rules = _rules,
+            ._is_flag = _is_flag,
+            ._mutually_exclusive = new_groups,
         };
     }
 
@@ -541,11 +541,11 @@ struct [[nodiscard]] Subcommand {
     consteval auto WithRules(Rules<NewUsage, NewDescription, NewSpecs...> new_rules) const
         -> Subcommand<N, M, NewUsage, NewDescription, Me, NewSpecs...> {
         return Subcommand<N, M, NewUsage, NewDescription, Me, NewSpecs...>{
-            .name = name,
-            .help = help,
-            .rules = new_rules,
-            .is_flag = is_flag,
-            .mutually_exclusive = mutually_exclusive,
+            ._name = _name,
+            ._help = _help,
+            ._rules = new_rules,
+            ._is_flag = _is_flag,
+            ._mutually_exclusive = _mutually_exclusive,
         };
     }
 };
@@ -592,7 +592,7 @@ namespace detail {
 template <typename P>
 [[nodiscard]] consteval auto is_positional_variadic(P p) -> bool {
     if constexpr (IsPositional<P>::value) {
-        return p.variadic;
+        return p._variadic;
     } else {
         return false;
     }
@@ -600,8 +600,8 @@ template <typename P>
 
 template <auto S>
 [[nodiscard]] consteval auto is_repeatable() -> bool {
-    if constexpr (requires { S.repeatable; }) {
-        return S.repeatable;
+    if constexpr (requires { S._repeatable; }) {
+        return S._repeatable;
     } else {
         return false;
     }
@@ -666,12 +666,12 @@ namespace rule_assertions {
 template <auto S, auto... Ss>
 [[nodiscard]] consteval auto assert_valid_defaults() -> bool {
     if constexpr (HasValidator<S> && HasDefault<S> && Not<IsRequired<S>>) {
-        if constexpr (!std::is_invocable_v<decltype(S.default_value)>) {
-            if (!S.validator.fn(S.default_value)) {
+        if constexpr (!std::is_invocable_v<decltype(S._default_value)>) {
+            if (!S._validator.fn(S._default_value)) {
                 return false;
             }
         } else {
-            if (!S.validator.fn(S.default_value())) {
+            if (!S._validator.fn(S._default_value())) {
                 return false;
             }
         }
@@ -691,9 +691,9 @@ template <auto S>
 template <auto S>
 [[nodiscard]] consteval auto get_unique_name() -> std::string_view {
     if constexpr (is_subcommand_v<decltype(S)>) {
-        return S.name.as_string_view();
+        return S._name.as_string_view();
     } else if constexpr (FlagObject<S>) {
-        return S.long_form.as_string_view();
+        return S._long_form.as_string_view();
     } else {
         static_assert(false, "Invalid argument");
     }
@@ -708,8 +708,8 @@ template <auto S1, auto S2>
             return false;
         }
         if constexpr (FlagObject<S1> && FlagObject<S2>) {
-            return !S1.short_form.has_value || !S2.short_form.has_value
-                   || S1.short_form != S2.short_form;
+            return !S1._short_form.has_value || !S2._short_form.has_value
+                   || S1._short_form != S2._short_form;
         } else {
             return true;
         }
@@ -759,18 +759,18 @@ template <auto S, auto... Ss>
 template <auto S1, auto... Ss>
 [[nodiscard]] consteval auto check_valid_names() -> bool {
     if constexpr (is_subcommand_v<decltype(S1)>) {
-        if (!is_valid_name(S1.name.as_string_view())) {
+        if (!is_valid_name(S1._name.as_string_view())) {
             return false;
         }
     }
     if constexpr (FlagObject<S1>) {
-        if (!is_valid_name(S1.long_form.as_string_view())) {
+        if (!is_valid_name(S1._long_form.as_string_view())) {
             return false;
         }
-        if (!S1.short_form.has_value) {
+        if (!S1._short_form.has_value) {
             return true;
         }
-        if (!is_valid_first_char(S1.short_form.value)) {
+        if (!is_valid_first_char(S1._short_form.value)) {
             return false;
         }
     }
@@ -784,12 +784,12 @@ template <auto S1, auto... Ss>
 template <auto S1, auto... Ss>
 [[nodiscard]] consteval auto check_help_reserved() -> bool {
     if constexpr (is_subcommand_v<decltype(S1)>) {
-        if (S1.name.as_string_view() == help_str) {
+        if (S1._name.as_string_view() == help_str) {
             return false;
         }
     }
     if constexpr (FlagObject<S1>) {
-        if constexpr (S1.long_form.as_string_view() == help_str) {
+        if constexpr (S1._long_form.as_string_view() == help_str) {
             return false;
         }
     }
@@ -804,7 +804,7 @@ template <auto S1, auto... Ss>
 [[nodiscard]] consteval auto count_variadics() -> std::size_t {
     if constexpr (is_positional_v<decltype(S1)>) {
         if constexpr (sizeof...(Ss) > 0) {
-            return static_cast<std::size_t>(S1.variadic) + check_variadics<Ss...>();
+            return static_cast<std::size_t>(S1._variadic) + check_variadics<Ss...>();
         } else {
             return 0;
         }
@@ -846,7 +846,7 @@ template <auto... Ss>
 template <auto S>
 [[nodiscard]] consteval auto check_repeatable_is_vector_value() -> bool {
     if constexpr (is_flag_with_value_v<decltype(S)>) {
-        if constexpr (S.repeatable) {
+        if constexpr (S._repeatable) {
             return detail::is_vector_v<result_type_impl_t<typename decltype(S)::value_t>>;
         }
     }
@@ -889,8 +889,8 @@ template <auto S>
 [[nodiscard]] auto default_arg_value() {
     if constexpr (std::is_invocable_v<typename decltype(S)::value_t>) {
         return result_type_t<S>{};
-    } else if constexpr (requires { S.default_value; }) {
-        return S.default_value;
+    } else if constexpr (requires { S._default_value; }) {
+        return S._default_value;
     } else {
         // this is the case for positional arguments.
         return result_type_t<S>{};
@@ -919,37 +919,38 @@ auto build_help_data(
     if constexpr (is_positional_v<s_t>) {
         positional.push_back(
             PositionalHelp{
-                .name = S.name.as_string_view(),
-                .description = S.help.as_string_view(),
-                .is_required = S.required});
+                .name = S._name.as_string_view(),
+                .description = S._help.as_string_view(),
+                .is_required = S._required});
     } else if constexpr (is_flag_v<s_t>) {
         auto const short_name =
-            S.short_form.has_value ? std::optional{S.short_form.value} : std::optional<char>{};
+            S._short_form.has_value ? std::optional{S._short_form.value} : std::optional<char>{};
         pure_flags.push_back(
             FlagHelp{
                 .short_name = short_name,
-                .long_name = S.long_form.as_string_view(),
-                .description = S.help.as_string_view(),
-                .is_required = S.required});
+                .long_name = S._long_form.as_string_view(),
+                .description = S._help.as_string_view(),
+                .is_required = S._required});
     } else if constexpr (is_flag_with_value_v<s_t>) {
         auto const short_name =
-            S.short_form.has_value ? std::optional{S.short_form.value} : std::optional<char>{};
+            S._short_form.has_value ? std::optional{S._short_form.value} : std::optional<char>{};
         flags_with_value.push_back(
             FlagHelp{
                 .short_name = short_name,
-                .long_name = S.long_form.as_string_view(),
-                .description = S.help.as_string_view(),
-                .is_required = S.required});
+                .long_name = S._long_form.as_string_view(),
+                .description = S._help.as_string_view(),
+                .is_required = S._required});
     } else if constexpr (is_subcommand_v<s_t>) {
-        if (S.is_flag) {
+        if (S._is_flag) {
             pure_flags.push_back(
                 FlagHelp{
-                    .long_name = S.name.as_string_view(), .description = S.help.as_string_view()});
+                    .long_name = S._name.as_string_view(),
+                    .description = S._help.as_string_view()});
 
         } else {
             positional.push_back(
                 PositionalHelp{
-                    .name = S.name.as_string_view(), .description = S.help.as_string_view()});
+                    .name = S._name.as_string_view(), .description = S._help.as_string_view()});
         }
     } else {
         static_assert(false, "Invalid spec");
@@ -1206,10 +1207,10 @@ private:
 namespace detail {
 template <auto S>
 concept ShortFlagObject =
-    S.short_form.has_value && is_flag_v<decltype(S)> && !is_flag_with_value_v<decltype(S)>;
+    S._short_form.has_value && is_flag_v<decltype(S)> && !is_flag_with_value_v<decltype(S)>;
 
 template <auto S>
-concept ShortFlagWithValueObject = S.short_form.has_value && is_flag_with_value_v<decltype(S)>;
+concept ShortFlagWithValueObject = S._short_form.has_value && is_flag_with_value_v<decltype(S)>;
 
 template <auto S>
 concept LongFlagObject = is_flag_v<decltype(S)> && !is_flag_with_value_v<decltype(S)>;
@@ -1235,7 +1236,7 @@ template <auto... Specs>
         if constexpr (is_positional_v<decltype(S)>) {
             ++position_count;
             if (position_count == nth) {
-                return S.name.as_string_view();
+                return S._name.as_string_view();
             }
         }
     }

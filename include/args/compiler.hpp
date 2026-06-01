@@ -129,7 +129,7 @@ public:
         auto const handler = [short_flag]<auto S>(ArgValue<S> &item)
                                  requires args::detail::ShortFlagObject<S>
         {
-            if (item.spec.short_form.value != short_flag.flag) {
+            if (item.spec._short_form.value != short_flag.flag) {
                 return false;
             }
             item.is_used = true;
@@ -143,7 +143,7 @@ public:
         auto const handler_with_value = [this, short_flag]<auto S>(ArgValue<S> &item)
                                             requires args::detail::ShortFlagWithValueObject<S>
         {
-            if (item.spec.short_form.value != short_flag.flag) {
+            if (item.spec._short_form.value != short_flag.flag) {
                 return false;
             }
             m_compiler_state = ParsingShortFlag{.short_flag = short_flag};
@@ -164,9 +164,9 @@ public:
         auto error = std::optional<std::string>{};
         auto const subcommand_handler =
             [this, &error, long_flag]<auto S>(ArgValue<S> &item, std::size_t tuple_index)
-                requires(args::detail::SubcommandObject<S> && S.is_flag)
+                requires(args::detail::SubcommandObject<S> && S._is_flag)
         {
-            if (item.spec.name.as_string_view() != long_flag.flag) {
+            if (item.spec._name.as_string_view() != long_flag.flag) {
                 return false;
             }
             if (long_flag.has_equal) {
@@ -202,7 +202,7 @@ public:
         auto const handler = [this, long_flag]<auto S>(ArgValue<S> &item)
                                  requires args::detail::LongFlagObject<S>
         {
-            if (item.spec.long_form.as_string_view() != long_flag.flag) {
+            if (item.spec._long_form.as_string_view() != long_flag.flag) {
                 return false;
             }
             item.is_used = true;
@@ -216,7 +216,7 @@ public:
         auto const handler_with_value = [this, long_flag]<auto S>(ArgValue<S> &item)
                                             requires args::detail::LongFlagWithValueObject<S>
         {
-            if (item.spec.long_form.as_string_view() != long_flag.flag) {
+            if (item.spec._long_form.as_string_view() != long_flag.flag) {
                 return false;
             }
             m_compiler_state = ParsingLongFlag{.long_flag = long_flag};
@@ -272,8 +272,8 @@ public:
             using arg_value_t = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
             if constexpr (is_subcommand_v<decltype(arg_value_t::spec)>) {
                 auto &subcommand = std::get<Is>(results);
-                auto subcommand_result =
-                    compiler(tokens, arg_value_t::spec.rules, arg_value_t::spec.mutually_exclusive);
+                auto subcommand_result = compiler(
+                    tokens, arg_value_t::spec._rules, arg_value_t::spec._mutually_exclusive);
                 if (has_args(subcommand_result)) {
                     subcommand.subcommands = get_args(std::move(subcommand_result));
                 } else if (has_error(subcommand_result)) {
@@ -322,7 +322,7 @@ private:
             if constexpr (
                 !is_positional_variadic_v<S> && !is_repeatable_v<S>
                 && args::detail::HasValidator<S>) {
-                auto validation = S.validator(parsed_value.value());
+                auto validation = S._validator(parsed_value.value());
                 if (!validation.has_value()) {
                     error = std::move(validation).error();
                     return;
@@ -349,7 +349,7 @@ private:
             auto const positional_handler = [&, counter = 0uz]<auto S>(ArgValue<S> &item) mutable
                 requires args::detail::PositionalObject<S>
             {
-                if constexpr (!S.variadic) {
+                if constexpr (!S._variadic) {
                     if (counter != m_current_positional_index) {
                         ++counter;
                         return false;
@@ -372,7 +372,7 @@ private:
                 if (error.has_value()) {
                     return false;
                 }
-                if (cloned_item.value != S.name.as_string_view()) {
+                if (cloned_item.value != S._name.as_string_view()) {
                     return false;
                 }
                 item = std::move(cloned_item);
@@ -405,7 +405,7 @@ private:
             auto const handler = [&]<auto S>(ArgValue<S> &item)
                                      requires args::detail::ShortFlagWithValueObject<S>
             {
-                if (item.spec.short_form.value != short_flag_state.short_flag.flag) {
+                if (item.spec._short_form.value != short_flag_state.short_flag.flag) {
                     return false;
                 }
                 parse_and_validate_argument(argument, item, error);
@@ -430,7 +430,7 @@ private:
                                      requires args::detail::LongFlagWithValueObject<S>
 
             {
-                if (item.spec.long_form.as_string_view() != long_flag_state.long_flag.flag) {
+                if (item.spec._long_form.as_string_view() != long_flag_state.long_flag.flag) {
                     return false;
                 }
 
@@ -469,20 +469,20 @@ template <auto... Specs>
         if constexpr (!is_subcommand_v<decltype(arg_type_t::spec)>) {
             if constexpr (is_positional_v<decltype(arg_type_t::spec)>) {
                 ++positional_argument_count;
-                if (!r.is_used && arg_type_t::spec.required) {
+                if (!r.is_used && arg_type_t::spec._required) {
                     v.push_back(
                         std::format(
                             "Missing positional argument number {}", positional_argument_count));
                 }
             } else if constexpr (args::detail::FlagObject<arg_type_t::spec>) {
-                if constexpr (arg_type_t::spec.required) {
+                if constexpr (arg_type_t::spec._required) {
                     if (!r.is_used) {
                         auto err = std::format(
                             "Missing required flag. Long form: '{}'.",
-                            arg_type_t::spec.long_form.as_string_view());
-                        if (arg_type_t::spec.short_form.has_value) {
+                            arg_type_t::spec._long_form.as_string_view());
+                        if (arg_type_t::spec._short_form.has_value) {
                             err += std::format(
-                                " Short form: '{}'.", arg_type_t::spec.short_form.value);
+                                " Short form: '{}'.", arg_type_t::spec._short_form.value);
                         }
                         v.push_back(std::move(err));
                     }
@@ -504,7 +504,7 @@ auto assign_defaults_to_unused(std::tuple<ArgValue<Specs>...> &results) -> void 
         using S_t = decltype(arg_type_t::spec);
         if constexpr (is_flag_with_value_v<S_t> && std::is_invocable_v<typename S_t::value_t>) {
             if (!r.is_used) {
-                r.value = arg_type_t::spec.default_value();
+                r.value = arg_type_t::spec._default_value();
             }
         }
     }
@@ -520,7 +520,7 @@ template <auto... Specs>
             args::detail::is_positional_variadic_v<arg_type_t::spec>
             || args::detail::is_repeatable_v<arg_type_t::spec>) {
             if (r.is_used) {
-                auto res = arg_type_t::spec.validator(r.value);
+                auto res = arg_type_t::spec._validator(r.value);
                 if (!res.has_value()) {
                     validation_errors.push_back(std::move(res).error());
                 }
