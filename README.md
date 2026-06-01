@@ -21,9 +21,7 @@ To use the library define a set of constexpr objects for the expected command ar
 For example for a simple flag one gets:
 
 ```cpp
-static constexpr auto verbose = args::Flag{
-    .long_form = "verbose"_flag
-};
+static constexpr auto verbose = args::flag().Long("verbose");
 
 auto const options = args::options<verbose>;
 
@@ -44,6 +42,8 @@ All commands live inside the `args` namespace. They are just plain structs with 
 - `Positional`: nameless position argument.
 - `Subcommand`: defines a nested set of commands. It can be a flag (`--version`) or just a positional (`version`). It supports its own internal set of options and mutually exclusive groups. Subcommands can also be arbitrarily nested.
 
+All the commands have a `function constructor + fluent interface` to build them. See the examples for the complete API.
+
 Once the set of possible commands is defined they need to be gathered into a `options` object: `args::options<cmd1, cmd2, ...>`. `options` performs several checks at compile-time, some of them are:
 
 - duplicate names
@@ -56,12 +56,10 @@ Once the set of possible commands is defined they need to be gathered into a `op
 Most commands (even the non-optional ones) must have a default value. Because everything is computed at compile-time, all defaults need to be trivial types. For non-trivial types (strings, vectors and others), a lambda may be used. For example for a flag parsing a vector of integers one can write:
 
 ```cpp
-static constexpr auto vec = args::FlagWithValue{
-    .long_form = "a-vector"_flag,
-    .default_value = [] { return std::vector<int>{}; }};
+static constexpr auto vec = args::flag_with_value<std::vector<int>>()
+                            .Long("a-vector")
+                            .Default([] { return std::vector<int>{1, 2}; }); // You need a default only if it is different from the default provided by the tpe itself.
 ```
-
-Exceptions are `Positional` that just needs a `.type = args::tag<the_type>` for deducing the type and `Subcommand` that actually does not really have a value on its own.
 
 The library understands that the lambda is there for the sole purpose of allowing a non trivial type as default.
 
@@ -123,10 +121,9 @@ Validators can be composed in several way. Custom validators are supported.
 Restricting a incoming `std::string_view` argument to a length bounds constraints between 1 and 50 characters:
 
 ```cpp
-static constexpr auto name = args::FlagWithValue{
-    .long_form = "name"_flag,
-    .default_value = [] { return std::string_view{""}; },
-    .validator = args::Pipe<args::len, args::inclusive_range<1, 50>>};
+static constexpr auto name = args::flag_with_value<std::string_view>()
+                            .Long("name")
+                            .Validator(args::Pipe<args::len, args::inclusive_range<1, 50>>);
 ```
 
 ## Custom parsers
