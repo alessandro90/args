@@ -170,9 +170,9 @@ struct [[nodiscard]] Flag {
     using value_t = bool;
 
     template <std::size_t Nx>
-    consteval auto Long(char const (&new_long_form)[Nx]) const -> Flag<Nx - 1, M> {
+    consteval auto Long(char const (&long_form)[Nx]) const -> Flag<Nx - 1, M> {
         return Flag<Nx - 1, M>{
-            ._long_form = Str<Nx - 1>{new_long_form},
+            ._long_form = Str<Nx - 1>{long_form},
             ._short_form = _short_form,
             ._default_value = _default_value,
             ._required = _required,
@@ -181,42 +181,42 @@ struct [[nodiscard]] Flag {
     }
 
     template <std::size_t Mx>
-    consteval auto Help(char const (&new_help)[Mx]) const -> Flag<N, Mx - 1> {
+    consteval auto Help(char const (&help)[Mx]) const -> Flag<N, Mx - 1> {
         return Flag<N, Mx - 1>{
             ._long_form = _long_form,
             ._short_form = _short_form,
             ._default_value = _default_value,
             ._required = _required,
-            ._help = Str<Mx - 1>{new_help},
+            ._help = Str<Mx - 1>{help},
         };
     }
 
-    consteval auto Short(char new_short_form) const -> Flag<N, M> {
+    consteval auto Short(char short_form) const -> Flag<N, M> {
         return Flag<N, M>{
             ._long_form = _long_form,
-            ._short_form = Opt<char>::with(new_short_form),
+            ._short_form = Opt<char>::with(short_form),
             ._default_value = _default_value,
             ._required = _required,
             ._help = _help,
         };
     }
 
-    consteval auto Default(bool new_default_value) const -> Flag<N, M> {
+    consteval auto Default(bool default_value) const -> Flag<N, M> {
         return Flag<N, M>{
             ._long_form = _long_form,
             ._short_form = _short_form,
-            ._default_value = new_default_value,
+            ._default_value = default_value,
             ._required = _required,
             ._help = _help,
         };
     }
 
-    consteval auto Required(bool new_required) const -> Flag<N, M> {
+    consteval auto Required(bool required) const -> Flag<N, M> {
         return Flag<N, M>{
             ._long_form = _long_form,
             ._short_form = _short_form,
             ._default_value = _default_value,
-            ._required = new_required,
+            ._required = required,
             ._help = _help,
         };
     }
@@ -253,10 +253,10 @@ struct [[nodiscard]] FlagWithValue {
     using value_t = detail::tag_to_default_type_t<Tag>;
 
     template <std::size_t Nx>
-    consteval auto Long(char const (&new_long_form)[Nx]) const
+    consteval auto Long(char const (&long_form)[Nx]) const
         -> FlagWithValue<Tag, Nx - 1, M, V, DefaultType> {
         return FlagWithValue<Tag, Nx - 1, M, V, DefaultType>{
-            ._long_form = Str<Nx - 1>{new_long_form},
+            ._long_form = Str<Nx - 1>{long_form},
             ._short_form = _short_form,
             ._default_value = _default_value,
             ._required = _required,
@@ -267,7 +267,7 @@ struct [[nodiscard]] FlagWithValue {
     }
 
     template <std::size_t Mx>
-    consteval auto Help(char const (&new_help)[Mx]) const
+    consteval auto Help(char const (&help)[Mx]) const
         -> FlagWithValue<Tag, N, Mx - 1, V, DefaultType> {
         return FlagWithValue<Tag, N, Mx - 1, V, DefaultType>{
             ._long_form = _long_form,
@@ -275,15 +275,15 @@ struct [[nodiscard]] FlagWithValue {
             ._default_value = _default_value,
             ._required = _required,
             ._repeatable = _repeatable,
-            ._help = new_help,
+            ._help = help,
             ._validator = _validator,
         };
     }
 
-    consteval auto Short(char new_short_form) const -> FlagWithValue<Tag, N, M, V, DefaultType> {
+    consteval auto Short(char short_form) const -> FlagWithValue<Tag, N, M, V, DefaultType> {
         return FlagWithValue<Tag, N, M, V, DefaultType>{
             ._long_form = _long_form,
-            ._short_form = Opt<char>::with(new_short_form),
+            ._short_form = Opt<char>::with(short_form),
             ._default_value = _default_value,
             ._required = _required,
             ._repeatable = _repeatable,
@@ -293,14 +293,14 @@ struct [[nodiscard]] FlagWithValue {
     }
 
     template <Trivial D>
-    consteval auto Default(D new_default_value) const
+    consteval auto Default(D default_value) const
         -> FlagWithValue<detail::result_type_impl_t<D>, N, M, V, D>
         requires std::same_as<detail::result_type_impl_t<D>, Tag>
     {
         return FlagWithValue<detail::result_type_impl_t<D>, N, M, V, D>{
             ._long_form = _long_form,
             ._short_form = _short_form,
-            ._default_value = new_default_value,
+            ._default_value = default_value,
             ._required = _required,
             ._repeatable = _repeatable,
             ._help = _help,
@@ -308,33 +308,32 @@ struct [[nodiscard]] FlagWithValue {
         };
     }
 
-    consteval auto Required(bool new_required) const -> FlagWithValue<Tag, N, M, V, DefaultType> {
+    consteval auto Required(bool required) const -> FlagWithValue<Tag, N, M, V, DefaultType> {
         return FlagWithValue<Tag, N, M, V, DefaultType>{
             ._long_form = _long_form,
             ._short_form = _short_form,
             ._default_value = _default_value,
-            ._required = new_required,
+            ._required = required,
             ._repeatable = _repeatable,
             ._help = _help,
             ._validator = _validator,
         };
     }
 
-    consteval auto Repeatable(bool new_repeatable) const
-        -> FlagWithValue<Tag, N, M, V, DefaultType> {
+    consteval auto Repeatable(bool repeatable) const -> FlagWithValue<Tag, N, M, V, DefaultType> {
         return FlagWithValue<Tag, N, M, V, DefaultType>{
             ._long_form = _long_form,
             ._short_form = _short_form,
             ._default_value = _default_value,
             ._required = _required,
-            ._repeatable = new_repeatable,
+            ._repeatable = repeatable,
             ._help = _help,
             ._validator = _validator,
         };
     }
 
     template <ValidatorObject Vx>
-    consteval auto Validator(Vx new_validator) const -> FlagWithValue<Tag, N, M, Vx, DefaultType> {
+    consteval auto Validator(Vx validator) const -> FlagWithValue<Tag, N, M, Vx, DefaultType> {
         return FlagWithValue<Tag, N, M, Vx, DefaultType>{
             ._long_form = _long_form,
             ._short_form = _short_form,
@@ -342,7 +341,7 @@ struct [[nodiscard]] FlagWithValue {
             ._required = _required,
             ._repeatable = _repeatable,
             ._help = _help,
-            ._validator = new_validator,
+            ._validator = validator,
         };
     }
 };
@@ -377,10 +376,10 @@ struct [[nodiscard]] Positional {
     using value_t = P;
 
     template <std::size_t Nx>
-    consteval auto Name(char const (&new_name)[Nx]) const -> Positional<P, Nx - 1, M, V> {
+    consteval auto Name(char const (&name)[Nx]) const -> Positional<P, Nx - 1, M, V> {
         return Positional<P, Nx - 1, M, V>{
             ._type = _type,
-            ._name = Str<Nx - 1>{new_name},
+            ._name = Str<Nx - 1>{name},
             ._help = _help,
             ._required = _required,
             ._variadic = _variadic,
@@ -389,48 +388,48 @@ struct [[nodiscard]] Positional {
     }
 
     template <std::size_t Mx>
-    consteval auto Help(char const (&new_help)[Mx]) const -> Positional<P, N, Mx - 1, V> {
+    consteval auto Help(char const (&help)[Mx]) const -> Positional<P, N, Mx - 1, V> {
         return Positional<P, N, Mx - 1, V>{
             ._type = _type,
             ._name = _name,
-            ._help = Str<Mx - 1>{new_help},
+            ._help = Str<Mx - 1>{help},
             ._required = _required,
             ._variadic = _variadic,
             ._validator = _validator,
         };
     }
 
-    consteval auto Required(bool new_required) const -> Positional<P, N, M, V> {
+    consteval auto Required(bool required) const -> Positional<P, N, M, V> {
         return Positional<P, N, M, V>{
             ._type = _type,
             ._name = _name,
             ._help = _help,
-            ._required = new_required,
+            ._required = required,
             ._variadic = _variadic,
             ._validator = _validator,
         };
     }
 
-    consteval auto Variadic(bool new_variadic) const -> Positional<P, N, M, V> {
+    consteval auto Variadic(bool variadic) const -> Positional<P, N, M, V> {
         return Positional<P, N, M, V>{
             ._type = _type,
             ._name = _name,
             ._help = _help,
             ._required = _required,
-            ._variadic = new_variadic,
+            ._variadic = variadic,
             ._validator = _validator,
         };
     }
 
     template <ValidatorObject Vx>
-    consteval auto Validator(Vx new_validator) const -> Positional<P, N, M, Vx> {
+    consteval auto Validator(Vx validator) const -> Positional<P, N, M, Vx> {
         return Positional<P, N, M, Vx>{
             ._type = _type,
             ._name = _name,
             ._help = _help,
             ._required = _required,
             ._variadic = _variadic,
-            ._validator = new_validator,
+            ._validator = validator,
         };
     }
 };
@@ -440,8 +439,8 @@ consteval auto positional() -> Positional<T, 0, 0, always_t> {
     return Positional<T, 0, 0, always_t>{};
 }
 
-template <Str Usage, Str Description, auto... Specs>
-struct [[nodiscard]] Rules;
+template <Str Usage, Str Description, auto... Ops>
+struct [[nodiscard]] Options;
 
 template <auto... Ss>
 struct [[nodiscard]] MutuallyExclusive {
@@ -462,21 +461,21 @@ struct IsMutuallyExclusiveGroup<MutuallyExclusiveGroups<Gg...>>: std::true_type 
 
 /// A subcommand descriptor
 ///
-/// A subcommand can only be the first argument of a set of rules
+/// A subcommand can only be the first argument of a set of options
 template <
     std::size_t N,
     std::size_t M = 0,
     Str Usage = empty,
     Str Description = empty,
     typename Me = MutuallyExclusiveGroups<>,
-    auto... Specs>
+    auto... Ops>
 struct [[nodiscard]] Subcommand {
     /// The name to parse
     Str<N> _name{};
     /// An optional help message
     Str<M> _help{};
-    /// The set of rules (arguments) for this subcommand
-    Rules<Usage, Description, Specs...> _rules{};
+    /// The set of options (arguments) for this subcommand
+    Options<Usage, Description, Ops...> _options{};
     /// `true` if this subcommand is invoked as a long flag
     bool _is_flag{};
     /// Arbitrary mutually exclusive groups
@@ -490,60 +489,59 @@ struct [[nodiscard]] Subcommand {
     using value_t = std::string_view;
 
     template <std::size_t Nx>
-    consteval auto Name(char const (&new_name)[Nx]) const
-        -> Subcommand<Nx - 1, M, Usage, Description, Me, Specs...> {
-        return Subcommand<Nx - 1, M, Usage, Description, Me, Specs...>{
-            ._name = Str<Nx - 1>{new_name},
+    consteval auto Name(char const (&name)[Nx]) const
+        -> Subcommand<Nx - 1, M, Usage, Description, Me, Ops...> {
+        return Subcommand<Nx - 1, M, Usage, Description, Me, Ops...>{
+            ._name = Str<Nx - 1>{name},
             ._help = _help,
-            ._rules = _rules,
+            ._options = _options,
             ._is_flag = _is_flag,
             ._mutually_exclusive = _mutually_exclusive,
         };
     }
 
     template <std::size_t Mx>
-    consteval auto Help(char const (&new_help)[Mx]) const
-        -> Subcommand<N, Mx - 1, Usage, Description, Me, Specs...> {
-        return Subcommand<N, Mx - 1, Usage, Description, Me, Specs...>{
+    consteval auto Help(char const (&help)[Mx]) const
+        -> Subcommand<N, Mx - 1, Usage, Description, Me, Ops...> {
+        return Subcommand<N, Mx - 1, Usage, Description, Me, Ops...>{
             ._name = _name,
-            ._help = Str<Mx - 1>{new_help},
-            ._rules = _rules,
+            ._help = Str<Mx - 1>{help},
+            ._options = _options,
             ._is_flag = _is_flag,
             ._mutually_exclusive = _mutually_exclusive,
         };
     }
 
-    consteval auto IsFlag(bool new_is_flag) const
-        -> Subcommand<N, M, Usage, Description, Me, Specs...> {
-        return Subcommand<N, M, Usage, Description, Me, Specs...>{
+    consteval auto Flag(bool is_flag) const -> Subcommand<N, M, Usage, Description, Me, Ops...> {
+        return Subcommand<N, M, Usage, Description, Me, Ops...>{
             ._name = _name,
             ._help = _help,
-            ._rules = _rules,
-            ._is_flag = new_is_flag,
+            ._options = _options,
+            ._is_flag = is_flag,
             ._mutually_exclusive = _mutually_exclusive,
         };
     }
 
     template <typename NewMe>
-    consteval auto MutuallyExclusive(NewMe new_groups) const
-        -> Subcommand<N, M, Usage, Description, NewMe, Specs...> {
-        return Subcommand<N, M, Usage, Description, NewMe, Specs...>{
+    consteval auto MutuallyExclusive(NewMe groups) const
+        -> Subcommand<N, M, Usage, Description, NewMe, Ops...> {
+        return Subcommand<N, M, Usage, Description, NewMe, Ops...>{
             ._name = _name,
             ._help = _help,
-            ._rules = _rules,
+            ._options = _options,
             ._is_flag = _is_flag,
-            ._mutually_exclusive = new_groups,
+            ._mutually_exclusive = groups,
         };
     }
 
-    /// Update the rules layout, altering the structural type properties of the Subcommand
+    /// Update the options layout, altering the structural type properties of the Subcommand
     template <Str NewUsage, Str NewDescription, auto... NewSpecs>
-    consteval auto WithRules(Rules<NewUsage, NewDescription, NewSpecs...> new_rules) const
+    consteval auto Opts(Options<NewUsage, NewDescription, NewSpecs...> opts) const
         -> Subcommand<N, M, NewUsage, NewDescription, Me, NewSpecs...> {
         return Subcommand<N, M, NewUsage, NewDescription, Me, NewSpecs...>{
             ._name = _name,
             ._help = _help,
-            ._rules = new_rules,
+            ._options = opts,
             ._is_flag = _is_flag,
             ._mutually_exclusive = _mutually_exclusive,
         };
@@ -580,8 +578,8 @@ inline constexpr bool is_flag_with_value_v = IsFlagWithValue<std::remove_cvref_t
 template <typename>
 struct IsSubcommand: std::false_type {};
 
-template <std::size_t N, std::size_t M, Str Usage, Str Description, typename Me, auto... Specs>
-struct IsSubcommand<Subcommand<N, M, Usage, Description, Me, Specs...>>: std::true_type {};
+template <std::size_t N, std::size_t M, Str Usage, Str Description, typename Me, auto... Ops>
+struct IsSubcommand<Subcommand<N, M, Usage, Description, Me, Ops...>>: std::true_type {};
 
 template <typename S>
 inline constexpr bool is_subcommand_v = IsSubcommand<std::remove_cvref_t<S>>::value;
@@ -862,23 +860,22 @@ template <auto S, auto... Ss>
     }
 }
 
-template <auto... Specs>
+template <auto... Ops>
 struct CheckRules {
-    static_assert(check_all_different_names<Specs...>(), "All flags must have unique identifiers");
+    static_assert(check_all_different_names<Ops...>(), "All flags must have unique identifiers");
     static_assert(
-        check_valid_names<Specs...>(),
+        check_valid_names<Ops...>(),
         "All flags must begin with a letter, both long and short forms");
-    static_assert(check_help_reserved<Specs...>(), "'help' is a reserved flag name");
-    static_assert(detail::check_variadics<Specs...>(), "Variadics positionals must be vector<T>");
+    static_assert(check_help_reserved<Ops...>(), "'help' is a reserved flag name");
+    static_assert(detail::check_variadics<Ops...>(), "Variadics positionals must be vector<T>");
     static_assert(
-        count_variadics<Specs...>() <= 1, "You can set at most 1 variadic positional argument");
+        count_variadics<Ops...>() <= 1, "You can set at most 1 variadic positional argument");
     static_assert(
-        check_variadic_is_last_positional<Specs...>(),
+        check_variadic_is_last_positional<Ops...>(),
         "Positional variadic argument must be the last positional argument because it consumes all "
         "positionals");
-    static_assert(assert_valid_defaults<Specs...>(), "Invalid default for specification");
-    static_assert(
-        check_repeatable_is_vector<Specs...>(), "Only vector flags can be made repeatable");
+    static_assert(assert_valid_defaults<Ops...>(), "Invalid default for specification");
+    static_assert(check_repeatable_is_vector<Ops...>(), "Only vector flags can be made repeatable");
 };
 
 template <>
@@ -953,29 +950,29 @@ auto build_help_data(
                     .name = S._name.as_string_view(), .description = S._help.as_string_view()});
         }
     } else {
-        static_assert(false, "Invalid spec");
+        static_assert(false, "Invalid option");
     }
 }
 
-template <auto S1, auto S2, auto... Specs>
+template <auto S1, auto S2, auto... Ops>
 auto build_help_data(
     std::vector<PositionalHelp> &positional,
     std::vector<FlagHelp> &pure_flags,
     std::vector<FlagHelp> &flags_with_value) -> void {
     build_help_data<S1>(positional, pure_flags, flags_with_value);
-    build_help_data<S2, Specs...>(positional, pure_flags, flags_with_value);
+    build_help_data<S2, Ops...>(positional, pure_flags, flags_with_value);
 }
 
 auto build_positionals_help(std::string &help, std::vector<PositionalHelp> &positional) -> void;
 auto build_flags_help(std::string &help, std::vector<FlagHelp> &flags) -> void;
 
-template <Str Usage, Str Description, auto... Specs>
+template <Str Usage, Str Description, auto... Ops>
 [[nodiscard]] static auto make_help() -> std::string {
     std::vector<PositionalHelp> positional{};
     std::vector<FlagHelp> pure_flags{};
     std::vector<FlagHelp> flags_with_value{};
 
-    build_help_data<Specs...>(positional, pure_flags, flags_with_value);
+    build_help_data<Ops...>(positional, pure_flags, flags_with_value);
 
     auto help = std::string{};
 
@@ -1022,33 +1019,33 @@ struct DummyBase {};
 /// A 'Usage' `Str` and a 'Description' `Str` must be provided (use `empty` to avoid writing them)
 ///
 /// Provides a static member function `help` with the automatically generated help message
-template <Str Usage, Str Description, auto... Specs>
-struct [[nodiscard]] Rules {
+template <Str Usage, Str Description, auto... Ops>
+struct [[nodiscard]] Options {
     [[nodiscard]] static auto help() -> std::string_view {
-        static auto help_msg = detail::make_help<Usage, Description, Specs...>();
+        static auto help_msg = detail::make_help<Usage, Description, Ops...>();
         return std::string_view{help_msg};
     }
 
 private:
-    static constexpr detail::rule_assertions::CheckRules<Specs...> rule_checker{};
+    static constexpr detail::rule_assertions::CheckRules<Ops...> rule_checker{};
 };
 
 consteval auto subcommand() -> Subcommand<0, 0, empty, empty, MutuallyExclusiveGroups<>> {
     return Subcommand<0, 0, empty, empty, MutuallyExclusiveGroups<>>{};
 }
 
-template <Str Usage, Str Description, auto... Specs>
-constexpr auto rules = Rules<Usage, Description, Specs...>{};
+template <Str Usage, Str Description, auto... Ops>
+constexpr auto options = Options<Usage, Description, Ops...>{};
 
 template <auto S>
 struct [[nodiscard]] CommandArgValue
     : std::conditional_t<is_flag_v<decltype(S)>, detail::WithCount, detail::DummyBase> {
     detail::result_type_t<S> value{detail::default_arg_value<S>()};
     bool is_used{false};
-    static constexpr auto spec = S;
+    static constexpr auto option = S;
 };
 
-template <auto... Specs>
+template <auto... Ops>
 class [[nodiscard]] Args;
 
 template <typename>
@@ -1056,9 +1053,9 @@ struct ArgsFromSubCommand {
     static_assert(false, "Not a subcommand");
 };
 
-template <std::size_t N, std::size_t M, Str Usage, Str Description, typename Me, auto... Specs>
-struct ArgsFromSubCommand<Subcommand<N, M, Usage, Description, Me, Specs...>> {
-    using args_t = Args<Specs...>;
+template <std::size_t N, std::size_t M, Str Usage, Str Description, typename Me, auto... Ops>
+struct ArgsFromSubCommand<Subcommand<N, M, Usage, Description, Me, Ops...>> {
+    using args_t = Args<Ops...>;
 };
 
 template <auto S>
@@ -1066,7 +1063,7 @@ struct [[nodiscard]] SubcommandArgValue {
     detail::result_type_t<S> value{detail::default_arg_value<S>()};
     bool is_used{false};
     ArgsFromSubCommand<decltype(S)>::args_t subcommands{};
-    static constexpr auto spec = S;
+    static constexpr auto option = S;
 };
 
 /// The data associated with each parsed command
@@ -1123,7 +1120,7 @@ template <auto S, auto... Ss>
 
 template <auto... Rs, auto... Ss>
 [[nodiscard]] consteval auto are_valid_mutually_exclusive_flags(
-    Rules<Rs...>, MutuallyExclusive<Ss...>) -> bool {
+    Options<Rs...>, MutuallyExclusive<Ss...>) -> bool {
     if constexpr (sizeof...(Ss) > sizeof...(Rs)) {
         return false;
     }
@@ -1133,14 +1130,14 @@ template <auto... Rs, auto... Ss>
 
 template <auto... Rs, auto... Ss>
 [[nodiscard]] consteval auto are_valid_mutually_exclusive_groups(
-    Rules<Rs...> rules, MutuallyExclusiveGroups<Ss...>) -> bool {
+    Options<Rs...> opts, MutuallyExclusiveGroups<Ss...>) -> bool {
     // This 'if' is not needed, but on gcc 16.1.1 it removes a warning
-    // for 'rules' being unused
+    // for 'options' being unused
     if constexpr (sizeof...(Ss) == 0) {
-        static_cast<void>(rules);
+        static_cast<void>(opts);
         return true;
     } else {
-        return (... && are_valid_mutually_exclusive_flags(rules, Ss));
+        return (... && are_valid_mutually_exclusive_flags(opts, Ss));
     }
 }
 }  // namespace detail
@@ -1157,10 +1154,10 @@ template <auto... Rs, auto... Ss>
 /// For accessing a value `d` of a subcommand `sb` use `args.get<sb, d>()` or
 /// `args.get_with_info<sb, d>()`. Both functions are variadic in the sense that they can take an
 /// arbitrary number of subcommands and a final descriptor, e.g. `args.get<sb_0, sb_1, sb_2, d>()`
-template <auto... Specs>
+template <auto... Ops>
 class [[nodiscard]] Args {
 public:
-    explicit Args(std::tuple<ArgValue<Specs>...> results)
+    explicit Args(std::tuple<ArgValue<Ops>...> results)
         : m_results{std::move(results)} {}
 
     explicit Args() = default;
@@ -1201,7 +1198,7 @@ public:
     }
 
 private:
-    std::tuple<ArgValue<Specs>...> m_results{};
+    std::tuple<ArgValue<Ops>...> m_results{};
 };
 
 namespace detail {
@@ -1229,10 +1226,10 @@ template <auto S>
     return S;
 }
 
-template <auto... Specs>
+template <auto... Ops>
 [[nodiscard]] auto nth_positional_argument_name(std::size_t nth) -> std::string_view {
     auto position_count = 0uz;
-    template for (auto const &S : std::forward_as_tuple(Specs...)) {
+    template for (auto const &S : std::forward_as_tuple(Ops...)) {
         if constexpr (is_positional_v<decltype(S)>) {
             ++position_count;
             if (position_count == nth) {

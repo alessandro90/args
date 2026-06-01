@@ -70,17 +70,16 @@ static constexpr auto c_verbose =
 
 static constexpr auto c_version = args::subcommand()
                                       .Name("version")
-                                      .WithRules(args::rules<args::empty, args::empty, c_verbose>)
-                                      .IsFlag(true)
+                                      .Opts(args::options<args::empty, args::empty, c_verbose>)
+                                      .Flag(true)
                                       .Help("Print the version of the program");
 
 // A positional argument expecting our custom data type
 static constexpr auto c_custom_data = args::positional<CustomData>().Name("custom");
 
-static constexpr auto c_custom =
-    args::subcommand()
-        .Name("custom_data")
-        .WithRules(args::rules<args::empty, args::empty, c_custom_data>);
+static constexpr auto c_custom = args::subcommand()
+                                     .Name("custom_data")
+                                     .Opts(args::options<args::empty, args::empty, c_custom_data>);
 
 static constexpr auto c_count =
     args::flag().Long("count").Short('c').Default(false).Help("Just a counter flag");
@@ -99,7 +98,7 @@ static constexpr auto c_int =
 
 // All the information to parse the command lines into the desired structures
 // is specified in the template arguments of this type
-static constexpr auto rules = args::rules<
+static constexpr auto opts = args::options<
     "example usage description"_str,
     "A simple example program"_str,
     c_custom,
@@ -108,13 +107,13 @@ static constexpr auto rules = args::rules<
     c_int,
     c_version>;
 
-using rules_t = decltype(rules);
+using options_t = decltype(opts);
 
 auto main(int argc, char **argv) -> int {
-    // Commands has the right shape based on the rules provided
+    // Commands has the right shape based on the options provided
     // No cast is performed when retrieving the data, the struct Args
     // already contains the correct types
-    auto const commands = args::parse_or_exit(argc, argv, rules);
+    auto const commands = args::parse_or_exit(argc, argv, opts);
 
     auto const version = commands.get_with_info<c_version>();
     if (version.is_used) {

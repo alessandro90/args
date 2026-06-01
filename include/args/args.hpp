@@ -12,15 +12,15 @@
 
 namespace args {
 
-template <Str Usage, Str Description, auto... Specs, auto... Gg>
+template <Str Usage, Str Description, auto... Ops, auto... Gg>
 [[nodiscard]] auto try_parse(
     int argc,
     char **argv,
-    Rules<Usage, Description, Specs...> rules,
-    MutuallyExclusiveGroups<Gg...> mutually_exclusive) -> compile_result_t<Specs...> {
+    Options<Usage, Description, Ops...> opts,
+    MutuallyExclusiveGroups<Gg...> mutually_exclusive) -> compile_result_t<Ops...> {
     // TODO: move this inside compile (need to check also subcommands)
     static_assert(
-        args::detail::are_valid_mutually_exclusive_groups(rules, mutually_exclusive),
+        args::detail::are_valid_mutually_exclusive_groups(opts, mutually_exclusive),
         "Invalid mutually exclusive groups");
     if (argc <= 1) {
         return Error{.message = "No command line arguments provided"};
@@ -32,29 +32,29 @@ template <Str Usage, Str Description, auto... Specs, auto... Gg>
     auto s = std::span{std::next(constify(argv)), static_cast<std::size_t>(argc - 1)};
     auto tokens = tokenizer::tokenize(s);
     if (!tokens.has_value()) {
-        return compile_result_t<Specs...>{Error{.message = std::move(tokens).error()}};
+        return compile_result_t<Ops...>{Error{.message = std::move(tokens).error()}};
     }
     std::span<args::tokenizer::token_t const> tks = tokens.value();
-    return compiler::compile(tks, rules, mutually_exclusive);
+    return compiler::compile(tks, opts, mutually_exclusive);
 }
 
-template <Str Usage, Str Description, auto... Specs>
-[[nodiscard]] auto try_parse(int argc, char **argv, Rules<Usage, Description, Specs...> rules)
-    -> compile_result_t<Specs...> {
-    return try_parse(argc, argv, rules, MutuallyExclusiveGroups<>{});
+template <Str Usage, Str Description, auto... Ops>
+[[nodiscard]] auto try_parse(int argc, char **argv, Options<Usage, Description, Ops...> opts)
+    -> compile_result_t<Ops...> {
+    return try_parse(argc, argv, opts, MutuallyExclusiveGroups<>{});
 }
 
-template <Str Usage, Str Description, auto... Specs, auto... Gg>
+template <Str Usage, Str Description, auto... Ops, auto... Gg>
 [[nodiscard]] auto parse_or_exit(
     int argc,
     char **argv,
-    Rules<Usage, Description, Specs...> rules,
-    MutuallyExclusiveGroups<Gg...> mutually_exclusive) -> Args<Specs...> {
-    auto args = try_parse(argc, argv, rules, mutually_exclusive);
+    Options<Usage, Description, Ops...> opts,
+    MutuallyExclusiveGroups<Gg...> mutually_exclusive) -> Args<Ops...> {
+    auto args = try_parse(argc, argv, opts, mutually_exclusive);
     if (has_error(args)) {
         auto const error = get_error(args);
         std::println(stderr, "ERROR: {}", error.message);
-        std::println(stderr, "{}", rules.help());
+        std::println(stderr, "{}", opts.help());
         std::exit(EXIT_FAILURE);  // NOLINT(concurrency-mt-unsafe)
     }
     if (has_help(args)) {
@@ -65,10 +65,10 @@ template <Str Usage, Str Description, auto... Specs, auto... Gg>
     return get_args(std::move(args));
 }
 
-template <Str Usage, Str Description, auto... Specs>
-[[nodiscard]] auto parse_or_exit(int argc, char **argv, Rules<Usage, Description, Specs...> rules)
-    -> Args<Specs...> {
-    return parse_or_exit(argc, argv, rules, MutuallyExclusiveGroups<>{});
+template <Str Usage, Str Description, auto... Ops>
+[[nodiscard]] auto parse_or_exit(int argc, char **argv, Options<Usage, Description, Ops...> opts)
+    -> Args<Ops...> {
+    return parse_or_exit(argc, argv, opts, MutuallyExclusiveGroups<>{});
 }
 }  // namespace args
 

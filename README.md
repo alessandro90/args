@@ -25,11 +25,11 @@ static constexpr auto verbose = args::Flag{
     .long_form = "verbose"_flag
 };
 
-auto const rules = args::rules<verbose>;
+auto const options = args::options<verbose>;
 
 // Attempts to parse the commands from input. If 'help' is detected it prints help on stdout and exits.
 // If an error is found, it prints the error on stderr and the help message and exits.
-auto const commands = args::parse_or_exit(argc, argv, rules);
+auto const commands = args::parse_or_exit(argc, argv, options);
 
 // decltype(v) is `bool const &`. No casts are performed, commands contains the correct types
 auto const &v = commands.get<verbose>(); // for trivial types you can of course just copy the value, but `get` always returns a reference
@@ -42,9 +42,9 @@ All commands live inside the `args` namespace. They are just plain structs with 
 - `Flag`: a simple boolean flag.
 - `FlagWithValue`: a flag with an associated value, like `--cout 3` or `-c=8`.
 - `Positional`: nameless position argument.
-- `Subcommand`: defines a nested set of commands. It can be a flag (`--version`) or just a positional (`version`). It supports its own internal set of rules and mutually exclusive groups. Subcommands can also be arbitrarily nested.
+- `Subcommand`: defines a nested set of commands. It can be a flag (`--version`) or just a positional (`version`). It supports its own internal set of options and mutually exclusive groups. Subcommands can also be arbitrarily nested.
 
-Once the set of possible commands is defined they need to be gathered into a `Rules` object: `args::rules<cmd1, cmd2, ...>`. `Rules` performs several checks at compile-time, some of them are:
+Once the set of possible commands is defined they need to be gathered into a `options` object: `args::options<cmd1, cmd2, ...>`. `options` performs several checks at compile-time, some of them are:
 
 - duplicate names
 - invalid names/flags
@@ -67,7 +67,7 @@ The library understands that the lambda is there for the sole purpose of allowin
 
 ## Parsing
 
-Provided the rules are defined, the result can be obtained with either:
+Provided the options are defined, the result can be obtained with either:
 
 - `try_parse`: returns a variant containing either the parsed commands, the requested 'help' message or an error.
 - `parse_or_exit`: returns the parsed commands, otherwise log what did not work and close the application.
@@ -79,7 +79,7 @@ Helpers are defined to inspect and read the result:
 
 ## Parse result
 
-The parse result is `args::Args`, the structure of which depends on the template arguments of the rules provided. It exposes the following methods:
+The parse result is `args::Args`, the structure of which depends on the template arguments of the options provided. It exposes the following methods:
 
 - `get<cmd>()`: returns the parsed value associated with `cmd`. The default is provided if the command has not been set. Note that if `cmd` is requried but not provided, the parse will fail.
 - `get_with_info<cmd>()`: Same as `get` but the value is wrapped inside a struct with additional data. The extra data depends on the type of `cmd`. For example for a repeatable flag it has `count` indicating the number of times the flag has been provided. `is_used` is also always provided indicating if `cmd` was provided as command line argument.

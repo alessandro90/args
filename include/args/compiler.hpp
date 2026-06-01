@@ -64,7 +64,7 @@ auto assign_parsed_value(ArgValue<S> &item, args::detail::parse_type_t<S> value)
     item.value = std::move(value);
 }
 
-template <Str Usage, Str Description, auto... Specs>
+template <Str Usage, Str Description, auto... Ops>
 struct [[nodiscard]] TokenCompiler {
 private:
     enum class [[nodiscard]] Mode : std::uint8_t {
@@ -74,10 +74,10 @@ private:
     };
 
 public:
-    explicit TokenCompiler(Rules<Usage, Description, Specs...> compile_rules)
-        : m_compile_rules{compile_rules} {}
+    explicit TokenCompiler(Options<Usage, Description, Ops...> compile_opts)
+        : m_compile_opts{compile_opts} {}
 
-    std::tuple<ArgValue<Specs>...> results{};
+    std::tuple<ArgValue<Ops>...> results{};
 
     [[nodiscard]] auto operator()(tokenizer::Argument argument) -> TokenCompileResult {
         if (m_mode == Mode::PositionalOnlySkipNext) {
@@ -129,7 +129,7 @@ public:
         auto const handler = [short_flag]<auto S>(ArgValue<S> &item)
                                  requires args::detail::ShortFlagObject<S>
         {
-            if (item.spec._short_form.value != short_flag.flag) {
+            if (item.option._short_form.value != short_flag.flag) {
                 return false;
             }
             item.is_used = true;
@@ -143,7 +143,7 @@ public:
         auto const handler_with_value = [this, short_flag]<auto S>(ArgValue<S> &item)
                                             requires args::detail::ShortFlagWithValueObject<S>
         {
-            if (item.spec._short_form.value != short_flag.flag) {
+            if (item.option._short_form.value != short_flag.flag) {
                 return false;
             }
             m_compiler_state = ParsingShortFlag{.short_flag = short_flag};
@@ -166,7 +166,7 @@ public:
             [this, &error, long_flag]<auto S>(ArgValue<S> &item, std::size_t tuple_index)
                 requires(args::detail::SubcommandObject<S> && S._is_flag)
         {
-            if (item.spec._name.as_string_view() != long_flag.flag) {
+            if (item.option._name.as_string_view() != long_flag.flag) {
                 return false;
             }
             if (long_flag.has_equal) {
@@ -197,12 +197,12 @@ public:
 
         // help requested: skip everything else and return
         if (long_flag.flag == args::detail::help_str) {
-            return Help{m_compile_rules.help()};
+            return Help{m_compile_opts.help()};
         }
         auto const handler = [this, long_flag]<auto S>(ArgValue<S> &item)
                                  requires args::detail::LongFlagObject<S>
         {
-            if (item.spec._long_form.as_string_view() != long_flag.flag) {
+            if (item.option._long_form.as_string_view() != long_flag.flag) {
                 return false;
             }
             item.is_used = true;
@@ -216,7 +216,7 @@ public:
         auto const handler_with_value = [this, long_flag]<auto S>(ArgValue<S> &item)
                                             requires args::detail::LongFlagWithValueObject<S>
         {
-            if (item.spec._long_form.as_string_view() != long_flag.flag) {
+            if (item.option._long_form.as_string_view() != long_flag.flag) {
                 return false;
             }
             m_compiler_state = ParsingLongFlag{.long_flag = long_flag};
@@ -265,15 +265,15 @@ public:
         std::span<tokenizer::token_t const, Extent> tokens,
         Compiler compiler,
         std::size_t subcommand_tuple_index) -> TokenCompileResult {
-        template for (constexpr auto Is : std::views::iota(0uz, sizeof...(Specs))) {
+        template for (constexpr auto Is : std::views::iota(0uz, sizeof...(Ops))) {
             if (Is != subcommand_tuple_index) {
                 continue;
             }
-            using arg_value_t = std::tuple_element_t<Is, std::tuple<ArgValue<Specs>...>>;
-            if constexpr (is_subcommand_v<decltype(arg_value_t::spec)>) {
+            using arg_value_t = std::tuple_element_t<Is, std::tuple<ArgValue<Ops>...>>;
+            if constexpr (is_subcommand_v<decltype(arg_value_t::option)>) {
                 auto &subcommand = std::get<Is>(results);
                 auto subcommand_result = compiler(
-                    tokens, arg_value_t::spec._rules, arg_value_t::spec._mutually_exclusive);
+                    tokens, arg_value_t::option._options, arg_value_t::option._mutually_exclusive);
                 if (has_args(subcommand_result)) {
                     subcommand.subcommands = get_args(std::move(subcommand_result));
                 } else if (has_error(subcommand_result)) {
@@ -294,15 +294,15 @@ public:
 private:
     template <typename Handler>
     [[nodiscard]] auto handle_token(Handler handler) -> bool {
-        static constexpr auto specs = std::forward_as_tuple(Specs...);
+        static constexpr auto opts = std::forward_as_tuple(Ops...);
         auto index = 0uz;
-        template for (constexpr auto &spec : specs) {
-            if constexpr (std::is_invocable_v<Handler, ArgValue<spec> &>) {
-                if (handler(std::get<ArgValue<spec>>(results))) {
+        template for (constexpr auto &option : opts) {
+            if constexpr (std::is_invocable_v<Handler, ArgValue<option> &>) {
+                if (handler(std::get<ArgValue<option>>(results))) {
                     return true;
                 }
-            } else if constexpr (std::is_invocable_v<Handler, ArgValue<spec> &, std::size_t>) {
-                if (handler(std::get<ArgValue<spec>>(results), index)) {
+            } else if constexpr (std::is_invocable_v<Handler, ArgValue<option> &, std::size_t>) {
+                if (handler(std::get<ArgValue<option>>(results), index)) {
                     return true;
                 }
             }
@@ -387,7 +387,7 @@ private:
                                 "Cannot find match for positional argument number '{}' named '{}' "
                                 "with " "provided '{}'",
                                 m_current_positional_index,
-                                args::detail::nth_positional_argument_name<Specs...>(
+                                args::detail::nth_positional_argument_name<Ops...>(
                                     m_current_positional_index),
                                 argument.value);
                 return Error{std::move(msg)};
@@ -405,7 +405,7 @@ private:
             auto const handler = [&]<auto S>(ArgValue<S> &item)
                                      requires args::detail::ShortFlagWithValueObject<S>
             {
-                if (item.spec._short_form.value != short_flag_state.short_flag.flag) {
+                if (item.option._short_form.value != short_flag_state.short_flag.flag) {
                     return false;
                 }
                 parse_and_validate_argument(argument, item, error);
@@ -430,7 +430,7 @@ private:
                                      requires args::detail::LongFlagWithValueObject<S>
 
             {
-                if (item.spec._long_form.as_string_view() != long_flag_state.long_flag.flag) {
+                if (item.option._long_form.as_string_view() != long_flag_state.long_flag.flag) {
                     return false;
                 }
 
@@ -449,7 +449,7 @@ private:
         };
     }
 
-    Rules<Usage, Description, Specs...> m_compile_rules;
+    Options<Usage, Description, Ops...> m_compile_opts;
     std::variant<std::monostate, ParsingShortFlag, ParsingLongFlag> m_compiler_state{};
     std::size_t m_current_positional_index{};
     bool m_is_first_argument{true};
@@ -457,32 +457,32 @@ private:
     Mode m_mode{Mode::Normal};
 };
 
-template <auto... Specs>
+template <auto... Ops>
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-[[nodiscard]] auto verify_required_args(std::tuple<ArgValue<Specs>...> const &results)
+[[nodiscard]] auto verify_required_args(std::tuple<ArgValue<Ops>...> const &results)
     -> std::vector<std::string> {
     // NOTE: an empty vec (meaning no errors) does not allocate, so we are good
     auto v = std::vector<std::string>{};
     std::size_t positional_argument_count = 0;
     template for (auto const &r : results) {
         using arg_type_t = std::remove_cvref_t<decltype(r)>;
-        if constexpr (!is_subcommand_v<decltype(arg_type_t::spec)>) {
-            if constexpr (is_positional_v<decltype(arg_type_t::spec)>) {
+        if constexpr (!is_subcommand_v<decltype(arg_type_t::option)>) {
+            if constexpr (is_positional_v<decltype(arg_type_t::option)>) {
                 ++positional_argument_count;
-                if (!r.is_used && arg_type_t::spec._required) {
+                if (!r.is_used && arg_type_t::option._required) {
                     v.push_back(
                         std::format(
                             "Missing positional argument number {}", positional_argument_count));
                 }
-            } else if constexpr (args::detail::FlagObject<arg_type_t::spec>) {
-                if constexpr (arg_type_t::spec._required) {
+            } else if constexpr (args::detail::FlagObject<arg_type_t::option>) {
+                if constexpr (arg_type_t::option._required) {
                     if (!r.is_used) {
                         auto err = std::format(
                             "Missing required flag. Long form: '{}'.",
-                            arg_type_t::spec._long_form.as_string_view());
-                        if (arg_type_t::spec._short_form.has_value) {
+                            arg_type_t::option._long_form.as_string_view());
+                        if (arg_type_t::option._short_form.has_value) {
                             err += std::format(
-                                " Short form: '{}'.", arg_type_t::spec._short_form.value);
+                                " Short form: '{}'.", arg_type_t::option._short_form.value);
                         }
                         v.push_back(std::move(err));
                     }
@@ -497,30 +497,30 @@ template <auto... Specs>
 ///
 /// If the flag was not used, set its value to the result of the invocation
 /// of `default_value`
-template <auto... Specs>
-auto assign_defaults_to_unused(std::tuple<ArgValue<Specs>...> &results) -> void {
+template <auto... Ops>
+auto assign_defaults_to_unused(std::tuple<ArgValue<Ops>...> &results) -> void {
     template for (auto &r : results) {
         using arg_type_t = std::remove_cvref_t<decltype(r)>;
-        using S_t = decltype(arg_type_t::spec);
+        using S_t = decltype(arg_type_t::option);
         if constexpr (is_flag_with_value_v<S_t> && std::is_invocable_v<typename S_t::value_t>) {
             if (!r.is_used) {
-                r.value = arg_type_t::spec._default_value();
+                r.value = arg_type_t::option._default_value();
             }
         }
     }
 }
 
-template <auto... Specs>
-[[nodiscard]] auto val_var_pos_and_rep(std::tuple<ArgValue<Specs>...> &results)
+template <auto... Ops>
+[[nodiscard]] auto val_var_pos_and_rep(std::tuple<ArgValue<Ops>...> &results)
     -> std::expected<void, std::vector<validator_error_t>> {
     auto validation_errors = std::vector<validator_error_t>{};
     template for (auto &r : results) {
         using arg_type_t = std::remove_cvref_t<decltype(r)>;
         if constexpr (
-            args::detail::is_positional_variadic_v<arg_type_t::spec>
-            || args::detail::is_repeatable_v<arg_type_t::spec>) {
+            args::detail::is_positional_variadic_v<arg_type_t::option>
+            || args::detail::is_repeatable_v<arg_type_t::option>) {
             if (r.is_used) {
-                auto res = arg_type_t::spec._validator(r.value);
+                auto res = arg_type_t::option._validator(r.value);
                 if (!res.has_value()) {
                     validation_errors.push_back(std::move(res).error());
                 }
@@ -535,19 +535,19 @@ template <auto... Specs>
 
 }  // namespace detail
 
-template <std::size_t Extent, Str Usage, Str Description, auto... Specs, auto... Gg>
+template <std::size_t Extent, Str Usage, Str Description, auto... Ops, auto... Gg>
 [[nodiscard]] constexpr auto compile(
     std::span<tokenizer::token_t const, Extent> tokens,
-    Rules<Usage, Description, Specs...> compile_rules,
-    MutuallyExclusiveGroups<Gg...> mutually_exclusive) -> compile_result_t<Specs...> {
-    auto token_compiler = detail::TokenCompiler{compile_rules};
+    Options<Usage, Description, Ops...> compile_opts,
+    MutuallyExclusiveGroups<Gg...> mutually_exclusive) -> compile_result_t<Ops...> {
+    auto token_compiler = detail::TokenCompiler{compile_opts};
     for (auto const [index, token] : std::views::enumerate(tokens)) {
         auto tok_compile_result = std::visit(token_compiler, token);
         if (std::holds_alternative<Help>(tok_compile_result)) {
-            return compile_result_t<Specs...>{std::get<Help>(std::move(tok_compile_result))};
+            return compile_result_t<Ops...>{std::get<Help>(std::move(tok_compile_result))};
         }
         if (std::holds_alternative<Error>(tok_compile_result)) {
-            return compile_result_t<Specs...>{std::get<Error>(std::move(tok_compile_result))};
+            return compile_result_t<Ops...>{std::get<Error>(std::move(tok_compile_result))};
         }
         if (token_compiler.subcommand_index().has_value()) {
             if (tokens.size() <= static_cast<std::size_t>(index)) {
@@ -561,10 +561,10 @@ template <std::size_t Extent, Str Usage, Str Description, auto... Specs, auto...
                 },
                 token_compiler.subcommand_index().value());
             if (std::holds_alternative<Help>(subcommand_result)) {
-                return compile_result_t<Specs...>{std::get<Help>(std::move(subcommand_result))};
+                return compile_result_t<Ops...>{std::get<Help>(std::move(subcommand_result))};
             }
             if (std::holds_alternative<Error>(subcommand_result)) {
-                return compile_result_t<Specs...>{std::get<Error>(std::move(subcommand_result))};
+                return compile_result_t<Ops...>{std::get<Error>(std::move(subcommand_result))};
             }
             return Args{std::move(token_compiler).results};
         }
