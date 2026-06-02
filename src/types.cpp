@@ -27,18 +27,18 @@ namespace {
 
 constexpr auto padding_sep = ' ';
 constexpr auto extra_padding = 8uz;
-constexpr auto default_description_len_bytes = 80uz;
+constexpr auto default_description_len_bytes = 100uz;
 
 [[nodiscard]] auto get_terminal_columns() -> std::size_t {
 #if !defined _WIN32
     winsize ws{};
     if (auto const success = ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws); success == 0) {  // NOLINT
-        return static_cast<std::size_t>(ws.ws_col);
+        return std::min(static_cast<std::size_t>(ws.ws_col), default_description_len_bytes);
     }
 #endif
 
     if (auto const *ev = std::getenv("COLUMNS"); ev != nullptr) {  // NOLINT
-        return std::stoul(std::string(ev));
+        return std::min(std::stoul(std::string(ev)), default_description_len_bytes);
     }
     return default_description_len_bytes;
 }
