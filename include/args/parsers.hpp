@@ -19,10 +19,10 @@
 
 namespace args::parsers {
 
-// template <typename P, typename Item>
-// concept InPlaceParser = requires(Item &item, std::string_view rn) {
-//     { P::parse(item, rn) } -> std::same_as<std::optional<void>>;
-// };
+template <typename P, typename Item>
+concept InPlaceParser = requires(Item &item, std::string_view rn) {
+    { P::parse(item, rn) } -> std::same_as<std::optional<void>>;
+};
 
 template <typename>
 struct Parser;
@@ -59,8 +59,11 @@ enum class VecSeparatorType : std::uint8_t {
 
 template <typename T>
 struct VecParser {
-    std::optional<VecSeparatorType> separator;
-    std::vector<T> values;
+    explicit VecParser(std::vector<T> &vs)
+        : values{vs} {}
+
+    std::vector<T> &values;
+    std::optional<VecSeparatorType> separator{};
 
     template <typename It>
     [[nodiscard]] auto parse_value(It begin, It end) -> std::optional<It> {
@@ -77,10 +80,18 @@ struct VecParser {
             if (closing_quote == end) {
                 return {};
             }
-            auto parsed = Parser<T>::parse(std::string_view(first_char, closing_quote));
-            if (parsed.has_value()) {
-                values.push_back(std::move(parsed).value());
-                return std::next(closing_quote);
+            if constexpr (InPlaceParser<Parser<T>, std::vector<T>>) {
+                auto const parsed =
+                    Parser<T>::parse(values, std::string_view(first_char, closing_quote));
+                if (parsed) {
+                    return std::next(closing_quote);
+                }
+            } else {
+                auto parsed = Parser<T>::parse(std::string_view(first_char, closing_quote));
+                if (parsed.has_value()) {
+                    values.push_back(std::move(parsed).value());
+                    return std::next(closing_quote);
+                }
             }
             return {};
         }
@@ -88,10 +99,17 @@ struct VecParser {
         auto const sep = std::ranges::find_if(begin, end, [&](char c) {
             return check_separator(c);
         });
-        auto parsed = Parser<T>::parse(std::string_view(begin, sep));
-        if (parsed.has_value()) {
-            values.push_back(std::move(parsed).value());
-            return sep;
+        if constexpr (InPlaceParser<Parser<T>, std::vector<T>>) {
+            auto const parsed = Parser<T>::parse(values, std::string_view(begin, sep));
+            if (parsed) {
+                return sep;
+            }
+        } else {
+            auto parsed = Parser<T>::parse(std::string_view(begin, sep));
+            if (parsed.has_value()) {
+                values.push_back(std::move(parsed).value());
+                return sep;
+            }
         }
         return {};
     }
@@ -155,30 +173,26 @@ private:
 };
 
 template <typename Out, typename It>
-[[nodiscard]] auto parse_vector(It begin, It end)
-    -> std::optional<std::vector<typename Out::value_type>> {
-    auto parser = VecParser<typename Out::value_type>{};
+[[nodiscard]] auto parse_vector(Out &item, It begin, It end) -> bool {
+    auto parser = VecParser<typename Out::value_type>{item};
     while (true) {
         auto it = detail::skip_space(begin, end);
         if (it == end) {
-            return std::move(parser).values;
+            return true;
         }
         auto maybe_it = parser.parse_value(it, end);
         if (!maybe_it.has_value()) {
-            return {};
+            return false;
         }
         it = maybe_it.value();
         if (it == end) {
-            return std::move(parser).values;
+            return true;
         }
         maybe_it = parser.consume_separator(it, end);
         if (!maybe_it.has_value()) {
             // missing separator allowed only if last entry
             it = skip_space(it, end);
-            if (it == end) {
-                return std::move(parser).values;
-            }
-            return {};
+            return it == end;
         }
         begin = maybe_it.value();
     }
@@ -235,8 +249,16 @@ struct Parser<T> {
 template <typename T>
 requires args::detail::is_vector_v<T>
 struct Parser<T> {
+    [[nodiscard]] static auto parse(T &item, std::string_view v) -> bool {
+        return detail::parse_vector<T>(item, std::ranges::begin(v), std::ranges::end(v));
+    }
+
     [[nodiscard]] static auto parse(std::string_view v) -> std::optional<T> {
-        return detail::parse_vector<T>(std::ranges::begin(v), std::ranges::end(v));
+        auto vec = T{};
+        if (Parser<T>::parse(vec, v)) {
+            return vec;
+        }
+        return std::nullopt;
     }
 };
 }  // namespace args::parsers

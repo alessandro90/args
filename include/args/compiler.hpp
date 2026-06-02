@@ -24,6 +24,10 @@
 namespace args::compiler {
 namespace detail {
 
+template <auto S>
+inline constexpr auto requires_immediate_validation_v =
+    !args::detail::is_repeatable_v<S> && !args::detail::is_positional_variadic_v<S>;
+
 template <typename T>
 consteval auto name_of() -> std::string_view {
     return std::meta::display_string_of(^^T);
@@ -309,24 +313,47 @@ private:
         -> void {
         using namespace args::detail;
         using namespace args::parsers;
-        auto parsed_value = Parser<parse_type_t<S>>::parse(argument.value);
-        if (parsed_value.has_value()) {
-            if constexpr (
-                !is_positional_variadic_v<S> && !is_repeatable_v<S>
-                && args::detail::HasValidator<S>) {
-                auto validation = S._validator(parsed_value.value());
-                if (!validation.has_value()) {
-                    error = std::move(validation).error();
-                    return;
+        if constexpr (InPlaceParser<Parser<parse_type_t<S>>, result_type_t<S>>) {
+            auto const parsed_ok = Parser<parse_type_t<S>>::parse(item.value, argument.value);
+            if (parsed_ok) {
+                if constexpr (requires_immediate_validation_v<S>) {
+                    if (!check_validation_after_parse<S>(item, error)) {
+                        return;
+                    }
                 }
+                item.is_used = true;
+                m_compiler_state = std::monostate{};
+                return;
             }
-            item.is_used = true;
-            assign_parsed_value(item, std::move(parsed_value).value());
-            m_compiler_state = std::monostate{};
-            return;
+        } else {
+            auto parsed_value = Parser<parse_type_t<S>>::parse(argument.value);
+            if (parsed_value.has_value()) {
+                if constexpr (requires_immediate_validation_v<S>) {
+                    if (!check_validation_after_parse<S>(parsed_value.value(), error)) {
+                        return;
+                    }
+                }
+                item.is_used = true;
+                assign_parsed_value(item, std::move(parsed_value).value());
+                m_compiler_state = std::monostate{};
+                return;
+            }
         }
         error = std::format(
             "Cannot parse '{}' into '{}'", argument.value, detail::name_of<parse_type_t<S>>());
+    }
+
+    template <auto S>
+    [[nodiscard]] auto check_validation_after_parse(
+        args::detail::result_type_t<S> const &item, std::optional<std::string> &error) -> bool {
+        if constexpr (args::detail::HasValidator<S>) {
+            auto validation = S._validator(item);
+            if (!validation.has_value()) {
+                error = std::move(validation).error();
+                return false;
+            }
+        }
+        return true;
     }
 
     [[nodiscard]] auto try_handle_flag(
