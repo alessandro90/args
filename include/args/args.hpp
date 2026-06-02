@@ -23,7 +23,7 @@ template <Str Usage, Str Description, auto... Ops, auto... Gg>
         args::detail::are_valid_mutually_exclusive_groups(opts, mutually_exclusive),
         "Invalid mutually exclusive groups");
     if (argc <= 1) {
-        return Error{.message = "No command line arguments provided"};
+        return NoArguments{};
     }
     auto const constify = [](char **x) -> char const *const * {
         return x;

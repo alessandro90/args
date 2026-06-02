@@ -1292,8 +1292,10 @@ struct [[nodiscard]] Error {
     std::string message;
 };
 
+struct NoArguments {};
+
 template <auto... Ss>
-using compile_result_t = std::variant<Args<Ss...>, Help, Error>;
+using compile_result_t = std::variant<Args<Ss...>, Help, Error, NoArguments>;
 
 template <auto... Ss>
 [[nodiscard]] constexpr auto has_args(compile_result_t<Ss...> const &res) noexcept -> bool {
@@ -1308,6 +1310,11 @@ template <auto... Ss>
 template <auto... Ss>
 [[nodiscard]] constexpr auto has_error(compile_result_t<Ss...> const &res) noexcept -> bool {
     return std::holds_alternative<Error>(res);
+}
+
+template <auto... Ss>
+[[nodiscard]] constexpr auto is_empty(compile_result_t<Ss...> const &res) noexcept -> bool {
+    return std::holds_alternative<NoArguments>(res);
 }
 
 /// Returns a reference to a constant `args::Args` object
