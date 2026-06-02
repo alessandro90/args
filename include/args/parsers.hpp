@@ -19,6 +19,11 @@
 
 namespace args::parsers {
 
+// template <typename P, typename Item>
+// concept InPlaceParser = requires(Item &item, std::string_view rn) {
+//     { P::parse(item, rn) } -> std::same_as<std::optional<void>>;
+// };
+
 template <typename>
 struct Parser;
 
@@ -72,7 +77,7 @@ struct VecParser {
             if (closing_quote == end) {
                 return {};
             }
-            auto parsed = Parser<T>::parse(std::ranges::subrange(first_char, closing_quote));
+            auto parsed = Parser<T>::parse(std::string_view(first_char, closing_quote));
             if (parsed.has_value()) {
                 values.push_back(std::move(parsed).value());
                 return std::next(closing_quote);
@@ -83,7 +88,7 @@ struct VecParser {
         auto const sep = std::ranges::find_if(begin, end, [&](char c) {
             return check_separator(c);
         });
-        auto parsed = Parser<T>::parse(std::ranges::subrange(begin, sep));
+        auto parsed = Parser<T>::parse(std::string_view(begin, sep));
         if (parsed.has_value()) {
             values.push_back(std::move(parsed).value());
             return sep;
@@ -180,9 +185,9 @@ template <typename Out, typename It>
 }
 }  // namespace detail
 
-template <typename Out, std::ranges::range R>
+template <typename Out>
 requires std::is_arithmetic_v<Out>
-[[nodiscard]] auto parse_arithmetic(R v) -> std::optional<Out> {
+[[nodiscard]] auto parse_arithmetic(std::string_view v) -> std::optional<Out> {
     Out value{};
     auto const begin = std::ranges::begin(v);
     auto const end = std::ranges::end(v);
@@ -206,8 +211,7 @@ struct Parser {};
 template <typename T>
 requires std::is_arithmetic_v<T>
 struct Parser<T> {
-    template <std::ranges::range R>
-    [[nodiscard]] static auto parse(R v) -> std::optional<T> {
+    [[nodiscard]] static auto parse(std::string_view v) -> std::optional<T> {
         return parse_arithmetic<T>(v);
     }
 };
@@ -215,8 +219,7 @@ struct Parser<T> {
 template <typename T>
 requires args::detail::is_string_view_v<T>
 struct Parser<T> {
-    template <std::ranges::range R>
-    [[nodiscard]] static auto parse(R v) -> std::optional<std::string_view> {
+    [[nodiscard]] static auto parse(std::string_view v) -> std::optional<std::string_view> {
         return std::string_view(std::ranges::begin(v), std::ranges::end(v));
     }
 };
@@ -224,8 +227,7 @@ struct Parser<T> {
 template <typename T>
 requires args::detail::is_string_v<T>
 struct Parser<T> {
-    template <std::ranges::range R>
-    [[nodiscard]] static auto parse(R v) -> std::optional<std::string> {
+    [[nodiscard]] static auto parse(std::string_view v) -> std::optional<std::string> {
         return std::string(std::ranges::begin(v), std::ranges::end(v));
     }
 };
@@ -233,8 +235,7 @@ struct Parser<T> {
 template <typename T>
 requires args::detail::is_vector_v<T>
 struct Parser<T> {
-    template <std::ranges::range R>
-    [[nodiscard]] static auto parse(R v) -> std::optional<T> {
+    [[nodiscard]] static auto parse(std::string_view v) -> std::optional<T> {
         return detail::parse_vector<T>(std::ranges::begin(v), std::ranges::end(v));
     }
 };
