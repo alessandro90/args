@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <format>
+#include <print>
 #include <ranges>
 #include <string>
 #include <string_view>
@@ -29,46 +30,25 @@ constexpr auto padding_sep = ' ';
 constexpr auto extra_padding = 8uz;
 constexpr auto default_description_len_bytes = 100uz;
 
-[[nodiscard]] auto get_terminal_columns() -> std::size_t {
-#if !defined _WIN32
-    winsize ws{};
-    if (auto const success = ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws); success == 0) {  // NOLINT
-        return std::min(static_cast<std::size_t>(ws.ws_col), default_description_len_bytes);
-    }
-#endif
-
-    if (auto const *ev = std::getenv("COLUMNS"); ev != nullptr) {  // NOLINT
-        return std::min(std::stoul(std::string(ev)), default_description_len_bytes);
-    }
-    return default_description_len_bytes;
-}
-
-struct [[nodiscard]] NewLineOpts {
-    std::string_view s;
-    std::size_t max_cols;
-    std::size_t starting_index;
-};
-
-[[nodiscard]] auto find_newline_space(NewLineOpts opts) -> std::size_t {
-    auto const [s, max_cols, starting_index] = opts;
+[[nodiscard]] auto find_newline_space(std::string_view s) -> std::size_t {
+    auto const starting_index = s.size() - 1uz;
     auto const space_index = s.rfind(' ', starting_index);
     if (space_index == std::string_view::npos) {
-        return s.size();
-    }
-    if (space_index >= max_cols) {
         return starting_index;
     }
-    return find_newline_space(
-        NewLineOpts{.s = s, .max_cols = max_cols, .starting_index = space_index + 1uz});
+    return space_index;
 }
 
+}  // namespace
+
+namespace args::detail {
 auto apply_description(
     std::string &help,
     std::string_view description,
     std::size_t padding,
     std::size_t offset,
+    std::size_t terminal_cols,
     bool is_first_iteration) -> void {
-    static auto const terminal_cols = get_terminal_columns();
     if (terminal_cols <= padding || description.empty()) {
         return;
     }
@@ -85,25 +65,36 @@ auto apply_description(
         help += std::format("{}", description);
         return;
     }
-    auto const space_index = find_newline_space(
-        NewLineOpts{
-            .s = description.substr(0, max_description_cols),
-            .max_cols = max_description_cols,
-            .starting_index = 0});
+    auto const space_index = find_newline_space(description.substr(0, max_description_cols));
     if (space_index == std::string_view::npos) {
         return;
     }
+    std::println("description: {}, new_line_idx: {}", description, space_index);
     add_left_padding();
     help.append_range(description.substr(0, space_index));
     if (description.size() > space_index) {
         help += '\n';
-        apply_description(help, description.substr(space_index), padding, offset, false);
+        apply_description(
+            help, description.substr(space_index), padding, offset, terminal_cols, false);
     }
 }
-}  // namespace
 
-namespace args::detail {
-auto build_positionals_help(std::string &help, std::vector<PositionalHelp> &positional) -> void {
+auto get_terminal_columns() -> std::size_t {
+#if !defined _WIN32
+    winsize ws{};
+    if (auto const success = ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws); success == 0) {  // NOLINT
+        return std::min(static_cast<std::size_t>(ws.ws_col), default_description_len_bytes);
+    }
+#endif
+
+    if (auto const *ev = std::getenv("COLUMNS"); ev != nullptr) {  // NOLINT
+        return std::min(std::stoul(std::string(ev)), default_description_len_bytes);
+    }
+    return default_description_len_bytes;
+}
+
+auto build_positionals_help(
+    std::string &help, std::vector<PositionalHelp> &positional, std::size_t terminal_cols) -> void {
     auto const longest = std::ranges::max(
         positional | std::views::enumerate | std::views::transform([](auto const &item) {
             auto const &[index, help_data] = item;
@@ -133,12 +124,13 @@ auto build_positionals_help(std::string &help, std::vector<PositionalHelp> &posi
                 help += std::format("[{}]", name);
             }
         }
-        apply_description(help, help_data.description, padding, offset, true);
+        apply_description(help, help_data.description, padding, offset, terminal_cols, true);
         help += '\n';
     }
 }
 
-auto build_flags_help(std::string &help, std::vector<FlagHelp> &flags) -> void {
+auto build_flags_help(std::string &help, std::vector<FlagHelp> &flags, std::size_t terminal_cols)
+    -> void {
     auto const longest =
         std::ranges::max(flags | std::views::transform([](FlagHelp const &help_data) {
                              return help_data.long_name.size();
@@ -169,7 +161,7 @@ auto build_flags_help(std::string &help, std::vector<FlagHelp> &flags) -> void {
             offset += 1;
             help += ']';
         }
-        apply_description(help, help_data.description, padding, offset, true);
+        apply_description(help, help_data.description, padding, offset, terminal_cols, true);
         help += '\n';
     }
 }

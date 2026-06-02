@@ -963,42 +963,53 @@ auto build_help_data(
     build_help_data<S2, Ops...>(positional, pure_flags, flags_with_value);
 }
 
-auto build_positionals_help(std::string &help, std::vector<PositionalHelp> &positional) -> void;
-auto build_flags_help(std::string &help, std::vector<FlagHelp> &flags) -> void;
+auto build_positionals_help(
+    std::string &help, std::vector<PositionalHelp> &positional, std::size_t terminal_cols) -> void;
+auto build_flags_help(std::string &help, std::vector<FlagHelp> &flags, std::size_t terminal_cols)
+    -> void;
+auto get_terminal_columns() -> std::size_t;
+auto apply_description(
+    std::string &help,
+    std::string_view description,
+    std::size_t padding,
+    std::size_t offset,
+    std::size_t terminal_cols,
+    bool is_first_iteration) -> void;
 
 template <Str Usage, Str Description, auto... Ops>
-[[nodiscard]] static auto make_help() -> std::string {
+[[nodiscard]] auto make_help() -> std::string {
     std::vector<PositionalHelp> positional{};
     std::vector<FlagHelp> pure_flags{};
     std::vector<FlagHelp> flags_with_value{};
 
     build_help_data<Ops...>(positional, pure_flags, flags_with_value);
 
+    auto const terminal_cols = get_terminal_columns();
     auto help = std::string{};
 
     if constexpr (!Usage.is_empty()) {
-        help += Usage.as_string_view();
+        apply_description(help, Usage.as_string_view(), 0, 0, terminal_cols, true);
     }
     if constexpr (!Description.is_empty()) {
         help += "\n\n";
-        help += Description.as_string_view();
+        apply_description(help, Description.as_string_view(), 0, 0, terminal_cols, true);
     }
 
     if (!positional.empty()) {
         help += "\n\n";
         help += "Arguments:\n\n";
-        build_positionals_help(help, positional);
+        build_positionals_help(help, positional, terminal_cols);
     }
 
     if (!pure_flags.empty()) {
         help += "\n\n";
         help += "Flags:\n\n";
-        build_flags_help(help, pure_flags);
+        build_flags_help(help, pure_flags, terminal_cols);
     }
 
     if (!flags_with_value.empty()) {
         help += "\n\n";
-        build_flags_help(help, flags_with_value);
+        build_flags_help(help, flags_with_value, terminal_cols);
     }
 
     help.push_back('\n');
