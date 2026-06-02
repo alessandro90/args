@@ -48,15 +48,7 @@ auto assign_parsed_value(ArgValue<S> &item, args::detail::parse_type_t<S> value)
 template <auto S>
 requires args::detail::is_repeatable_v<S>
 auto assign_parsed_value(ArgValue<S> &item, args::detail::parse_type_t<S> value) -> void {
-    std::visit(
-        [&](auto arg) {
-            if constexpr (args::detail::is_vector_v<decltype(arg)>) {
-                item.value.append_range(std::move(arg));
-            } else {
-                item.value.push_back(std::move(arg));
-            }
-        },
-        std::move(value));
+    item.value.append_range(std::move(value));
 }
 
 template <auto S>

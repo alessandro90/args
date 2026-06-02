@@ -238,22 +238,5 @@ struct Parser<T> {
         return detail::parse_vector<T>(std::ranges::begin(v), std::ranges::end(v));
     }
 };
-
-template <typename T>
-requires args::detail::IsRepeatableParseType<T>::value
-struct Parser<T> {
-    template <std::ranges::range R>
-    [[nodiscard]] static auto parse(R v) -> std::optional<T> {
-        auto parsed = Parser<args::detail::repeatable_single_type_t<T>>::parse(v);
-        if (parsed.has_value()) {
-            return T{std::move(parsed).value()};
-        }
-        // otherwise try to parse a vector
-        auto parsed_v = Parser<std::vector<args::detail::repeatable_single_type_t<T>>>::parse(v);
-        return std::move(parsed_v).transform([](auto p) {
-            return T{std::move(p)};
-        });
-    }
-};
 }  // namespace args::parsers
 #endif

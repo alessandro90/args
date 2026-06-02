@@ -617,21 +617,6 @@ concept PositionalVariadic = is_positional_variadic_v<S>;
 template <auto S>
 concept FlagObject = is_flag_v<decltype(S)> || is_flag_with_value_v<decltype(S)>;
 
-template <typename T>
-using RepeatableParseType = std::variant<T, std::vector<T>>;
-
-template <typename T>
-auto get_repeatable_single_type(RepeatableParseType<T> const &) -> T;
-
-template <typename T>
-using repeatable_single_type_t = decltype(get_repeatable_single_type(std::declval<T>()));
-
-template <typename T>
-struct IsRepeatableParseType: std::false_type {};
-
-template <typename T>
-struct IsRepeatableParseType<RepeatableParseType<T>>: std::true_type {};
-
 template <auto S>
 consteval auto parse_type() -> result_type_t<S>;
 
@@ -639,11 +624,6 @@ template <auto S>
 requires PositionalVariadic<S>
 consteval auto parse_type() ->
     typename result_type_t<S>::value_type;  // this is a vector, so we can get its contained type
-
-template <auto S>
-requires is_repeatable_v<S>
-consteval auto parse_type()
-    -> RepeatableParseType<typename result_type_impl_t<typename decltype(S)::value_t>::value_type>;
 
 template <auto S>
 using parse_type_t = decltype(parse_type<S>());
