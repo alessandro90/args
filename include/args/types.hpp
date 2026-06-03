@@ -1147,6 +1147,8 @@ template <auto... Rs, auto... Ss>
 /// arbitrary number of subcommands and a final descriptor, e.g. `args.get<sb_0, sb_1, sb_2, d>()`
 template <auto... Ops>
 class [[nodiscard]] Args {
+    friend std::formatter<Args<Ops...>>;
+
 public:
     explicit Args(std::tuple<ArgValue<Ops>...> results)
         : m_results{std::move(results)} {}
@@ -1383,5 +1385,52 @@ consteval auto operator""_sflag() -> Opt<char> {
 }
 }  // namespace literals
 }  // namespace args
+
+namespace std {
+template <auto S>
+struct formatter<args::ArgValue<S>>  // NOLINT(cert-dcl58-cpp)
+    : formatter<std::string_view> {
+    auto format(args::ArgValue<S> const &arg, format_context &ctx) const {
+        if constexpr (is_base_of_v<args::CommandArgValue<S>, args::ArgValue<S>>) {
+            if constexpr (requires { arg.count; }) {
+                return format_to(
+                    ctx.out(),
+                    "ArgValue{{ is_used: {}, value: {}, count: {} }}",
+                    arg.is_used,
+                    arg.value,
+                    arg.count);
+            } else {
+                return format_to(
+                    ctx.out(), "ArgValue{{ is_used: {}, value: {} }}", arg.is_used, arg.value);
+            }
+        } else {
+            return format_to(
+                ctx.out(),
+                "ArgValue{{ is_used: {}, value: {}, subcommands: {} }}",
+                arg.is_used,
+                arg.value,
+                arg.subcommands);
+        }
+    }
+};
+
+template <auto... Ops>
+struct formatter<args::Args<Ops...>>: formatter<string_view> {  // NOLINT(cert-dcl58-cpp)
+
+    auto format(args::Args<Ops...> const &arg, format_context &ctx) const {
+        ctx.advance_to(format_to(ctx.out(), "Args{{ "));
+
+        static constexpr auto tuple_size = tuple_size_v<decltype(arg.m_results)>;
+
+        template for (constexpr auto I : std::views::iota(0uz, tuple_size)) {
+            ctx.advance_to(format_to(ctx.out(), "{}", get<I>(arg.m_results)));
+            if constexpr (I + 1uz < tuple_size) {
+                ctx.advance_to(format_to(ctx.out(), ", "));
+            }
+        }
+        return format_to(ctx.out(), " }}");
+    }
+};
+}  // namespace std
 
 #endif
