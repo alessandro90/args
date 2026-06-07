@@ -25,12 +25,6 @@ inline constexpr auto Lazy = [] {
     return T{std::move(Args)...};
 };
 
-template <typename T, auto... Args>
-using lazy_t = decltype(Lazy<T, Args...>);
-
-template <typename T>
-using vec_t = lazy_t<std::vector<T>>;
-
 template <typename T>
 struct [[nodiscard]] Opt {
     bool has_value;
@@ -99,10 +93,6 @@ Str(char const (&s)[N]) -> Str<N - 1>;  // NOLINT
 
 /// An empty `Str` object. Useful to avoid empty string creation
 inline constexpr auto empty = Str{""};
-
-using str_t = lazy_t<std::string>;
-
-using strv_t = lazy_t<std::string_view>;
 
 namespace detail {
 constexpr auto help_str = std::string_view{"help"};
@@ -320,7 +310,9 @@ struct [[nodiscard]] FlagWithValue {
         };
     }
 
-    consteval auto Repeatable(bool repeatable) const -> FlagWithValue<Tag, N, M, V, DefaultType> {
+    consteval auto Repeatable(bool repeatable) const
+        -> FlagWithValue<Tag, N, M, V, DefaultType> requires args::detail::StdVector<Tag>
+    {
         return FlagWithValue<Tag, N, M, V, DefaultType>{
             ._long_form = _long_form,
             ._short_form = _short_form,
@@ -410,7 +402,9 @@ struct [[nodiscard]] Positional {
         };
     }
 
-    consteval auto Variadic(bool variadic) const -> Positional<P, N, M, V> {
+    consteval auto Variadic(bool variadic) const
+        -> Positional<P, N, M, V> requires args::detail::StdVector<P>
+    {
         return Positional<P, N, M, V>{
             ._type = _type,
             ._name = _name,
@@ -485,7 +479,6 @@ struct [[nodiscard]] Subcommand {
         detail::IsMutuallyExclusiveGroup<Me>::value,
         "This type can only be a MutuallyExclusiveGroups type");
 
-    // using value_t = strv_t;
     using value_t = std::string_view;
 
     template <std::size_t Nx>
@@ -586,6 +579,19 @@ inline constexpr bool is_subcommand_v = IsSubcommand<std::remove_cvref_t<S>>::va
 
 namespace detail {
 
+template <auto S>
+struct Fail;
+
+template <auto S>
+[[nodiscard]] auto option_name() -> std::string_view {
+    if constexpr (requires { S._name; }) {
+        return S._name.as_string_view();
+    } else if constexpr (requires { S._long_form; }) {
+        return S._long_form.as_string_view();
+    } else {
+        Fail<S>{};
+    }
+}
 
 template <typename P>
 [[nodiscard]] consteval auto is_positional_variadic(P p) -> bool {
@@ -1051,7 +1057,7 @@ struct ArgsFromSubCommand<Subcommand<N, M, Usage, Description, Me, Ops...>> {
 
 template <auto S>
 struct [[nodiscard]] SubcommandArgValue {
-    detail::result_type_t<S> value{detail::default_arg_value<S>()};
+    detail::result_type_t<S> name{detail::default_arg_value<S>()};
     bool is_used{false};
     ArgsFromSubCommand<decltype(S)>::args_t subcommands{};
     static constexpr auto option = S;
@@ -1131,70 +1137,7 @@ template <auto... Rs, auto... Ss>
         return (... && are_valid_mutually_exclusive_flags(opts, Ss));
     }
 }
-}  // namespace detail
 
-/// A container class for all parsed commands
-///
-/// Provides getter methods for directly accessing the value and accessing the value with more
-/// contextual info (e.g. if the value has actually been provided or a default has been used)
-///
-/// The getters a generics over the desciptions, so for accessing the value of a description
-/// `d` of type `Flag` use `args.get<d>()`. To access the same value with extra information use
-/// `args.get_with_info<d>()`.
-///
-/// For accessing a value `d` of a subcommand `sb` use `args.get<sb, d>()` or
-/// `args.get_with_info<sb, d>()`. Both functions are variadic in the sense that they can take an
-/// arbitrary number of subcommands and a final descriptor, e.g. `args.get<sb_0, sb_1, sb_2, d>()`
-template <auto... Ops>
-class [[nodiscard]] Args {
-    friend std::formatter<Args<Ops...>>;
-
-public:
-    explicit Args(std::tuple<ArgValue<Ops>...> results)
-        : m_results{std::move(results)} {}
-
-    explicit Args() = default;
-
-    template <auto S>
-    [[nodiscard]] constexpr auto get_with_info() const noexcept -> ArgValue<S> const & {
-        return std::get<ArgValue<S>>(m_results);
-    }
-
-    template <auto S>
-    [[nodiscard]] constexpr auto get() const noexcept -> detail::result_type_t<S> const & {
-        return get_with_info<S>().value;
-    }
-
-    template <auto Sb, auto S>
-    requires(is_subcommand_v<decltype(Sb)> && !is_subcommand_v<decltype(S)>)
-    [[nodiscard]] constexpr auto get_with_info() const noexcept -> ArgValue<S> const & {
-        return get_with_info<Sb>().subcommands.template get_with_info<S>();
-    }
-
-    template <auto Sb, auto S>
-    requires(is_subcommand_v<decltype(Sb)> && !is_subcommand_v<decltype(S)>)
-    [[nodiscard]] constexpr auto get() const noexcept -> detail::result_type_t<S> const & {
-        return get_with_info<Sb>().subcommands.template get<S>();
-    }
-
-    template <auto Sb, auto S, auto... Ss>
-    requires(is_subcommand_v<decltype(Sb)> && is_subcommand_v<decltype(S)> && sizeof...(Ss) > 0)
-    [[nodiscard]] constexpr auto get() const noexcept -> detail::GetRet<Ss...>::type const & {
-        return get_with_info<Sb>().subcommands.template get<S, Ss...>();
-    }
-
-    template <auto Sb, auto S, auto... Ss>
-    requires(is_subcommand_v<decltype(Sb)> && is_subcommand_v<decltype(S)> && sizeof...(Ss) > 0)
-    [[nodiscard]] constexpr auto get_with_info() const noexcept
-        -> detail::GetWithInfoRet<Ss...>::type const & {
-        return get_with_info<Sb>().subcommands.template get_with_info<S, Ss...>();
-    }
-
-private:
-    std::tuple<ArgValue<Ops>...> m_results{};
-};
-
-namespace detail {
 template <auto S>
 concept ShortFlagObject =
     S._short_form.has_value && is_flag_v<decltype(S)> && !is_flag_with_value_v<decltype(S)>;
@@ -1276,6 +1219,153 @@ template <auto... Ss, auto... Gg>
     }
 }
 }  // namespace detail
+
+/// A container class for all parsed commands
+///
+/// Provides getter methods for directly accessing the value and accessing the value with more
+/// contextual info (e.g. if the value has actually been provided or a default has been used)
+///
+/// The getters a generics over the desciptions, so for accessing the value of a description
+/// `d` of type `Flag` use `args.get<d>()`. To access the same value with extra information use
+/// `args.get_with_info<d>()`.
+///
+/// For accessing a value `d` of a subcommand `sb` use `args.get<sb, d>()` or
+/// `args.get_with_info<sb, d>()`. Both functions are variadic in the sense that they can take an
+/// arbitrary number of subcommands and a final descriptor, e.g. `args.get<sb_0, sb_1, sb_2, d>()`
+template <auto... Ops>
+class [[nodiscard]] Args {
+    friend std::formatter<Args<Ops...>>;
+
+public:
+    explicit Args(std::tuple<ArgValue<Ops>...> results)
+        : m_results{std::move(results)} {}
+
+    explicit Args() = default;
+
+    template <auto S>
+    [[nodiscard]] constexpr auto get_with_info() const noexcept -> ArgValue<S> const & {
+        return std::get<ArgValue<S>>(m_results);
+    }
+
+    template <auto S>
+    [[nodiscard]] constexpr auto get() const noexcept
+        -> detail::result_type_t<S> const & requires args::detail::Not<detail::SubcommandObject<S>>
+    {
+        return get_with_info<S>().value;
+    }
+
+    template <auto Sb, auto S>
+    requires(is_subcommand_v<decltype(Sb)> && !is_subcommand_v<decltype(S)>)
+    [[nodiscard]] constexpr auto get_with_info() const noexcept -> ArgValue<S> const & {
+        return get_with_info<Sb>().subcommands.template get_with_info<S>();
+    }
+
+    template <auto Sb, auto S>
+    requires(is_subcommand_v<decltype(Sb)> && !is_subcommand_v<decltype(S)>)
+    [[nodiscard]] constexpr auto get() const noexcept -> detail::result_type_t<S> const & {
+        return get_with_info<Sb>().subcommands.template get<S>();
+    }
+
+    template <auto Sb, auto S, auto... Ss>
+    requires(is_subcommand_v<decltype(Sb)> && is_subcommand_v<decltype(S)> && sizeof...(Ss) > 0)
+    [[nodiscard]] constexpr auto get() const noexcept -> detail::GetRet<Ss...>::type const & {
+        return get_with_info<Sb>().subcommands.template get<S, Ss...>();
+    }
+
+    template <auto Sb, auto S, auto... Ss>
+    requires(is_subcommand_v<decltype(Sb)> && is_subcommand_v<decltype(S)> && sizeof...(Ss) > 0)
+    [[nodiscard]] constexpr auto get_with_info() const noexcept
+        -> detail::GetWithInfoRet<Ss...>::type const & {
+        return get_with_info<Sb>().subcommands.template get_with_info<S, Ss...>();
+    }
+
+private:
+    std::tuple<ArgValue<Ops>...> m_results{};
+};
+
+// namespace detail {
+// template <auto S>
+// concept ShortFlagObject =
+//     S._short_form.has_value && is_flag_v<decltype(S)> && !is_flag_with_value_v<decltype(S)>;
+//
+// template <auto S>
+// concept ShortFlagWithValueObject = S._short_form.has_value && is_flag_with_value_v<decltype(S)>;
+//
+// template <auto S>
+// concept LongFlagObject = is_flag_v<decltype(S)> && !is_flag_with_value_v<decltype(S)>;
+//
+// template <auto S>
+// concept LongFlagWithValueObject = is_flag_with_value_v<decltype(S)>;
+//
+// template <auto S>
+// concept PositionalObject = is_positional_v<decltype(S)>;
+//
+// template <auto S>
+// concept SubcommandObject = is_subcommand_v<decltype(S)>;
+//
+// template <auto S>
+// [[nodiscard]] constexpr auto arg_value_parameter(Typetag<ArgValue<S>>) -> decltype(S) const & {
+//     return S;
+// }
+//
+// template <auto... Ops>
+// [[nodiscard]] auto nth_positional_argument_name(std::size_t nth) -> std::string_view {
+//     auto position_count = 0uz;
+//     template for (auto const &S : std::forward_as_tuple(Ops...)) {
+//         if constexpr (is_positional_v<decltype(S)>) {
+//             ++position_count;
+//             if (position_count == nth) {
+//                 return S._name.as_string_view();
+//             }
+//         }
+//     }
+//     args_log_and_abort(std::format("cannot find name of positional argument number {}", nth));
+//     return "";
+// }
+//
+// template <auto... Ss, auto... Gg>
+// [[nodiscard]] auto check_mutually_exclusive_set_satisfied(
+//     Args<Ss...> const &args, MutuallyExclusive<Gg...> mutually_exclusive, std::size_t index)
+//     -> std::optional<std::string> {
+//     auto const used_args = (0 + ... + args.template get_with_info<Gg>().is_used);
+//     if (mutually_exclusive.at_least_one && used_args == 0) {
+//         return std::format(
+//             "Mutually exclusive set number {} not satisfied. At least one argument is required.",
+//             index);
+//     }
+//     if (used_args > 1) {
+//         return std::format(
+//                 "Mutually exclusive set number {} not satisfied. Too many arguments provided. "
+//                 "Expected 1, provided: {}.",
+//                 index,
+//                 used_args);
+//     }
+//     return {};
+// }
+//
+// template <auto... Ss, auto... Gg>
+// [[nodiscard]] auto check_mutually_exclusive_group_satisfied(
+//     Args<Ss...> const &args, MutuallyExclusiveGroups<Gg...>) -> std::optional<std::string> {
+//     if constexpr (sizeof...(Gg) == 0) {
+//         return {};
+//     } else {
+//         auto errors = std::vector<std::string>{};
+//         auto index = 0uz;
+//         template for (auto gg : {Gg...}) {
+//             if (auto err = check_mutually_exclusive_set_satisfied(args, gg, index);
+//                 err.has_value()) {
+//                 errors.push_back(std::move(err).value());
+//             }
+//             ++index;
+//         }
+//         if (!errors.empty()) {
+//             return std::move(errors) | std::views::join_with('\n') |
+//             std::ranges::to<std::string>();
+//         }
+//         return {};
+//     }
+// }
+// }  // namespace detail
 
 struct [[nodiscard]] Help {
     std::string_view message;
@@ -1395,20 +1485,25 @@ struct formatter<args::ArgValue<S>>  // NOLINT(cert-dcl58-cpp)
             if constexpr (requires { arg.count; }) {
                 return format_to(
                     ctx.out(),
-                    "ArgValue{{ is_used: {}, value: {}, count: {} }}",
+                    "{}: {{ is_used: {}, value: {}, count: {} }}",
+                    args::detail::option_name<S>(),
                     arg.is_used,
                     arg.value,
                     arg.count);
             } else {
                 return format_to(
-                    ctx.out(), "ArgValue{{ is_used: {}, value: {} }}", arg.is_used, arg.value);
+                    ctx.out(),
+                    "{}: {{ is_used: {}, value: {} }}",
+                    args::detail::option_name<S>(),
+                    arg.is_used,
+                    arg.value);
             }
         } else {
             return format_to(
                 ctx.out(),
-                "ArgValue{{ is_used: {}, value: {}, subcommands: {} }}",
+                "{}: {{ is_used: {}, subcommands: {} }}",
+                args::detail::option_name<S>(),
                 arg.is_used,
-                arg.value,
                 arg.subcommands);
         }
     }
@@ -1429,6 +1524,40 @@ struct formatter<args::Args<Ops...>>: formatter<string_view> {  // NOLINT(cert-d
             }
         }
         return format_to(ctx.out(), " }}");
+    }
+};
+
+template <>
+struct formatter<args::Error>: formatter<std::string_view> {          // NOLINT(cert-dcl58-cpp)
+
+    auto format(args::Error const &err, format_context &ctx) const {  // NOLINT
+        return format_to(ctx.out(), "Error{{\n{}\n}}", err.message);
+    }
+};
+
+template <>
+struct formatter<args::Help>: formatter<std::string_view> {        // NOLINT(cert-dcl58-cpp)
+
+    auto format(args::Help const &h, format_context &ctx) const {  // NOLINT
+        return format_to(ctx.out(), "Help{{\n{}\n}}", h.message);
+    }
+};
+
+template <>
+struct formatter<args::NoArguments>: formatter<std::string_view> {       // NOLINT(cert-dcl58-cpp)
+
+    auto format(args::NoArguments const &, format_context &ctx) const {  // NOLINT
+        return format_to(ctx.out(), "NoArguments");
+    }
+};
+
+template <auto... Ss>
+struct formatter<args::compile_result_t<Ss...>>  // NOLINT(cert-dcl58-cpp)
+    : formatter<std::string_view> {
+    auto format(args::compile_result_t<Ss...> const &result, format_context &ctx) const {  // NOLINT
+        return result.visit([&](auto const &v) {
+            return formatter<remove_cvref_t<decltype(v)>>{}.format(v, ctx);
+        });
     }
 };
 }  // namespace std

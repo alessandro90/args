@@ -57,9 +57,9 @@ enum class VecSeparatorType : std::uint8_t {
     Space,
 };
 
-template <typename T>
+template <typename T, typename A>
 struct VecParser {
-    explicit VecParser(std::vector<T> &vs)
+    explicit VecParser(std::vector<T, A> &vs)
         : values{vs} {}
 
     std::vector<T> &values;
@@ -80,7 +80,7 @@ struct VecParser {
             if (closing_quote == end) {
                 return {};
             }
-            if constexpr (InPlaceParser<Parser<T>, std::vector<T>>) {
+            if constexpr (InPlaceParser<Parser<T>, std::vector<T, A>>) {
                 auto const parsed =
                     Parser<T>::parse(values, std::string_view(first_char, closing_quote));
                 if (parsed) {
@@ -99,7 +99,7 @@ struct VecParser {
         auto const sep = std::ranges::find_if(begin, end, [&](char c) {
             return check_separator(c);
         });
-        if constexpr (InPlaceParser<Parser<T>, std::vector<T>>) {
+        if constexpr (InPlaceParser<Parser<T>, std::vector<T, A>>) {
             auto const parsed = Parser<T>::parse(values, std::string_view(begin, sep));
             if (parsed) {
                 return sep;
@@ -174,7 +174,7 @@ private:
 
 template <typename Out, typename It>
 [[nodiscard]] auto parse_vector(Out &item, It begin, It end) -> bool {
-    auto parser = VecParser<typename Out::value_type>{item};
+    auto parser = VecParser{item};
     while (true) {
         auto it = detail::skip_space(begin, end);
         if (it == end) {

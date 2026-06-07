@@ -9,7 +9,7 @@
 #include <ranges>
 #include <string>
 #include <type_traits>
-#include <vector>
+#include <utility>
 
 namespace args {
 
@@ -258,15 +258,15 @@ inline constexpr auto any_of = Or<equal_to<Cc...>>;
 
 /// Apply the provided validator to each element of the parsed value.
 ///
-/// The parsed value must be iterable
+/// The parsed value must be a range
 ///
 /// Usage:
 ///
-/// `ForEach<v1, v2, ...>`
+/// `ForEach<V>`
 template <Validator V>
 inline constexpr auto ForEach = Validator{
-    .fn = []<typename T>(std::vector<T> const &value) -> bool {
-        return std::ranges::all_of(value, [&](auto const &item) {
+    .fn = [](std::ranges::range auto &&value) -> bool {
+        return std::ranges::all_of(std::forward<decltype(value)>(value), [&](auto const &item) {
             return V.fn(item);
         });
     },

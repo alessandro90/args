@@ -57,7 +57,11 @@ auto assign_parsed_value(ArgValue<S> &item, args::detail::parse_type_t<S> value)
 
 template <auto S>
 auto assign_parsed_value(ArgValue<S> &item, args::detail::parse_type_t<S> value) -> void {
-    item.value = std::move(value);
+    if constexpr (args::is_subcommand_v<decltype(S)>) {
+        item.name = std::move(value);
+    } else {
+        item.value = std::move(value);
+    }
 }
 
 template <Str Usage, Str Description, auto... Ops>
@@ -391,7 +395,7 @@ private:
                 if (error.has_value()) {
                     return false;
                 }
-                if (cloned_item.value != S._name.as_string_view()) {
+                if (cloned_item.name != S._name.as_string_view()) {
                     return false;
                 }
                 item = std::move(cloned_item);

@@ -149,10 +149,8 @@ auto build_flags_help(std::string &help, std::vector<FlagHelp> &flags, std::size
         }
         if (help_data.short_name.has_value()) {
             help += std::format("-{}, ", help_data.short_name.value());
-        } else {
-            help += "  , ";
+            offset += 4;
         }
-        offset += 4;
         offset += name.size();
         help += "--";
         offset += 2;

@@ -17,11 +17,14 @@ namespace args::detail {
 template <typename T>
 struct IsVector: std::false_type {};
 
-template <typename T>
-struct IsVector<std::vector<T>>: std::true_type {};
+template <typename T, typename A>
+struct IsVector<std::vector<T, A>>: std::true_type {};
 
 template <typename T>
 inline constexpr auto is_vector_v = IsVector<T>::value;
+
+template <typename T>
+concept StdVector = is_vector_v<T>;
 
 template <typename T>
 struct IsStringView: std::false_type {};
@@ -33,6 +36,9 @@ template <typename T>
 inline constexpr auto is_string_view_v = IsStringView<T>::value;
 
 template <typename T>
+concept StdStringView = is_string_view_v<T>;
+
+template <typename T>
 struct IsString: std::false_type {};
 
 template <>
@@ -40,6 +46,9 @@ struct IsString<std::string>: std::true_type {};
 
 template <typename T>
 inline constexpr auto is_string_v = IsString<T>::value;
+
+template <typename T>
+concept StdString = is_string_v<T>;
 
 template <std::invocable F>
 class [[nodiscard]] Defer {
