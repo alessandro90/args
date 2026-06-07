@@ -69,7 +69,6 @@ auto apply_description(
     if (space_index == std::string_view::npos) {
         return;
     }
-    std::println("description: {}, new_line_idx: {}", description, space_index);
     add_left_padding();
     help.append_range(description.substr(0, space_index));
     if (description.size() > space_index) {

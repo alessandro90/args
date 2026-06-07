@@ -265,13 +265,20 @@ inline constexpr auto choices = Or<equal_to<Cc...>>;
 /// `All<V>`
 template <Validator V>
 inline constexpr auto All = Validator{
-    .fn = [](std::ranges::range auto &&value) -> bool {
-        return std::ranges::all_of(std::forward<decltype(value)>(value), [&](auto const &item) {
+    .fn = [](std::ranges::range auto const &values) -> bool {
+        return std::ranges::all_of(values, [&](auto const &item) {
             return V.fn(item);
         });
     },
-    .err_fn = [](auto const &value) -> std::string {
-        return std::format("Vector item: {}", V.err_fn(value));
+    .err_fn = [](std::ranges::range auto const &values) -> std::string {
+        return std::ranges::to<std::string>(
+            values | std::views::filter([](auto const &v) {
+                return !V.fn(v);
+            })
+            | std::views::transform([](auto const &v) {
+                  return V.err_fn(v);
+              })
+            | std::views::join_with(std::string_view{" and "}));
     }};
 
 /// Checks that the parsed value is less or equal than the provided limit
