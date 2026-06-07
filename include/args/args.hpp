@@ -62,6 +62,11 @@ template <Str Usage, Str Description, auto... Ops, auto... Gg>
         std::println("{}", help.message);
         std::exit(EXIT_SUCCESS);  // NOLINT(concurrency-mt-unsafe)
     }
+    if (is_empty(args)) {
+        std::println(stderr, "No arguments provided");
+        std::println(stderr, "{}", opts.help());
+        std::exit(EXIT_FAILURE);  // NOLINT(concurrency-mt-unsafe)
+    }
     return get_args(std::move(args));
 }
 
