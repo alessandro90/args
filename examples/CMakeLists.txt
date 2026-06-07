@@ -1,15 +1,13 @@
-#add_executable(args_example
-    #00_basic.cpp
-    #01_subcommand.cpp
-    #02_validation.cpp
-    #03_custom_parser.cpp
-    #04_mutually_exclusive.cpp
-#)
-
-add_executable(args_example
-    example.cpp
+set(
+    examples
+    00_basic
+    01_subcommand
+    #02_validation
+    #03_custom_parser
+    #04_mutually_exclusive
 )
-
-target_link_libraries(args_example PRIVATE args project_warnings)
-
-add_dependencies(build_all_examples args_example)
+foreach(example ${examples})
+    add_executable(${example} ${example}.cpp)
+    target_link_libraries(${example} PRIVATE args project_warnings)
+    add_dependencies(build_all_examples ${example})
+endforeach()
