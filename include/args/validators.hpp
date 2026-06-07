@@ -251,9 +251,9 @@ inline constexpr auto greater_than = Validator{
 ///
 /// Usage:
 ///
-/// `any_of<c0, c1, c2, ...>`
+/// `choices<c0, c1, c2, ...>`
 template <auto... Cc>
-inline constexpr auto any_of = Or<equal_to<Cc...>>;
+inline constexpr auto choices = Or<equal_to<Cc...>>;
 
 
 /// Apply the provided validator to each element of the parsed value.
@@ -262,9 +262,9 @@ inline constexpr auto any_of = Or<equal_to<Cc...>>;
 ///
 /// Usage:
 ///
-/// `ForEach<V>`
+/// `All<V>`
 template <Validator V>
-inline constexpr auto ForEach = Validator{
+inline constexpr auto All = Validator{
     .fn = [](std::ranges::range auto &&value) -> bool {
         return std::ranges::all_of(std::forward<decltype(value)>(value), [&](auto const &item) {
             return V.fn(item);

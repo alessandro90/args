@@ -105,12 +105,12 @@ Validators can be composed in several way. Custom validators are supported.
 
 - `always`: Unconditional pass.
 - `less_than`, `less_or_equal`, `greater_than`, `greater_or_equal`, `equal_to`.
-- `any_of`: Short-circuiting logical disjunction over multiple validators.
+- `choices`: Short-circuiting logical disjunction over multiple validators.
 - `inclusive_range`, `exclusive_range`, `half_open_range`.
 
 ### Functional Combinators
 
-- `ForEach`: Maps a scalar validator over every element within an iterable container.
+- `All`: Maps a scalar validator over every element within an iterable container.
 - `Compose`: Chains sequential validators together sequentially (left-to-right evaluation).
 - `len`: Extracts value dimensions (`.size()`) before forwarding execution.
 - `Pipe`: Combines a property extraction transformer (like `len`) with a distinct evaluator.
