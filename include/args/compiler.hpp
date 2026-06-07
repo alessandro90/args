@@ -25,6 +25,11 @@ namespace args::compiler {
 namespace detail {
 
 template <auto S>
+[[nodiscard]] auto format_validation_error(std::string_view error) -> std::string {
+    return std::format("{} -> {}", args::detail::option_name<S>(), error);
+}
+
+template <auto S>
 inline constexpr auto requires_immediate_validation_v =
     !args::detail::is_repeatable_v<S> && !args::detail::is_positional_variadic_v<S>;
 
@@ -353,7 +358,7 @@ private:
         if constexpr (args::detail::HasValidator<S>) {
             auto validation = S._validator(item);
             if (!validation.has_value()) {
-                error = std::move(validation).error();
+                error = detail::format_validation_error<S>(validation.error());
                 return false;
             }
         }
@@ -545,7 +550,8 @@ template <auto... Ops>
             if (r.is_used) {
                 auto res = arg_type_t::option._validator(r.value);
                 if (!res.has_value()) {
-                    validation_errors.push_back(std::move(res).error());
+                    validation_errors.push_back(
+                        detail::format_validation_error<arg_type_t::option>(res.error()));
                 }
             }
         }

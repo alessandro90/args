@@ -2,14 +2,13 @@
 #define ARGS_VALIDATORS
 
 #include <algorithm>
-#include <array>
 #include <concepts>
 #include <expected>
 #include <format>
 #include <ranges>
 #include <string>
 #include <type_traits>
-#include <utility>
+#include <vector>
 
 namespace args {
 
@@ -55,11 +54,17 @@ template <typename T>
 concept ValidatorObject = is_validator_v<T>;
 
 namespace detail {
-[[nodiscard]] auto make_error_char_range(
-    auto const &value, std::string_view joiner, ValidatorObject auto const &...validators)
+template <Validator... Vs>
+[[nodiscard]] auto collect_validation_errors(auto const &value, std::string_view sep)
     -> std::ranges::range auto {
-    return std::array{std::format("'{}'", validators.err_fn(value))...}
-           | std::views::join_with(joiner);
+    auto errors = std::vector<std::string>{};
+    template for (auto const &validator : {Vs...}) {
+        if (validator.fn(value)) {
+            continue;
+        }
+        errors.push_back(validator.err_fn(value));
+    }
+    return std::move(errors) | std::views::join_with(sep);
 }
 }  // namespace detail
 
@@ -75,11 +80,10 @@ inline constexpr auto Or = make_validator(
     },
     [](auto const &value) -> std::string {
         auto s = std::string(1, '(');
-        s.append_range(detail::make_error_char_range(value, " or ", Vs...));
+        s.append_range(detail::collect_validation_errors<Vs...>(value, " or "));
         s.push_back(')');
         return s;
     });
-
 
 /// Creates a new validator that is a logical 'and' between all the provided validators
 ///
@@ -93,11 +97,10 @@ inline constexpr auto And = make_validator(
     },
     [](auto const &value) -> std::string {
         auto s = std::string(1, '(');
-        s.append_range(detail::make_error_char_range(value, " and ", Vs...));
+        s.append_range(detail::collect_validation_errors<Vs...>(value, " and "));
         s.push_back(')');
         return s;
     });
-
 /// Creates a new validator that is a logical 'xor' between all the provided validators
 ///
 /// Usage:
@@ -110,7 +113,7 @@ inline constexpr auto Xor = make_validator(
     },
     [](auto const &value) -> std::string {
         auto s = std::string(1, '(');
-        s.append_range(detail::make_error_char_range(value, " xor ", Vs...));
+        s.append_range(detail::collect_validation_errors<Vs...>(value, " xor "));
         s.push_back(')');
         return s;
     });
@@ -297,7 +300,7 @@ inline constexpr auto less_or_equal = Or<equal_to<X>, less_than<X>>;
 template <auto Value>
 inline constexpr auto greater_or_equal = Or<equal_to<Value>, greater_than<Value>>;
 
-/// Checks that the parsed value is in the range (extremes excluded)
+/// Checks that the parsed value is in the range (Min, Max)
 ///
 /// Usage:
 ///
@@ -305,7 +308,7 @@ inline constexpr auto greater_or_equal = Or<equal_to<Value>, greater_than<Value>
 template <auto Min, auto Max>
 inline constexpr auto exclusive_range = And<greater_than<Min>, less_than<Max>>;
 
-/// Checks that the parsed value is in the range (included excluded)
+/// Checks that the parsed value is in the range [Min, Max]
 ///
 /// Usage:
 ///
@@ -313,8 +316,7 @@ inline constexpr auto exclusive_range = And<greater_than<Min>, less_than<Max>>;
 template <auto Min, auto Max>
 inline constexpr auto inclusive_range = And<greater_or_equal<Min>, less_or_equal<Max>>;
 
-/// Checks that the parsed value is in the range (including the lower limit and excluding the higher
-/// one)
+/// Checks that the parsed value is in the range [Min, Max)
 ///
 /// Usage:
 ///
@@ -351,7 +353,7 @@ inline constexpr auto len = ValidatorTransformer{
         return value.size();
     },
     .err_fn = [](std::string msg) -> std::string {
-        return std::format("len of {}", msg);
+        return std::format("size mismacth: {}", msg);
     }};
 
 namespace detail {
@@ -395,8 +397,8 @@ inline constexpr auto Pipe = Validator{
         return V.fn(T.fn(value));
     },
     .err_fn =
-        [](auto const &x) {
-            return T.err_fn(V.err_fn(x));
+        [](auto const &value) {
+            return T.err_fn(V.err_fn(T.fn(value)));
         }};
 
 }  // namespace args
