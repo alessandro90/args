@@ -443,7 +443,16 @@ struct [[nodiscard]] MutuallyExclusive {
 };
 
 template <auto... Ss>
+inline constexpr auto mutually_exclusive = MutuallyExclusive<Ss...>{};
+
+template <auto... Ss>
+inline constexpr auto mutually_exclusive_required = MutuallyExclusive<Ss...>{.at_least_one = true};
+
+template <auto... Ss>
 struct MutuallyExclusiveGroups {};
+
+template <auto... Ss>
+inline constexpr auto mutually_exclusive_groups = MutuallyExclusiveGroups<Ss...>{};
 
 namespace detail {
 template <typename>
@@ -583,7 +592,7 @@ template <auto S>
 struct Fail;
 
 template <auto S>
-[[nodiscard]] auto option_name() -> std::string_view {
+[[nodiscard]] constexpr auto option_name() -> std::string_view {
     if constexpr (requires { S._name; }) {
         return S._name.as_string_view();
     } else if constexpr (requires { S._long_form; }) {
@@ -1111,7 +1120,7 @@ template <auto S>
 struct IsSameSpec<S, S>: std::true_type {};
 
 template <auto S, auto... Ss>
-[[nodiscard]] consteval auto has_duplicate_mutually_exclusive_flags() -> bool {
+[[nodiscard]] consteval auto at_least_one_match() -> bool {
     return std::disjunction_v<IsSameSpec<S, Ss>...>;
 }
 
@@ -1120,9 +1129,10 @@ template <auto... Rs, auto... Ss>
     Options<Rs...>, MutuallyExclusive<Ss...>) -> bool {
     if constexpr (sizeof...(Ss) > sizeof...(Rs)) {
         return false;
+    } else {
+        return !at_least_one_match<Ss...>()
+               && std::conjunction_v<std::bool_constant<at_least_one_match<Ss, Rs...>()>...>;
     }
-    return has_duplicate_mutually_exclusive_flags<Ss...>()
-           && std::conjunction_v<std::disjunction<IsSameSpec<Ss, Rs>...>>;
 }
 
 template <auto... Rs, auto... Ss>
@@ -1177,22 +1187,31 @@ template <auto... Ops>
     return "";
 }
 
+template <auto... Ss>
+[[nodiscard]] auto group_names() -> std::string {
+    auto index = 0uz;
+    auto names = std::string(1, '{');
+    template for (constexpr auto name : {args::detail::option_name<Ss>()...}) {
+        names += name;
+        if (static_cast<std::size_t>(index) < sizeof...(Ss) - 1uz) {
+            names += ", ";
+        }
+        ++index;
+    }
+    names += '}';
+    return names;
+}
+
 template <auto... Ss, auto... Gg>
 [[nodiscard]] auto check_mutually_exclusive_set_satisfied(
-    Args<Ss...> const &args, MutuallyExclusive<Gg...> mutually_exclusive, std::size_t index)
+    Args<Ss...> const &args, MutuallyExclusive<Gg...> mutually_exclusive)
     -> std::optional<std::string> {
     auto const used_args = (0 + ... + args.template get_with_info<Gg>().is_used);
     if (mutually_exclusive.at_least_one && used_args == 0) {
-        return std::format(
-            "Mutually exclusive set number {} not satisfied. At least one argument is required.",
-            index);
+        return std::format("At least one argument between {} is required.", group_names<Gg...>());
     }
     if (used_args > 1) {
-        return std::format(
-                "Mutually exclusive set number {} not satisfied. Too many arguments provided. "
-                "Expected 1, provided: {}.",
-                index,
-                used_args);
+        return std::format("Arguments {} are mutually exclusive", group_names<Gg...>());
     }
     return {};
 }
@@ -1204,13 +1223,10 @@ template <auto... Ss, auto... Gg>
         return {};
     } else {
         auto errors = std::vector<std::string>{};
-        auto index = 0uz;
-        template for (auto gg : {Gg...}) {
-            if (auto err = check_mutually_exclusive_set_satisfied(args, gg, index);
-                err.has_value()) {
+        template for (auto const &gg : {Gg...}) {
+            if (auto err = check_mutually_exclusive_set_satisfied(args, gg); err.has_value()) {
                 errors.push_back(std::move(err).value());
             }
-            ++index;
         }
         if (!errors.empty()) {
             return std::move(errors) | std::views::join_with('\n') | std::ranges::to<std::string>();
@@ -1282,90 +1298,6 @@ public:
 private:
     std::tuple<ArgValue<Ops>...> m_results{};
 };
-
-// namespace detail {
-// template <auto S>
-// concept ShortFlagObject =
-//     S._short_form.has_value && is_flag_v<decltype(S)> && !is_flag_with_value_v<decltype(S)>;
-//
-// template <auto S>
-// concept ShortFlagWithValueObject = S._short_form.has_value && is_flag_with_value_v<decltype(S)>;
-//
-// template <auto S>
-// concept LongFlagObject = is_flag_v<decltype(S)> && !is_flag_with_value_v<decltype(S)>;
-//
-// template <auto S>
-// concept LongFlagWithValueObject = is_flag_with_value_v<decltype(S)>;
-//
-// template <auto S>
-// concept PositionalObject = is_positional_v<decltype(S)>;
-//
-// template <auto S>
-// concept SubcommandObject = is_subcommand_v<decltype(S)>;
-//
-// template <auto S>
-// [[nodiscard]] constexpr auto arg_value_parameter(Typetag<ArgValue<S>>) -> decltype(S) const & {
-//     return S;
-// }
-//
-// template <auto... Ops>
-// [[nodiscard]] auto nth_positional_argument_name(std::size_t nth) -> std::string_view {
-//     auto position_count = 0uz;
-//     template for (auto const &S : std::forward_as_tuple(Ops...)) {
-//         if constexpr (is_positional_v<decltype(S)>) {
-//             ++position_count;
-//             if (position_count == nth) {
-//                 return S._name.as_string_view();
-//             }
-//         }
-//     }
-//     args_log_and_abort(std::format("cannot find name of positional argument number {}", nth));
-//     return "";
-// }
-//
-// template <auto... Ss, auto... Gg>
-// [[nodiscard]] auto check_mutually_exclusive_set_satisfied(
-//     Args<Ss...> const &args, MutuallyExclusive<Gg...> mutually_exclusive, std::size_t index)
-//     -> std::optional<std::string> {
-//     auto const used_args = (0 + ... + args.template get_with_info<Gg>().is_used);
-//     if (mutually_exclusive.at_least_one && used_args == 0) {
-//         return std::format(
-//             "Mutually exclusive set number {} not satisfied. At least one argument is required.",
-//             index);
-//     }
-//     if (used_args > 1) {
-//         return std::format(
-//                 "Mutually exclusive set number {} not satisfied. Too many arguments provided. "
-//                 "Expected 1, provided: {}.",
-//                 index,
-//                 used_args);
-//     }
-//     return {};
-// }
-//
-// template <auto... Ss, auto... Gg>
-// [[nodiscard]] auto check_mutually_exclusive_group_satisfied(
-//     Args<Ss...> const &args, MutuallyExclusiveGroups<Gg...>) -> std::optional<std::string> {
-//     if constexpr (sizeof...(Gg) == 0) {
-//         return {};
-//     } else {
-//         auto errors = std::vector<std::string>{};
-//         auto index = 0uz;
-//         template for (auto gg : {Gg...}) {
-//             if (auto err = check_mutually_exclusive_set_satisfied(args, gg, index);
-//                 err.has_value()) {
-//                 errors.push_back(std::move(err).value());
-//             }
-//             ++index;
-//         }
-//         if (!errors.empty()) {
-//             return std::move(errors) | std::views::join_with('\n') |
-//             std::ranges::to<std::string>();
-//         }
-//         return {};
-//     }
-// }
-// }  // namespace detail
 
 struct [[nodiscard]] Help {
     std::string_view message;
