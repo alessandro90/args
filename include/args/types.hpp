@@ -5,6 +5,7 @@
 #include <array>
 #include <concepts>
 #include <cstddef>
+#include <functional>
 #include <optional>
 #include <ranges>
 #include <string>
@@ -1202,16 +1203,40 @@ template <auto... Ss>
     return names;
 }
 
+template <auto S>
+struct UseCheck {
+    bool is_used{};
+    std::string_view name{};
+};
+
 template <auto... Ss, auto... Gg>
 [[nodiscard]] auto check_mutually_exclusive_set_satisfied(
     Args<Ss...> const &args, MutuallyExclusive<Gg...> mutually_exclusive)
     -> std::optional<std::string> {
-    auto const used_args = (0 + ... + args.template get_with_info<Gg>().is_used);
-    if (mutually_exclusive.at_least_one && used_args == 0) {
+    auto const used_count = (0 + ... + args.template get_with_info<Gg>().is_used);
+    if (used_count == 0 && mutually_exclusive.at_least_one) {
         return std::format("At least one argument between {} is required.", group_names<Gg...>());
     }
-    if (used_args > 1) {
-        return std::format("Arguments {} are mutually exclusive", group_names<Gg...>());
+    if (used_count > 1) {
+        auto const values = std::array<std::pair<bool, std::string_view>, sizeof...(Gg)>{
+            std::pair{
+                      args.template get_with_info<Gg>().is_used, args::detail::option_name<Gg>()}
+            ...
+        };
+        auto names = std::string(1, '{');
+        names.append_range(
+            values | std::views::filter([](auto const &p) {
+                return p.first;
+            })
+            | std::views::transform([](auto const &p) {
+                  return p.second;
+              })
+            | std::views::join_with(std::string_view{", "}));
+        names += '}';
+        return std::format(
+            "Arguments {} are mutually exclusive but {} are provided.",
+            group_names<Gg...>(),
+            names);
     }
     return {};
 }
