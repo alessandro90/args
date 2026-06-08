@@ -1,17 +1,19 @@
 #ifndef ARGS_HELPERS
 #define ARGS_HELPERS
 
+#include <algorithm>
+#include <array>
 #include <concepts>
 #include <print>
+#include <string_view>
+#include <type_traits>
+#include <utility>
+#include <vector>
 #ifndef NDUBUG
     #include <cstdio>
     #include <cstdlib>
     #include <source_location>
 #endif
-#include <string_view>
-#include <type_traits>
-#include <utility>
-#include <vector>
 
 namespace args::detail {
 template <typename T>
@@ -78,6 +80,56 @@ struct [[nodiscard]] Overload: F... {
 };
 
 }  // namespace args::detail
+
+namespace args {
+
+/// A compile time string_view-like object
+///
+/// Should be used to define string-like quantities needed at compile time
+///
+/// Note: it can be compared to std::string_view and std::string, and therefore
+/// it can be used in validators that deal with those types
+///
+/// Usage:
+///
+/// `"a compile-time string-like object"_str`
+template <std::size_t N>
+struct [[nodiscard]] Str {
+    static constexpr auto s_size = N;
+
+    std::array<char, N + 1> chars{};
+
+    consteval Str() noexcept = default;
+
+    consteval Str(char const (&s)[N + 1]) {  // NOLINT
+        std::ranges::copy(s, chars.begin());
+    }
+
+    [[nodiscard]] constexpr auto as_string_view() const -> std::string_view {
+        return std::string_view{chars.data()};
+    }
+
+    [[nodiscard]] static constexpr auto is_empty() noexcept -> bool {
+        return N == 0;
+    }
+
+    template <std::size_t M>
+    [[nodiscard]] constexpr auto operator==(Str<M> const &rhs) -> bool {
+        return N == M && chars == rhs.chars;
+    }
+
+    [[nodiscard]] constexpr auto operator==(std::string_view rhs) -> bool {
+        return as_string_view() == rhs;
+    }
+
+    [[nodiscard]] constexpr auto operator==(std::string const &rhs) -> bool {
+        return as_string_view() == rhs;
+    }
+};
+
+template <std::size_t N>
+Str(char const (&s)[N]) -> Str<N - 1>;  // NOLINT
+}  // namespace args
 
 #ifndef NDEBUG
 [[noreturn]] inline auto args_log_and_abort(

@@ -6,12 +6,13 @@
 #include <cstdlib>
 #include <iterator>
 #include <print>
+#include "colors.hpp"
 #include "compiler.hpp"
+#include "helpers.hpp"  // for Str
 #include "tokenizer.hpp"
 #include "types.hpp"
 
 namespace args {
-
 template <Str Usage, Str Description, auto... Ops, auto... Gg>
 [[nodiscard]] auto try_parse(
     int argc,
@@ -53,7 +54,11 @@ template <Str Usage, Str Description, auto... Ops, auto... Gg>
     auto args = try_parse(argc, argv, opts, mutually_exclusive);
     if (has_error(args)) {
         auto const error = get_error(args);
-        std::println(stderr, "ERROR: {}", error.message);
+        std::println(
+            stderr,
+            "{} {}",
+            color::color_format<color::bold>("{}", color::color_format<color::cred>("ERROR:")),
+            error.message);
         std::println(stderr, "{}", opts.help());
         std::exit(EXIT_FAILURE);  // NOLINT(concurrency-mt-unsafe)
     }

@@ -16,6 +16,7 @@
 #include <utility>
 #include <variant>
 #include <vector>
+#include "args/colors.hpp"
 #include "helpers.hpp"
 #include "parsers.hpp"
 #include "tokenizer.hpp"
@@ -26,7 +27,7 @@ namespace detail {
 
 template <auto S>
 [[nodiscard]] auto format_validation_error(std::string_view error) -> std::string {
-    return std::format("{} -> {}", args::detail::option_name<S>(), error);
+    return std::format("{} -> {}", color::yellow("{}", args::detail::option_name<S>()), error);
 }
 
 template <auto S>
@@ -129,7 +130,8 @@ public:
 
     [[nodiscard]] auto compile_flag(tokenizer::ShortFlag short_flag) -> TokenCompileResult {
         if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
-            return Error{std::format("Cannot parse short flag: '{}'", short_flag.flag)};
+            return Error{
+                std::format("Cannot parse short flag: '{}'", color::yellow("{}", short_flag.flag))};
         }
         auto const handler = [short_flag]<auto S>(ArgValue<S> &item)
                                  requires args::detail::ShortFlagObject<S>
@@ -156,14 +158,16 @@ public:
         };
         bool const handled = try_handle_flag(short_flag.has_equal, handler_with_value, handler);
         if (!handled) {
-            return Error{std::format("Cannot find match for flag: '{}'", short_flag.flag)};
+            return Error{std::format(
+                "Cannot find match for flag: '{}'", color::yellow("{}", short_flag.flag))};
         }
         return {};
     }
 
     [[nodiscard]] auto compile_flag(tokenizer::LongFlag long_flag) -> TokenCompileResult {
         if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
-            return Error{std::format("Cannot parse long flag: '{}'", long_flag.flag)};
+            return Error{
+                std::format("Cannot parse long flag: '{}'", color::yellow("{}", long_flag.flag))};
         }
 
         auto error = std::optional<std::string>{};
@@ -176,13 +180,14 @@ public:
             }
             if (long_flag.has_equal) {
                 error = std::format(
-                    "Subcommand flag does not support '='. Flag name is: '{}'", long_flag.flag);
+                    "Subcommand flag does not support '='. Flag name is: '{}'",
+                    color::yellow("{}", long_flag.flag));
                 return false;
             }
             if (!m_is_first_argument) {
                 error = std::format(
                     "Subcommand flag must be the first parsed argument. Flag name is: '{}'",
-                    long_flag.flag);
+                    color::yellow("{}", long_flag.flag));
                 return false;
             }
             parse_and_validate_argument(tokenizer::Argument{.value = long_flag.flag}, item, error);
@@ -229,7 +234,8 @@ public:
         };
 
         if (!try_handle_flag(long_flag.has_equal, handler_with_value, handler)) {
-            return Error{std::format("Cannot find match for flag: '{}'", long_flag.flag)};
+            return Error{std::format(
+                "Cannot find match for flag: '{}'", color::yellow("{}", long_flag.flag))};
         }
         return {};
     }
@@ -257,10 +263,12 @@ public:
                 return {};
             },
             [](ParsingLongFlag state) -> std::optional<std::string> {
-                return std::format("Missing value for flag: '{}'", state.long_flag.flag);
+                return std::format(
+                    "Missing value for flag: '{}'", color::yellow("{}", state.long_flag.flag));
             },
             [](ParsingShortFlag state) -> std::optional<std::string> {
-                return std::format("Missing value for flag: '{}'", state.short_flag.flag);
+                return std::format(
+                    "Missing value for flag: '{}'", color::yellow("{}", state.short_flag.flag));
             }};
         return std::visit(state_checker, m_compiler_state);
     }
@@ -349,7 +357,9 @@ private:
             }
         }
         error = std::format(
-            "Cannot parse '{}' into '{}'", argument.value, detail::name_of<parse_type_t<S>>());
+            "Cannot parse '{}' into '{}'",
+            color::yellow("{}", argument.value),
+            color::cyan("{}", detail::name_of<parse_type_t<S>>()));
     }
 
     template <auto S>
@@ -414,10 +424,12 @@ private:
                             std::format(
                                 "Cannot find match for positional argument number '{}' named '{}' "
                                 "with " "provided '{}'",
-                                m_current_positional_index,
-                                args::detail::nth_positional_argument_name<Ops...>(
-                                    m_current_positional_index),
-                                argument.value);
+                                color::green("{}", m_current_positional_index),
+                                color::yellow(
+                                    "{}",
+                                    args::detail::nth_positional_argument_name<Ops...>(
+                                        m_current_positional_index)),
+                                color::cyan("{}", argument.value));
                 return Error{std::move(msg)};
             }
             if (error.has_value()) {
@@ -441,7 +453,8 @@ private:
             };
             if (!handle_token(handler)) {
                 return Error{std::format(
-                    "Cannot find match for flag: '{}'", short_flag_state.short_flag.flag)};
+                    "Cannot find match for flag: '{}'",
+                    color::yellow("{}", short_flag_state.short_flag.flag))};
             }
 
             if (error.has_value()) {
@@ -468,7 +481,8 @@ private:
 
             if (!handle_token(handler)) {
                 return Error{std::format(
-                    "Cannot find match for flag: '{}'", long_flag_state.long_flag.flag)};
+                    "Cannot find match for flag: '{}'",
+                    color::yellow("{}", long_flag_state.long_flag.flag))};
             }
             if (error.has_value()) {
                 return Error{std::move(error).value()};
@@ -500,17 +514,19 @@ template <auto... Ops>
                 if (!r.is_used && arg_type_t::option._required) {
                     v.push_back(
                         std::format(
-                            "Missing positional argument number {}", positional_argument_count));
+                            "Missing positional argument number {}",
+                            color::green("{}", positional_argument_count)));
                 }
             } else if constexpr (args::detail::FlagObject<arg_type_t::option>) {
                 if constexpr (arg_type_t::option._required) {
                     if (!r.is_used) {
                         auto err = std::format(
                             "Missing required flag. Long form: '{}'.",
-                            arg_type_t::option._long_form.as_string_view());
+                            color::yellow("{}", arg_type_t::option._long_form.as_string_view()));
                         if (arg_type_t::option._short_form.has_value) {
                             err += std::format(
-                                " Short form: '{}'.", arg_type_t::option._short_form.value);
+                                " Short form: '{}'.",
+                                color::yellow("{}", arg_type_t::option._short_form.value));
                         }
                         v.push_back(std::move(err));
                     }

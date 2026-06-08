@@ -9,6 +9,7 @@
 #include <string_view>
 #include <type_traits>
 #include <vector>
+#include "args/colors.hpp"
 #include "args/types.hpp"
 
 using namespace args::tokenizer;
@@ -164,7 +165,7 @@ template <std::optional<ParseResult> (&f)(std::string_view)>
 
 [[nodiscard]] auto invalid_token_msg(std::string_view arg)
     -> std::expected<std::vector<token_t>, std::string> {
-    return std::unexpected(std::format("Invalid token: {}", arg));
+    return std::unexpected(std::format("Invalid token: '{}'", args::color::cyan("{}", arg)));
 }
 
 }  // namespace

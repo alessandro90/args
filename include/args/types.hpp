@@ -15,6 +15,7 @@
 #include <utility>
 #include <variant>
 #include <vector>
+#include "colors.hpp"
 #include "helpers.hpp"
 #include "typetag.hpp"
 #include "validators.hpp"
@@ -44,53 +45,6 @@ struct [[nodiscard]] Opt {
 
 template <typename T>
 concept Trivial = std::is_trivial_v<T>;
-
-/// A compile time string_view-like object
-///
-/// Should be used to define string-like quantities needed at compile time
-///
-/// Note: it can be compared to std::string_view and std::string, and therefore
-/// it can be used in validators that deal with those types
-///
-/// Usage:
-///
-/// `"a compile-time string-like object"_str`
-template <std::size_t N>
-struct [[nodiscard]] Str {
-    static constexpr auto s_size = N;
-
-    std::array<char, N + 1> chars{};
-
-    consteval Str() noexcept = default;
-
-    consteval Str(char const (&s)[N + 1]) {  // NOLINT
-        std::ranges::copy(s, chars.begin());
-    }
-
-    [[nodiscard]] constexpr auto as_string_view() const -> std::string_view {
-        return std::string_view{chars.data()};
-    }
-
-    [[nodiscard]] static constexpr auto is_empty() noexcept -> bool {
-        return N == 0;
-    }
-
-    template <std::size_t M>
-    [[nodiscard]] constexpr auto operator==(Str<M> const &rhs) -> bool {
-        return N == M && chars == rhs.chars;
-    }
-
-    [[nodiscard]] constexpr auto operator==(std::string_view rhs) -> bool {
-        return as_string_view() == rhs;
-    }
-
-    [[nodiscard]] constexpr auto operator==(std::string const &rhs) -> bool {
-        return as_string_view() == rhs;
-    }
-};
-
-template <std::size_t N>
-Str(char const (&s)[N]) -> Str<N - 1>;  // NOLINT
 
 /// An empty `Str` object. Useful to avoid empty string creation
 inline constexpr auto empty = Str{""};
@@ -1215,7 +1169,9 @@ template <auto... Ss, auto... Gg>
     -> std::optional<std::string> {
     auto const used_count = (0 + ... + args.template get_with_info<Gg>().is_used);
     if (used_count == 0 && mutually_exclusive.at_least_one) {
-        return std::format("At least one argument between {} is required.", group_names<Gg...>());
+        return std::format(
+            "At least one argument between {} is required.",
+            color::yellow("{}", group_names<Gg...>()));
     }
     if (used_count > 1) {
         auto const values = std::array<std::pair<bool, std::string_view>, sizeof...(Gg)>{
@@ -1235,8 +1191,8 @@ template <auto... Ss, auto... Gg>
         names += '}';
         return std::format(
             "Arguments {} are mutually exclusive but {} are provided.",
-            group_names<Gg...>(),
-            names);
+            color::yellow("{}", group_names<Gg...>()),
+            color::yellow("{}", names));
     }
     return {};
 }
