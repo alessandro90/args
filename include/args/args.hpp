@@ -54,11 +54,10 @@ template <Str Usage, Str Description, auto... Ops, auto... Gg>
     auto args = try_parse(argc, argv, opts, mutually_exclusive);
     if (has_error(args)) {
         auto const error = get_error(args);
-        // std::println(stderr, "{} {}", color::bold("{}", color::red("ERROR:")), error.message);
         std::println(
             stderr,
             "{} {}",
-            color::color_format<color::cbold + color::cred>("{}", "ERROR:"),
+            color::format<color::cbold + color::cred>("{}", "ERROR:"),
             error.message);
         std::println(stderr, "{}", opts.help());
         std::exit(EXIT_FAILURE);  // NOLINT(concurrency-mt-unsafe)

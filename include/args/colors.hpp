@@ -67,7 +67,7 @@ namespace detail {
 }  // namespace detail
 
 template <Color C, typename... Args>
-[[nodiscard]] auto color_format(std::format_string<Args...> fmt, Args &&...args) -> std::string {
+[[nodiscard]] auto format(std::format_string<Args...> fmt, Args &&...args) -> std::string {
     if (detail::should_use_color()) {
         return C.value.as_string_view() + std::format(fmt, std::forward<Args>(args)...)
                + reset.as_string_view();
@@ -77,27 +77,27 @@ template <Color C, typename... Args>
 
 template <typename... Args>
 [[nodiscard]] auto yellow(std::format_string<Args...> fmt, Args &&...args) -> std::string {
-    return color_format<cyellow>(fmt, std::forward<Args>(args)...);
+    return format<cyellow>(fmt, std::forward<Args>(args)...);
 }
 
 template <typename... Args>
 [[nodiscard]] auto cyan(std::format_string<Args...> fmt, Args &&...args) -> std::string {
-    return color_format<ccyan>(fmt, std::forward<Args>(args)...);
+    return format<ccyan>(fmt, std::forward<Args>(args)...);
 }
 
 template <typename... Args>
 [[nodiscard]] auto green(std::format_string<Args...> fmt, Args &&...args) -> std::string {
-    return color_format<cgreen>(fmt, std::forward<Args>(args)...);
+    return format<cgreen>(fmt, std::forward<Args>(args)...);
 }
 
 template <typename... Args>
 [[nodiscard]] auto red(std::format_string<Args...> fmt, Args &&...args) -> std::string {
-    return color_format<cred>(fmt, std::forward<Args>(args)...);
+    return format<cred>(fmt, std::forward<Args>(args)...);
 }
 
 template <typename... Args>
 [[nodiscard]] auto bold(std::format_string<Args...> fmt, Args &&...args) -> std::string {
-    return color_format<cbold>(fmt, std::forward<Args>(args)...);
+    return format<cbold>(fmt, std::forward<Args>(args)...);
 }
 }  // namespace args::color
 
