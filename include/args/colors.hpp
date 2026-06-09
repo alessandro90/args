@@ -1,7 +1,10 @@
 #ifndef ARGS_COLORS
 #define ARGS_COLORS
 
+#include <algorithm>
 #include <format>
+#include <iterator>
+#include <ranges>
 #include <string>
 #include <utility>
 #include "helpers.hpp"
@@ -14,6 +17,15 @@ namespace args::color {
 template <std::size_t N>
 struct Color {
     args::Str<N> value;
+
+    template <std::size_t M>
+    consteval auto operator+(Color<M> const &other) const -> Color<N + M> {
+        auto col = Color<N + M>{};
+        std::ranges::copy(value.chars, std::ranges::begin(col.value.chars));
+        std::ranges::copy(
+            other.value.chars, std::ranges::next(std::ranges::begin(col.value.chars), N));
+        return col;
+    }
 };
 
 constexpr auto reset = Str{"\033[0m"};
@@ -21,7 +33,7 @@ constexpr auto cred = Color{Str{"\033[31m"}};
 constexpr auto cgreen = Color{Str{"\033[32m"}};
 constexpr auto cyellow = Color{Str{"\033[33m"}};
 constexpr auto ccyan = Color{Str{"\033[36m"}};
-constexpr auto bold = Color{Str{"\033[1m"}};
+constexpr auto cbold = Color{Str{"\033[1m"}};
 
 namespace detail {
 #if !defined _WIN32
@@ -76,6 +88,16 @@ template <typename... Args>
 template <typename... Args>
 [[nodiscard]] auto green(std::format_string<Args...> fmt, Args &&...args) -> std::string {
     return color_format<cgreen>(fmt, std::forward<Args>(args)...);
+}
+
+template <typename... Args>
+[[nodiscard]] auto red(std::format_string<Args...> fmt, Args &&...args) -> std::string {
+    return color_format<cred>(fmt, std::forward<Args>(args)...);
+}
+
+template <typename... Args>
+[[nodiscard]] auto bold(std::format_string<Args...> fmt, Args &&...args) -> std::string {
+    return color_format<cbold>(fmt, std::forward<Args>(args)...);
 }
 }  // namespace args::color
 

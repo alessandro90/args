@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <concepts>
+#include <meta>
 #include <print>
 #include <string_view>
 #include <type_traits>
@@ -78,6 +79,12 @@ template <typename... F>
 struct [[nodiscard]] Overload: F... {
     using F::operator()...;
 };
+
+template <typename T>
+consteval auto name_of() -> std::string_view {
+    return std::meta::display_string_of(^^T);
+}
+
 
 }  // namespace args::detail
 

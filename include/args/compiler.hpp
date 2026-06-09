@@ -6,7 +6,6 @@
 #include <cstdint>
 #include <expected>
 #include <format>
-#include <meta>
 #include <optional>
 #include <ranges>
 #include <span>
@@ -33,11 +32,6 @@ template <auto S>
 template <auto S>
 inline constexpr auto requires_immediate_validation_v =
     !args::detail::is_repeatable_v<S> && !args::detail::is_positional_variadic_v<S>;
-
-template <typename T>
-consteval auto name_of() -> std::string_view {
-    return std::meta::display_string_of(^^T);
-}
 
 using TokenCompileResult = std::variant<std::monostate, Help, Error>;
 
@@ -330,6 +324,7 @@ private:
         -> void {
         using namespace args::detail;
         using namespace args::parsers;
+        auto parse_error = std::optional<std::string>{};
         if constexpr (InPlaceParser<Parser<parse_type_t<S>>, result_type_t<S>>) {
             auto const parsed_ok = Parser<parse_type_t<S>>::parse(item.value, argument.value);
             if (parsed_ok) {
@@ -342,6 +337,7 @@ private:
                 m_compiler_state = std::monostate{};
                 return;
             }
+            parse_error = std::move(parsed_ok).error();
         } else {
             auto parsed_value = Parser<parse_type_t<S>>::parse(argument.value);
             if (parsed_value.has_value()) {
@@ -355,11 +351,13 @@ private:
                 m_compiler_state = std::monostate{};
                 return;
             }
+            parse_error = std::move(parsed_value).error();
         }
         error = std::format(
-            "Cannot parse '{}' into '{}'",
+            "Cannot parse '{}' into '{}': {}",
             color::yellow("{}", argument.value),
-            color::cyan("{}", detail::name_of<parse_type_t<S>>()));
+            color::cyan("{}", args::detail::name_of<parse_type_t<S>>()),
+            color::green("{}", std::move(parse_error).value()));
     }
 
     template <auto S>
