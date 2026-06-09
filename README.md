@@ -170,5 +170,5 @@ The main command builds tests and examples.
 
 ### Specific targets
 
-- _build_all_tests_ Build just the tests.
-- _build_all_examples_ Build just the examples.
+- _args_tests_ Build just the tests.
+- _args_examples_ Build just the examples.

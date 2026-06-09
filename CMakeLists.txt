@@ -72,8 +72,8 @@ else()
     message(STATUS "IPO / LTO not supported: <${error}>")
 endif()
 
-add_custom_target(build_all_tests)
-add_custom_target(build_all_examples)
+add_custom_target(args_tests)
+add_custom_target(args_examples)
 
 if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     option(BUILD_TESTING "Build tests" ON)

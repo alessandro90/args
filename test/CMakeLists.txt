@@ -36,5 +36,5 @@ list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 include(Catch)
 catch_discover_tests(args_test)
 
-add_dependencies(build_all_tests args_test)
+add_dependencies(args_tests args_test)
 # add_test(NAME args_test COMMAND args_test)
