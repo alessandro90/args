@@ -8,6 +8,7 @@
 #include "args/args.hpp"
 #include "args/parsers.hpp"
 #include "args/types.hpp"
+#include "args/validators.hpp"
 
 using namespace args::literals;
 using json = nlohmann::json;
@@ -39,6 +40,7 @@ constexpr auto c_int_wrapper = args::flag_with_value<std::optional<IntWrapper>>(
 // (or not provide) without any check
 constexpr auto c_set = args::flag_with_value<std::unordered_set<int>>()
                            .Long("set")
+                           .Validator(args::Pipe<args::len, args::greater_than<2>>)
                            .Help("Unordered set of integers")
                            .Short('s');
 

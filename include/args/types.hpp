@@ -5,7 +5,6 @@
 #include <array>
 #include <concepts>
 #include <cstddef>
-#include <functional>
 #include <optional>
 #include <ranges>
 #include <string>
@@ -53,7 +52,8 @@ namespace detail {
 constexpr auto help_str = std::string_view{"help"};
 
 template <auto S>
-concept HasValidator = requires { S._validator; };
+concept HasValidator =
+    requires { S._validator; } && Not<std::is_same_v<decltype(S._validator), always_t>>;
 
 template <auto S>
 concept HasDefault = requires { S._default_value; };
@@ -611,17 +611,24 @@ template <auto S1, auto... Ss>
 }
 
 namespace rule_assertions {
+/// Force a comp time creation and destruction of the object (also forces default initializable)
 template <typename T>
 concept ConstevalCompatible = std::bool_constant<[]() consteval {
     (void)T{};
     return true;
 }()>::value;
 
+template <typename T>
+[[deprecated(
+    "Compile-time default value skipped for non consteval-compatible type")]] constexpr auto
+trigger_default_value_skip_warning() -> void {}
+
+template <auto S>
+concept ShouldCheckDefault = HasValidator<S> && HasDefault<S> && Not<IsRequired<S>>;
+
 template <auto S, auto... Ss>
 [[nodiscard]] consteval auto assert_valid_defaults() -> bool {
-    if constexpr (
-        HasValidator<S> && HasDefault<S> && Not<IsRequired<S>>
-        && ConstevalCompatible<result_type_t<S>>) {
+    if constexpr (ShouldCheckDefault<S> && ConstevalCompatible<result_type_t<S>>) {
         if constexpr (!std::is_invocable_v<decltype(S._default_value)>) {
             if (!S._validator.fn(S._default_value)) {
                 return false;
@@ -631,6 +638,9 @@ template <auto S, auto... Ss>
                 return false;
             }
         }
+    }
+    if constexpr (!ConstevalCompatible<result_type_t<S>> && ShouldCheckDefault<S>) {
+        trigger_default_value_skip_warning<result_type_t<S>>();
     }
     if constexpr (sizeof...(Ss) == 0) {
         return true;
