@@ -611,9 +611,17 @@ template <auto S1, auto... Ss>
 }
 
 namespace rule_assertions {
+template <typename T>
+concept ConstevalCompatible = std::bool_constant<[]() consteval {
+    (void)T{};
+    return true;
+}()>::value;
+
 template <auto S, auto... Ss>
 [[nodiscard]] consteval auto assert_valid_defaults() -> bool {
-    if constexpr (HasValidator<S> && HasDefault<S> && Not<IsRequired<S>>) {
+    if constexpr (
+        HasValidator<S> && HasDefault<S> && Not<IsRequired<S>>
+        && ConstevalCompatible<result_type_t<S>>) {
         if constexpr (!std::is_invocable_v<decltype(S._default_value)>) {
             if (!S._validator.fn(S._default_value)) {
                 return false;
@@ -792,21 +800,22 @@ template <auto... Ss>
 }
 
 template <auto S>
-[[nodiscard]] consteval auto check_repeatable_is_vector_value() -> bool {
+[[nodiscard]] consteval auto check_repeatable_is_push_container_value() -> bool {
     if constexpr (is_flag_with_value_v<decltype(S)>) {
         if constexpr (S._repeatable) {
-            return detail::is_vector_v<result_type_impl_t<typename decltype(S)::value_t>>;
+            return detail::PushContainer<result_type_impl_t<typename decltype(S)::value_t>>;
         }
     }
     return true;
 }
 
 template <auto S, auto... Ss>
-[[nodiscard]] consteval auto check_repeatable_is_vector() -> bool {
+[[nodiscard]] consteval auto check_repeatable_is_push_container() -> bool {
     if constexpr (sizeof...(Ss) == 0) {
-        return check_repeatable_is_vector_value<S>();
+        return check_repeatable_is_push_container_value<S>();
     } else {
-        return check_repeatable_is_vector_value<S>() && check_repeatable_is_vector<Ss...>();
+        return check_repeatable_is_push_container_value<S>()
+               && check_repeatable_is_push_container<Ss...>();
     }
 }
 
@@ -825,7 +834,8 @@ struct CheckRules {
         "Positional variadic argument must be the last positional argument because it consumes all "
         "positionals");
     static_assert(assert_valid_defaults<Ops...>(), "Invalid default for specification");
-    static_assert(check_repeatable_is_vector<Ops...>(), "Only vector flags can be made repeatable");
+    static_assert(
+        check_repeatable_is_push_container<Ops...>(), "Only vector flags can be made repeatable");
 };
 
 template <>
