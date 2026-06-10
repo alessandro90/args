@@ -325,11 +325,11 @@ private:
         using namespace args::detail;
         using namespace args::parsers;
         auto parse_error = std::optional<std::string>{};
-        if constexpr (InPlaceParser<Parser<parse_type_t<S>>, result_type_t<S>>) {
-            auto const parsed_ok = Parser<parse_type_t<S>>::parse(item.value, argument.value);
+        if constexpr (args::detail::InplaceContainer<result_type_t<S>>) {
+            auto const parsed_ok = args::parsers::detail::parse_inplace(item.value, argument.value);
             if (parsed_ok) {
                 if constexpr (requires_immediate_validation_v<S>) {
-                    if (!check_validation_after_parse<S>(item, error)) {
+                    if (!check_validation_after_parse<S>(item.value, error)) {
                         return;
                     }
                 }

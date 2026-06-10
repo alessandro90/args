@@ -85,6 +85,19 @@ consteval auto name_of() -> std::string_view {
     return std::meta::display_string_of(^^T);
 }
 
+template <typename C>
+concept ValuedContainer = requires { typename C::value_type; };
+
+template <typename C>
+concept VecLikeContainer =
+    ValuedContainer<C> && requires(C &c, typename C::value_type v) { c.push_back(v); };
+
+template <typename C>
+concept SetLikeContainer =
+    ValuedContainer<C> && requires(C &c, typename C::value_type v) { c.insert(v); };
+
+template <typename C>
+concept InplaceContainer = VecLikeContainer<C> || SetLikeContainer<C>;
 
 }  // namespace args::detail
 

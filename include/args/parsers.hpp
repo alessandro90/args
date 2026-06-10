@@ -17,26 +17,32 @@
 #include <vector>
 #include "helpers.hpp"
 
-#define IN_PLACE_PARSE(type, out, v)   \
-    auto res = Parser<type>::parse(v); \
-    if (res.has_value()) {             \
-        out.push_back(res.value());    \
-    }                                  \
-    return std::unexpected {           \
-        std::move(res).error()         \
-    }
-
 namespace args::parsers {
-
-template <typename P, typename Item>
-concept InPlaceParser = requires(Item &item, std::string_view rn) {
-    { P::parse(item, rn) } -> std::same_as<std::expected<void, std::string>>;
-};
 
 template <typename>
 struct Parser;
 
 namespace detail {
+template <args::detail::VecLikeContainer Container>
+auto container_push_value(Container &c, typename Container::value_type v) {
+    c.push_back(v);
+}
+
+template <args::detail::SetLikeContainer Container>
+auto container_push_value(Container &c, typename Container::value_type v) {
+    c.insert(v);
+}
+
+template <args::detail::InplaceContainer C>
+[[nodiscard]] auto parse_inplace(C &out, std::string_view v) -> std::expected<void, std::string> {
+    auto res = Parser<typename C::value_type>::parse(v);
+    if (res.has_value()) {
+        detail::container_push_value(out, std::move(res).value());
+        return {};
+    }
+    return std::unexpected{std::move(res).error()};
+}
+
 template <typename It>
 [[nodiscard]] auto skip_space(It begin, It end) -> It {
     while (begin != end && std::isspace(*begin)) {
@@ -91,40 +97,21 @@ struct VecParser {
                 return std::unexpected{
                     std::format("Missing closing quote: '{}'", std::string_view(begin, end))};
             }
-            if constexpr (InPlaceParser<Parser<T>, std::vector<T, A>>) {
-                auto const parsed =
-                    Parser<T>::parse(values, std::string_view(first_char, closing_quote));
-                if (parsed.has_value()) {
-                    return std::next(closing_quote);
-                }
-                return std::unexpected{std::move(parsed).error()};
-            } else {
-                auto parsed = Parser<T>::parse(std::string_view(first_char, closing_quote));
-                if (parsed.has_value()) {
-                    values.push_back(std::move(parsed).value());
-                    return std::next(closing_quote);
-                }
-                return std::unexpected{std::move(parsed).error()};
+            auto const parsed = parse_inplace(values, std::string_view(first_char, closing_quote));
+            if (parsed.has_value()) {
+                return std::next(closing_quote);
             }
+            return std::unexpected{std::move(parsed).error()};
         }
         // look for the separator
         auto const sep = std::ranges::find_if(begin, end, [&](char c) {
             return check_separator(c);
         });
-        if constexpr (InPlaceParser<Parser<T>, std::vector<T, A>>) {
-            auto const parsed = Parser<T>::parse(values, std::string_view(begin, sep));
-            if (parsed.has_value()) {
-                return sep;
-            }
-            return std::unexpected{std::move(parsed).error()};
-        } else {
-            auto parsed = Parser<T>::parse(std::string_view(begin, sep));
-            if (parsed.has_value()) {
-                values.push_back(std::move(parsed).value());
-                return sep;
-            }
-            return std::unexpected{std::move(parsed).error()};
+        auto const parsed = parse_inplace(values, std::string_view(begin, sep));
+        if (parsed.has_value()) {
+            return sep;
         }
+        return std::unexpected{std::move(parsed).error()};
     }
 
     template <typename It>
@@ -240,9 +227,6 @@ requires std::is_arithmetic_v<Out>
 }
 
 template <typename T>
-struct Parser {};
-
-template <typename T>
 requires std::is_arithmetic_v<T>
 struct Parser<T> {
     [[nodiscard]] static auto parse(std::string_view v) -> std::expected<T, std::string> {
@@ -266,24 +250,12 @@ struct Parser<std::string_view> {
         -> std::expected<std::string_view, std::string> {
         return std::string_view(std::ranges::begin(v), std::ranges::end(v));
     }
-
-    template <typename A>
-    [[nodiscard]] static auto parse(std::vector<std::string_view, A> &out, std::string_view v)
-        -> std::expected<void, std::string> {
-        IN_PLACE_PARSE(std::string_view, out, v);
-    }
 };
 
 template <>
 struct Parser<std::string> {
     [[nodiscard]] static auto parse(std::string_view v) -> std::expected<std::string, std::string> {
         return std::string(std::ranges::begin(v), std::ranges::end(v));
-    }
-
-    template <typename A>
-    [[nodiscard]] static auto parse(std::vector<std::string, A> &out, std::string_view v)
-        -> std::expected<void, std::string> {
-        IN_PLACE_PARSE(std::string, out, v);
     }
 };
 
@@ -314,15 +286,8 @@ struct Parser<std::optional<T>> {
             return std::optional{x};
         });
     }
-
-    template <typename A>
-    [[nodiscard]] static auto parse(std::vector<std::optional<T>, A> &out, std::string_view v)
-        -> std::expected<void, std::optional<T>> {
-        IN_PLACE_PARSE(std::optional<T>, out, v);
-    }
 };
 
 }  // namespace args::parsers
 
-#undef IN_PLACE_PARSE
 #endif

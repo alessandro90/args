@@ -55,11 +55,6 @@ struct Parser<json> {
             return std::unexpected{std::string{e.what()}};
         }
     }
-
-    // If the target type is default constructible, the inplace version can be defined. This version
-    // will be selected if present. This is useful only for values constructed using multiple flags,
-    // like variadics or repeated values
-    // static auto parse(json &value, std::string_view j) -> std::expected<void, std::string>;
 };
 
 template <>
