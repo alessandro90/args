@@ -89,15 +89,33 @@ template <typename C>
 concept ValuedContainer = requires { typename C::value_type; };
 
 template <typename C>
-concept VecLikeContainer =
-    ValuedContainer<C> && requires(C &c, typename C::value_type v) { c.push_back(v); };
+concept VecLikeContainer = ValuedContainer<C> && requires(C &c, typename C::value_type v) {
+    c.push_back(std::move(v));
+    c.append_range(std::move(c));
+};
 
 template <typename C>
-concept SetLikeContainer =
-    ValuedContainer<C> && requires(C &c, typename C::value_type v) { c.insert(v); };
+concept SetLikeContainer = ValuedContainer<C> && requires(C &c, typename C::value_type v) {
+    c.insert(std::move(v));
+    c.insert_range(std::move(c));
+};
 
 template <typename C>
-concept InplaceContainer = VecLikeContainer<C> || SetLikeContainer<C>;
+concept PushContainer =
+    std::default_initializable<C> && (SetLikeContainer<C> || VecLikeContainer<C>);
+
+template <typename C>
+concept VecLikeContainerExtendableWithRange =
+    VecLikeContainer<C> && requires(C &c) { c.append_range(std::move(c)); };
+
+template <typename C>
+concept SetLikeContainerExtendableWithRange =
+    SetLikeContainer<C> && requires(C &c) { c.insert_range(std::move(c)); };
+
+template <typename C>
+concept InplaceContainer =
+    std::default_initializable<C>
+    && (VecLikeContainerExtendableWithRange<C> || SetLikeContainerExtendableWithRange<C>);
 
 }  // namespace args::detail
 

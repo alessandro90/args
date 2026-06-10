@@ -33,11 +33,28 @@ auto container_push_value(Container &c, typename Container::value_type v) {
     c.insert(v);
 }
 
+template <args::detail::VecLikeContainerExtendableWithRange Container>
+auto container_push_range(Container &c, Container v) {
+    c.append_range(std::move(v));
+}
+
+template <args::detail::SetLikeContainerExtendableWithRange Container>
+auto container_push_range(Container &c, Container v) {
+    c.insert_range(std::move(v));
+}
+
 template <args::detail::InplaceContainer C>
 [[nodiscard]] auto parse_inplace(C &out, std::string_view v) -> std::expected<void, std::string> {
+    // try to parse a single element first
     auto res = Parser<typename C::value_type>::parse(v);
     if (res.has_value()) {
         detail::container_push_value(out, std::move(res).value());
+        return {};
+    }
+    // In case of failure try a full container
+    auto res_continer = Parser<C>::parse(v);
+    if (res_continer.has_value()) {
+        detail::container_push_range(out, std::move(res_continer).value());
         return {};
     }
     return std::unexpected{std::move(res).error()};
@@ -67,18 +84,18 @@ template <typename It>
     return c == '\"' || c == '\'';
 }
 
-enum class VecSeparatorType : std::uint8_t {
+enum class SeparatorType : std::uint8_t {
     Comma,
     Space,
 };
 
-template <typename T, typename A>
-struct VecParser {
-    explicit VecParser(std::vector<T, A> &vs)
+template <args::detail::PushContainer C>
+struct ContainerParser {
+    explicit ContainerParser(C &vs)
         : values{vs} {}
 
-    std::vector<T, A> &values;
-    std::optional<VecSeparatorType> separator{};
+    C &values;
+    std::optional<SeparatorType> separator{};
 
     template <typename It>
     [[nodiscard]] auto parse_value(It begin, It end) -> std::expected<It, std::string> {
@@ -97,8 +114,10 @@ struct VecParser {
                 return std::unexpected{
                     std::format("Missing closing quote: '{}'", std::string_view(begin, end))};
             }
-            auto const parsed = parse_inplace(values, std::string_view(first_char, closing_quote));
+            auto const parsed =
+                Parser<typename C::value_type>::parse(std::string_view(first_char, closing_quote));
             if (parsed.has_value()) {
+                container_push_value(values, std::move(parsed).value());
                 return std::next(closing_quote);
             }
             return std::unexpected{std::move(parsed).error()};
@@ -107,8 +126,9 @@ struct VecParser {
         auto const sep = std::ranges::find_if(begin, end, [&](char c) {
             return check_separator(c);
         });
-        auto const parsed = parse_inplace(values, std::string_view(begin, sep));
+        auto const parsed = Parser<typename C::value_type>::parse(std::string_view(begin, sep));
         if (parsed.has_value()) {
+            container_push_value(values, std::move(parsed).value());
             return sep;
         }
         return std::unexpected{std::move(parsed).error()};
@@ -141,30 +161,30 @@ private:
         auto const is_comma = c == ',';
         if (!separator.has_value()) {
             if (is_space) {
-                separator.emplace(VecSeparatorType::Space);
+                separator.emplace(SeparatorType::Space);
                 return true;
             }
             if (is_comma) {
-                separator.emplace(VecSeparatorType::Comma);
+                separator.emplace(SeparatorType::Comma);
                 return true;
             }
             return false;
         }
         switch (separator.value()) {
-        case VecSeparatorType::Comma:
+        case SeparatorType::Comma:
             return is_comma;
-        case VecSeparatorType::Space:
+        case SeparatorType::Space:
             return is_space;
         }
         std::unreachable();
     }
 
     template <typename It>
-    [[nodiscard]] auto skip_separator(VecSeparatorType sep, It begin, It end) -> It {
+    [[nodiscard]] auto skip_separator(SeparatorType sep, It begin, It end) -> It {
         switch (sep) {
-        case VecSeparatorType::Comma:
+        case SeparatorType::Comma:
             return std::next(begin);
-        case VecSeparatorType::Space: {
+        case SeparatorType::Space: {
             return skip_space(begin, end);
         }
         }
@@ -173,8 +193,9 @@ private:
 };
 
 template <typename Out, typename It>
-[[nodiscard]] auto parse_vector(Out &item, It begin, It end) -> std::expected<void, std::string> {
-    auto parser = VecParser{item};
+[[nodiscard]] auto parse_container(Out &item, It begin, It end)
+    -> std::expected<void, std::string> {
+    auto parser = ContainerParser{item};
     while (true) {
         auto it = detail::skip_space(begin, end);
         if (it == end) {
@@ -259,20 +280,14 @@ struct Parser<std::string> {
     }
 };
 
-template <typename T, typename A>
-struct Parser<std::vector<T, A>> {
-    [[nodiscard]] static auto parse(std::vector<T, A> &item, std::string_view v)
-        -> std::expected<void, std::string> {
-        return detail::parse_vector<
-            std::vector<T, A>>(item, std::ranges::begin(v), std::ranges::end(v));
-    }
-
-    [[nodiscard]] static auto parse(std::string_view v)
-        -> std::expected<std::vector<T, A>, std::string> {
-        auto vec = std::vector<T, A>{};
-        auto result = Parser<std::vector<T, A>>::parse(vec, v);
+template <args::detail::PushContainer C>
+struct Parser<C> {
+    [[nodiscard]] static auto parse(std::string_view v) -> std::expected<C, std::string> {
+        auto container = C{};
+        auto result =
+            detail::parse_container(container, std::ranges::begin(v), std::ranges::end(v));
         if (result.has_value()) {
-            return vec;
+            return container;
         }
         return std::unexpected{std::move(result).error()};
     }

@@ -189,7 +189,7 @@ struct [[nodiscard]] FlagWithValue {
     bool _required{};
     /// `true` if the flag can be specified multiple times. Default is true if `Value` is a
     /// std::vector
-    bool _repeatable{args::detail::is_vector_v<Tag>};
+    bool _repeatable{args::detail::InplaceContainer<Tag>};
     /// An optional help message
     Str<M> _help{};
     /// A validator to apply to the parsed result (defaults to an infallible validator)
