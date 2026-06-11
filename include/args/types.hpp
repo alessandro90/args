@@ -357,21 +357,31 @@ consteval auto flag_with_value() -> FlagWithValue<T, 0, 0, always_t> {
     return FlagWithValue<T, 0, 0, always_t>{};
 }
 
+template <typename P>
+struct PositionalBase {
+    /// `true` if the flag is required (defaults to `false`)
+    bool _required{};
+};
+
+template <typename T>
+struct PositionalBase<std::optional<T>> {};
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+
 /// A positional value descriptor
 template <
     std::default_initializable P,
     std::size_t N = 0,
     std::size_t M = 0,
     ValidatorObject V = always_t>
-struct [[nodiscard]] Positional {
+struct [[nodiscard]] Positional: PositionalBase<P> {
     /// A tag to indicate the target type (specify as `tag<target_type>`)
     Typetag<P> _type;
     /// Optional name to be displayed int the help message
     Str<N> _name{};
     /// Optional help message
     Str<M> _help{};
-    /// `true` if the flag is required (defaults to `false`)
-    bool _required{};
     /// If `true` the parsed value must be a `std::vector`. Successive values will be stored into
     /// the vecotor, e.g. `value_1 value_2 value_3` will be parsed into a unique vector of
     /// appropriately parsed values
@@ -383,64 +393,83 @@ struct [[nodiscard]] Positional {
 
     template <std::size_t Nx>
     consteval auto Name(char const (&name)[Nx]) const -> Positional<P, Nx - 1, M, V> {
-        return Positional<P, Nx - 1, M, V>{
+        auto f = Positional<P, Nx - 1, M, V>{
             ._type = _type,
             ._name = Str<Nx - 1>{name},
             ._help = _help,
-            ._required = _required,
             ._variadic = _variadic,
             ._validator = _validator,
         };
+        if constexpr (detail::HasRequiredInstance<decltype(f)>) {
+            f._required = this->_required;
+        }
+        return f;
     }
 
     template <std::size_t Mx>
     consteval auto Help(char const (&help)[Mx]) const -> Positional<P, N, Mx - 1, V> {
-        return Positional<P, N, Mx - 1, V>{
+        auto f = Positional<P, N, Mx - 1, V>{
             ._type = _type,
             ._name = _name,
             ._help = Str<Mx - 1>{help},
-            ._required = _required,
             ._variadic = _variadic,
             ._validator = _validator,
         };
+        if constexpr (detail::HasRequiredInstance<decltype(f)>) {
+            f._required = this->_required;
+        }
+        return f;
     }
 
-    consteval auto Required(bool required) const -> Positional<P, N, M, V> {
-        return Positional<P, N, M, V>{
+    consteval auto Required(bool required) const -> Positional<P, N, M, V> = delete;
+
+    consteval auto Required(bool required) const
+        -> Positional<P, N, M, V> requires detail::HasRequiredInstance<Positional<P, N, M, V>>
+    {
+        auto f = Positional<P, N, M, V>{
             ._type = _type,
             ._name = _name,
             ._help = _help,
-            ._required = required,
             ._variadic = _variadic,
             ._validator = _validator,
         };
+        f._required = required;
+        return f;
     }
 
     consteval auto Variadic(bool variadic) const
         -> Positional<P, N, M, V> requires args::detail::StdVector<P>
     {
-        return Positional<P, N, M, V>{
+        auto f = Positional<P, N, M, V>{
             ._type = _type,
             ._name = _name,
             ._help = _help,
-            ._required = _required,
             ._variadic = variadic,
             ._validator = _validator,
         };
+        if constexpr (detail::HasRequiredInstance<decltype(f)>) {
+            f._required = this->_required;
+        }
+        return f;
     }
 
     template <ValidatorObject Vx>
     consteval auto Validator(Vx validator) const -> Positional<P, N, M, Vx> {
-        return Positional<P, N, M, Vx>{
+        auto f = Positional<P, N, M, Vx>{
             ._type = _type,
             ._name = _name,
             ._help = _help,
-            ._required = _required,
             ._variadic = _variadic,
             ._validator = validator,
         };
+        if constexpr (detail::HasRequiredInstance<decltype(f)>) {
+            f._required = this->_required;
+        }
+        return f;
     }
 };
+
+#pragma GCC diagnostic pop
 
 template <typename T>
 consteval auto positional() -> Positional<T, 0, 0, always_t> {
