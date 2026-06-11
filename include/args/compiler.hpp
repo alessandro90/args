@@ -513,17 +513,20 @@ template <auto... Ops>
                             color::green("{}", positional_argument_count)));
                 }
             } else if constexpr (args::detail::FlagObject<arg_type_t::option>) {
-                if constexpr (arg_type_t::option._required) {
-                    if (!r.is_used) {
-                        auto err = std::format(
-                            "Missing required flag. Long form: '{}'.",
-                            color::yellow("{}", arg_type_t::option._long_form.as_string_view()));
-                        if (arg_type_t::option._short_form.has_value) {
-                            err += std::format(
-                                " Short form: '{}'.",
-                                color::yellow("{}", arg_type_t::option._short_form.value));
+                if constexpr (args::detail::HasRequired<arg_type_t::option>) {
+                    if constexpr (arg_type_t::option._required) {
+                        if (!r.is_used) {
+                            auto err = std::format(
+                                "Missing required flag. Long form: '{}'.",
+                                color::yellow(
+                                    "{}", arg_type_t::option._long_form.as_string_view()));
+                            if (arg_type_t::option._short_form.has_value) {
+                                err += std::format(
+                                    " Short form: '{}'.",
+                                    color::yellow("{}", arg_type_t::option._short_form.value));
+                            }
+                            v.push_back(std::move(err));
                         }
-                        v.push_back(std::move(err));
                     }
                 }
             }
@@ -541,7 +544,9 @@ auto assign_defaults_to_unused(std::tuple<ArgValue<Ops>...> &results) -> void {
     template for (auto &r : results) {
         using arg_type_t = std::remove_cvref_t<decltype(r)>;
         using S_t = decltype(arg_type_t::option);
-        if constexpr (is_flag_with_value_v<S_t> && std::is_invocable_v<typename S_t::value_t>) {
+        if constexpr (
+            is_flag_with_value_v<S_t> && std::is_invocable_v<typename S_t::value_t>
+            && args::detail::HasDefaultInstance<S_t>) {
             if (!r.is_used) {
                 r.value = arg_type_t::option._default_value();
             }

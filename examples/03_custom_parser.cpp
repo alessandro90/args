@@ -4,7 +4,8 @@
 #include <expected>
 #include <nlohmann/json.hpp>
 #include <print>
-#include <unordered_set>
+// #include <unordered_set>
+#include <vector>
 #include "args/args.hpp"
 #include "args/parsers.hpp"
 #include "args/types.hpp"
@@ -37,9 +38,13 @@ constexpr auto c_int_wrapper = args::flag_with_value<std::optional<IntWrapper>>(
 // WARN: defaults values are checked at compile time only if the container can be constructed in a
 // consteval context. std::vector can for example. As of C++26, std::unordered_set cannot. For such
 // types the default validation is skipped and the library will blindly use the default you provide
-// (or not provide) without any check
-constexpr auto c_set = args::flag_with_value<std::unordered_set<int>>()
+// (or not provide) without any check. Replace std::vector with std::unordered_set and you will see
+// a warning about this behaviour
+constexpr auto c_set = args::flag_with_value<std::vector<int>>()
                            .Long("set")
+                           .Default([] {
+                               return std::vector{0, 0, 0};
+                           })
                            .Validator(args::Pipe<args::len, args::greater_than<2>>)
                            .Help("Unordered set of integers")
                            .Short('s');

@@ -5,6 +5,7 @@
 #include <array>
 #include <concepts>
 #include <meta>
+#include <optional>
 #include <print>
 #include <string_view>
 #include <type_traits>
@@ -52,6 +53,18 @@ inline constexpr auto is_string_v = IsString<T>::value;
 
 template <typename T>
 concept StdString = is_string_v<T>;
+
+template <typename T>
+struct IsOptional: std::false_type {};
+
+template <typename T>
+struct IsOptional<std::optional<T>>: std::true_type {};
+
+template <typename T>
+inline constexpr auto is_optional_v = IsOptional<T>::value;
+
+template <typename T>
+concept StdOptional = is_optional_v<T>;
 
 template <std::invocable F>
 class [[nodiscard]] Defer {

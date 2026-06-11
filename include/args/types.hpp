@@ -59,8 +59,17 @@ template <auto S>
 concept HasDefault = requires { S._default_value; };
 
 template <auto S>
+concept HasRequired = requires { S._required; };
+
+template <typename T>
+concept HasDefaultInstance = requires(T t) { t._default_value; };
+
+template <typename T>
+concept HasRequiredInstance = requires(T t) { t._required; };
+
+template <auto S>
 consteval auto is_required() -> bool {
-    if constexpr (requires { S._required; }) {
+    if constexpr (HasRequired<S>) {
         return S._required;
     } else {
         return false;
@@ -171,6 +180,20 @@ consteval auto flag() -> Flag<0, 0> {
     return Flag<0, 0>{};
 }
 
+template <typename Tag, typename DefaultType>
+struct FlagWithValueBase {
+    /// The default value if no flag is parsed (defaults to a default constructed `Value`)
+    DefaultType _default_value{};
+    /// `true` if the flag is required (defaults to `false`)
+    bool _required{};
+};
+
+template <typename T, typename DefaultType>
+struct FlagWithValueBase<std::optional<T>, DefaultType> {};
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+
 /// A flag with value descriptor
 template <
     typename Tag,
@@ -178,15 +201,11 @@ template <
     std::size_t M = 0,
     ValidatorObject V = always_t,
     typename DefaultType = detail::tag_to_default_type_t<Tag>>
-struct [[nodiscard]] FlagWithValue {
+struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
     /// The long form of the flag (e.g. `"verbose"_str` will parse `--verbose`)
     Str<N> _long_form;
     /// The short form, a `char` (e.g. `"j"_str` will parse `-j`)
     Opt<char> _short_form{Opt<char>::empty()};
-    /// The default value if no flag is parsed (defaults to a default constructed `Value`)
-    DefaultType _default_value{};
-    /// `true` if the flag is required (defaults to `false`)
-    bool _required{};
     /// `true` if the flag can be specified multiple times. Default is true if `Value` is a
     /// std::vector
     bool _repeatable{args::detail::InplaceContainer<Tag>};
@@ -200,98 +219,138 @@ struct [[nodiscard]] FlagWithValue {
     template <std::size_t Nx>
     consteval auto Long(char const (&long_form)[Nx]) const
         -> FlagWithValue<Tag, Nx - 1, M, V, DefaultType> {
-        return FlagWithValue<Tag, Nx - 1, M, V, DefaultType>{
+        auto f = FlagWithValue<Tag, Nx - 1, M, V, DefaultType>{
             ._long_form = Str<Nx - 1>{long_form},
             ._short_form = _short_form,
-            ._default_value = _default_value,
-            ._required = _required,
             ._repeatable = _repeatable,
             ._help = _help,
             ._validator = _validator,
         };
+        if constexpr (detail::HasDefaultInstance<decltype(f)>) {
+            f._default_value = this->_default_value;
+        }
+        if constexpr (detail::HasRequiredInstance<decltype(f)>) {
+            f._required = this->_required;
+        }
+        return f;
     }
 
     template <std::size_t Mx>
     consteval auto Help(char const (&help)[Mx]) const
         -> FlagWithValue<Tag, N, Mx - 1, V, DefaultType> {
-        return FlagWithValue<Tag, N, Mx - 1, V, DefaultType>{
+        auto f = FlagWithValue<Tag, N, Mx - 1, V, DefaultType>{
             ._long_form = _long_form,
             ._short_form = _short_form,
-            ._default_value = _default_value,
-            ._required = _required,
             ._repeatable = _repeatable,
             ._help = help,
             ._validator = _validator,
         };
+        if constexpr (detail::HasDefaultInstance<decltype(f)>) {
+            f._default_value = this->_default_value;
+        }
+        if constexpr (detail::HasRequiredInstance<decltype(f)>) {
+            f._required = this->_required;
+        }
+        return f;
     }
 
     consteval auto Short(char short_form) const -> FlagWithValue<Tag, N, M, V, DefaultType> {
-        return FlagWithValue<Tag, N, M, V, DefaultType>{
+        auto f = FlagWithValue<Tag, N, M, V, DefaultType>{
             ._long_form = _long_form,
             ._short_form = Opt<char>::with(short_form),
-            ._default_value = _default_value,
-            ._required = _required,
             ._repeatable = _repeatable,
             ._help = _help,
             ._validator = _validator,
         };
+        if constexpr (detail::HasDefaultInstance<decltype(f)>) {
+            f._default_value = this->_default_value;
+        }
+        if constexpr (detail::HasRequiredInstance<decltype(f)>) {
+            f._required = this->_required;
+        }
+        return f;
     }
+
+    template <Trivial D>
+    consteval auto Default(D default_value) const = delete;
 
     template <Trivial D>
     consteval auto Default(D default_value) const
         -> FlagWithValue<detail::result_type_impl_t<D>, N, M, V, D>
         requires std::same_as<detail::result_type_impl_t<D>, Tag>
+                 && detail::HasDefaultInstance<
+                     FlagWithValue<detail::result_type_impl_t<D>, N, M, V, D>>
     {
-        return FlagWithValue<detail::result_type_impl_t<D>, N, M, V, D>{
+        auto f = FlagWithValue<detail::result_type_impl_t<D>, N, M, V, D>{
             ._long_form = _long_form,
             ._short_form = _short_form,
-            ._default_value = default_value,
-            ._required = _required,
             ._repeatable = _repeatable,
             ._help = _help,
             ._validator = _validator,
         };
+        f._default_value = default_value;
+        if constexpr (detail::HasRequiredInstance<decltype(f)>) {
+            f._required = this->_required;
+        }
+        return f;
     }
 
-    consteval auto Required(bool required) const -> FlagWithValue<Tag, N, M, V, DefaultType> {
-        return FlagWithValue<Tag, N, M, V, DefaultType>{
+    consteval auto Required(bool required) const
+        -> FlagWithValue<Tag, N, M, V, DefaultType> = delete;
+
+    consteval auto Required(bool required) const -> FlagWithValue<Tag, N, M, V, DefaultType>
+        requires detail::HasRequiredInstance<FlagWithValue<Tag, N, M, V, DefaultType>>
+    {
+        auto f = FlagWithValue<Tag, N, M, V, DefaultType>{
             ._long_form = _long_form,
             ._short_form = _short_form,
-            ._default_value = _default_value,
-            ._required = required,
             ._repeatable = _repeatable,
             ._help = _help,
             ._validator = _validator,
         };
+        f._required = required;
+        if constexpr (detail::HasDefaultInstance<decltype(f)>) {
+            f._default_value = this->_default_value;
+        }
+        return f;
     }
 
     consteval auto Repeatable(bool repeatable) const
         -> FlagWithValue<Tag, N, M, V, DefaultType> requires args::detail::StdVector<Tag>
     {
-        return FlagWithValue<Tag, N, M, V, DefaultType>{
+        auto f = FlagWithValue<Tag, N, M, V, DefaultType>{
             ._long_form = _long_form,
             ._short_form = _short_form,
-            ._default_value = _default_value,
-            ._required = _required,
             ._repeatable = repeatable,
             ._help = _help,
             ._validator = _validator,
         };
+
+        f._default_value = this->_default_value;
+        f._required = this->_required;
+        return f;
     }
 
     template <ValidatorObject Vx>
     consteval auto Validator(Vx validator) const -> FlagWithValue<Tag, N, M, Vx, DefaultType> {
-        return FlagWithValue<Tag, N, M, Vx, DefaultType>{
+        auto f = FlagWithValue<Tag, N, M, Vx, DefaultType>{
             ._long_form = _long_form,
             ._short_form = _short_form,
-            ._default_value = _default_value,
-            ._required = _required,
             ._repeatable = _repeatable,
             ._help = _help,
             ._validator = validator,
         };
+        if constexpr (detail::HasDefaultInstance<decltype(f)>) {
+            f._default_value = this->_default_value;
+        }
+        if constexpr (detail::HasRequiredInstance<decltype(f)>) {
+            f._required = this->_required;
+        }
+        return f;
     }
 };
+
+#pragma GCC diagnostic pop
 
 template <typename T>
 consteval auto flag_with_value() -> FlagWithValue<T, 0, 0, always_t> {
@@ -901,12 +960,14 @@ auto build_help_data(
     } else if constexpr (is_flag_with_value_v<s_t>) {
         auto const short_name =
             S._short_form.has_value ? std::optional{S._short_form.value} : std::optional<char>{};
-        flags_with_value.push_back(
-            FlagHelp{
-                .short_name = short_name,
-                .long_name = S._long_form.as_string_view(),
-                .description = S._help.as_string_view(),
-                .is_required = S._required});
+        auto f = FlagHelp{
+            .short_name = short_name,
+            .long_name = S._long_form.as_string_view(),
+            .description = S._help.as_string_view()};
+        if constexpr (detail::HasRequired<S>) {
+            f.is_required = S._required;
+        }
+        flags_with_value.push_back(f);
     } else if constexpr (is_subcommand_v<s_t>) {
         if (S._is_flag) {
             pure_flags.push_back(
