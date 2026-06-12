@@ -11,6 +11,7 @@ Checks: >
   -hicpp-named-parameter,
   -readability-named-parameter,
   -cppcoreguidelines-non-private-member-variables-in-classes,
+  -cppcoreguidelines-owning-memory,
   -misc-non-private-member-variables-in-classes,
   -altera-unroll-loops,
   -readability-identifier-length,

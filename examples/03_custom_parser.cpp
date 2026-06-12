@@ -19,31 +19,29 @@ struct IntWrapper {
     int x;
     IntWrapper() = delete;
 
-    explicit IntWrapper(int x_)
+    explicit constexpr IntWrapper(int x_)
         : x{x_} {}
 };
 
-// Flags/Positionals can have arbitrary types as long as they are default constructible
-// If your type is not default constructible, use `std::optional<your_type>`. The library
-// supports `Parser<std::optional<T>>` is `Parser<T>` exists. The main inconvenience is that
-// if the value is required you get an std::optional anyway, even though it cannot be empty
-
 // A flag with non default constructible argument
-constexpr auto c_int_wrapper = args::flag_with_value<std::optional<IntWrapper>>()
+constexpr auto c_int_wrapper = args::flag_with_value<IntWrapper>()
                                    .Long("wrapper")
+                                   .Default([] {
+                                       return IntWrapper{0};
+                                   })
                                    .Help("Integer to be wrapped inside a custom type.")
                                    .Short('w');
 
 // set-like containers are supported
-// WARN: defaults values are checked at compile time only if the container can be constructed in a
-// consteval context. std::vector can for example. As of C++26, std::unordered_set cannot. For such
-// types the default validation is skipped and the library will blindly use the default you provide
-// (or not provide) without any check. Replace std::vector with std::unordered_set and you will see
-// a warning about this behaviour
+// WARN: defaults values are checked at compile time only if the container can be *default*
+// constructed in a consteval context. std::vector can for example. As of C++26,
+// std::unordered_set cannot. For such types the default validation is skipped and the
+// library will blindly use the default you provide (or not provide) without any check.
+// Replace std::vector with std::unordered_set and you will see a warning about this behaviour
 constexpr auto c_set = args::flag_with_value<std::vector<int>>()
                            .Long("set")
                            .Default([] {
-                               return std::vector{0, 0, 0};
+                               return std::vector{0, 1, 2};  // to satify the validator
                            })
                            .Validator(args::Pipe<args::len, args::greater_than<2>>)
                            .Help("Unordered set of integers")
@@ -92,9 +90,7 @@ auto main(int argc, char **argv) -> int {
     // args::Args is std::print-compatible only if all its contents are. json is not
     // std::print-compatible
     std::println("json: {}", commands.get<c_json>().dump());
-    auto const w = commands.get<c_int_wrapper>();
-    if (w.has_value()) {
-        std::println("Non default constructible flag: IntWrapper{{{}}}", w.value().x);
-    }
+    auto const w = commands.get<c_int_wrapper>().as_ref();
+    std::println("Non default constructible flag: IntWrapper{{{}}}", w.x);
     std::println("set: {}", commands.get<c_set>());
 }

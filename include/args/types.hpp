@@ -16,6 +16,7 @@
 #include <vector>
 #include "colors.hpp"
 #include "helpers.hpp"
+#include "manual_storage.hpp"
 #include "typetag.hpp"
 #include "validators.hpp"
 
@@ -43,12 +44,17 @@ struct [[nodiscard]] Opt {
 };
 
 template <typename T>
-concept Trivial = std::is_trivial_v<T>;
+concept Trivial = std::is_trivially_default_constructible_v<T> && std::is_trivially_copyable_v<T>;
 
 /// An empty `Str` object. Useful to avoid empty string creation
 inline constexpr auto empty = Str{""};
 
 namespace detail {
+template <typename T>
+consteval auto materialize() -> T {
+    std::unreachable();
+}
+
 constexpr auto help_str = std::string_view{"help"};
 
 template <auto S>
@@ -76,6 +82,44 @@ consteval auto is_required() -> bool {
     }
 }
 
+template <typename T>
+requires Not<args::detail::is_def_fn_ptr_t<T>>
+consteval auto args_contained_type() -> std::remove_cvref_t<T>;
+
+template <typename F>
+struct InvocableResult {
+    using type = std::remove_cvref_t<std::invoke_result_t<F>>;
+};
+
+template <typename T>
+struct InvocableResult<args::detail::default_fn_ptr_t<T>> {
+    using type = T;
+};
+
+template <typename T>
+requires std::invocable<T> || args::detail::is_def_fn_ptr_t<T>
+consteval auto args_contained_type() -> auto {
+    if constexpr (std::default_initializable<typename InvocableResult<T>::type>) {
+        return typename InvocableResult<T>::type{};
+    } else {
+        return args::detail::ManualStorage<typename InvocableResult<T>::type>{};
+    }
+}
+
+// template <typename T>
+// requires std::invocable<T> || args::detail::is_def_fn_ptr_t<T>
+// consteval auto args_contained_type() -> auto {
+//     using invoke_result_t = std::remove_cvref_t<std::invoke_result_t<T>>;
+//     if constexpr (std::default_initializable<invoke_result_t>) {
+//         return invoke_result_t{};
+//     } else {
+//         return args::detail::ManualStorage<invoke_result_t>{};
+//     }
+// }
+
+template <auto S>
+using args_contained_type_t = decltype(args_contained_type<typename decltype(S)::value_t>());
+
 template <auto S>
 concept IsRequired = is_required<S>();
 
@@ -83,7 +127,7 @@ template <typename T>
 consteval auto result_type() -> std::remove_cvref_t<T>;
 
 template <std::invocable T>
-consteval auto result_type() -> std::remove_cvref_t<decltype(std::declval<T>()())>;
+consteval auto result_type() -> std::remove_cvref_t<std::invoke_result_t<T>>;
 
 template <typename T>
 using result_type_impl_t = decltype(result_type<T>());
@@ -92,37 +136,26 @@ template <auto S>
 using result_type_t = result_type_impl_t<typename decltype(S)::value_t>;
 
 template <typename T>
-using default_fn_ptr_t = T (*)();
-
-template <typename>
-struct IsDefaultFnPtr: std::false_type {};
+struct TagToDefaultType {};
 
 template <typename T>
-struct IsDefaultFnPtr<default_fn_ptr_t<T>>: std::true_type {};
+requires Not<Trivial<T>>
+struct TagToDefaultType<T> {
+    using type = args::detail::default_fn_ptr_t<T>;
+};
+
+template <Trivial T>
+struct TagToDefaultType<T> {
+    using type = T;
+};
 
 template <typename T>
-inline constexpr auto is_def_fn_ptr_t = IsDefaultFnPtr<T>::value;
-
-template <typename T>
-consteval auto tag_to_default_type() {
-    if constexpr (Trivial<T>) {
-        return T{};
-    } else if constexpr (std::default_initializable<T>) {
-        return [] {
-            return T{};
-        };
-    } else {
-        return std::declval<default_fn_ptr_t<T>>();
-    }
-}
-
-template <typename T>
-using tag_to_default_type_t = decltype(tag_to_default_type<T>());
+using tag_to_default_type_t = TagToDefaultType<T>::type;
 
 template <typename X, typename P, typename D>
 concept DefaultSetterArg =
     std::same_as<detail::result_type_impl_t<D>, P> && detail::HasDefaultMember<X>
-    && (std::default_initializable<P> || std::same_as<D, default_fn_ptr_t<P>>);
+    && (std::default_initializable<P> || std::convertible_to<D, args::detail::default_fn_ptr_t<P>>);
 
 }  // namespace detail
 
@@ -199,7 +232,7 @@ consteval auto flag() -> Flag<0, 0> {
     return Flag<0, 0>{};
 }
 
-template <typename Tag, typename DefaultType>
+template <typename Tag, std::default_initializable DefaultType>
 struct FlagWithValueBase {
     /// The default value if no flag is parsed (defaults to a default constructed `Value`)
     DefaultType _default_value{};
@@ -220,6 +253,7 @@ template <
     std::size_t M = 0,
     ValidatorObject V = always_t,
     typename DefaultType = detail::tag_to_default_type_t<Tag>>
+requires std::default_initializable<DefaultType>
 struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
     /// The long form of the flag (e.g. `"verbose"_str` will parse `--verbose`)
     Str<N> _long_form;
@@ -290,7 +324,7 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
         return f;
     }
 
-    template <Trivial D>
+    template <typename D>
     consteval auto Default(D default_value) const = delete;
 
     template <Trivial D>
@@ -372,9 +406,14 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
 
 #pragma GCC diagnostic pop
 
-template <typename T>
+template <std::default_initializable T>
 consteval auto flag_with_value() -> FlagWithValue<T, 0, 0, always_t> {
-    return FlagWithValue<T, 0, 0, always_t>{};
+    return {};
+}
+
+template <typename T>
+consteval auto flag_with_value() -> FlagWithValue<T, 0, 0, always_t, detail::default_fn_ptr_t<T>> {
+    return {};
 }
 
 template <typename P>
@@ -390,11 +429,7 @@ struct PositionalBase<std::optional<T>> {};
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 
 /// A positional value descriptor
-template <
-    std::default_initializable P,
-    std::size_t N = 0,
-    std::size_t M = 0,
-    ValidatorObject V = always_t>
+template <typename P, std::size_t N = 0, std::size_t M = 0, ValidatorObject V = always_t>
 struct [[nodiscard]] Positional: PositionalBase<P> {
     /// A tag to indicate the target type (specify as `tag<target_type>`)
     Typetag<P> _type;
@@ -719,11 +754,16 @@ template <auto S1, auto... Ss>
 }
 
 namespace rule_assertions {
+
 /// Force a comp time creation and destruction of the object (also forces default initializable)
 template <typename T>
 concept ConstevalCompatible = std::bool_constant<[]() consteval {
-    (void)T{};
-    return true;
+    if constexpr (std::default_initializable<T>) {
+        (void)T{};
+        return true;
+    } else {
+        return false;
+    }
 }()>::value;
 
 template <typename T>
@@ -937,21 +977,42 @@ template <auto S, auto... Ss>
     }
 }
 
-template <auto... Ss>
-[[nodiscard]] consteval auto check_non_default_init_types_are_required_or_have_default() -> bool {
-    template for (constexpr auto s : {Ss...}) {
-        using s_t = std::remove_cvref_t<decltype(s)>;
-        if constexpr (!std::default_initializable<typename s_t::value_t>) {
-            if constexpr (detail::HasRequired<s>) {
-                return s._requried;
-            } else {
-                return false;
-            }
-        } else if constexpr (detail::is_def_fn_ptr_t<typename s_t::value_t>) {
-            return s._default_value != nullptr;
+// FIXME: clangd 22.1.6 fails to correctly understand this and errors leaks to user code
+// the fold below works
+//
+// template <auto... Ss>
+// [[nodiscard]] consteval auto check_non_default_init_types_are_required_or_have_default() -> bool
+// {
+//     template for (constexpr auto s : {Ss...}) {
+//         using s_t = std::remove_cvref_t<decltype(s)>;
+//         if constexpr (!std::default_initializable<args::detail::result_type_t<s>>) {
+//             if constexpr (args::detail::is_def_fn_ptr_t<typename s_t::value_t>) {
+//                 return s._default_value != nullptr || is_required<s>();
+//             } else {
+//                 return is_required<s>();
+//             }
+//         }
+//     }
+//     return true;
+// }
+
+template <auto S>
+[[nodiscard]] constexpr auto check_non_def_init_type_is_required_or_has_def() -> bool {
+    using s_t = std::remove_cvref_t<decltype(S)>;
+
+    if constexpr (!std::default_initializable<args::detail::result_type_t<S>>) {
+        if constexpr (args::detail::is_def_fn_ptr_t<typename s_t::value_t>) {
+            return S._default_value != nullptr || is_required<S>();
+        } else {
+            return is_required<S>();
         }
     }
     return true;
+}
+
+template <auto... Ss>
+[[nodiscard]] consteval auto check_non_default_init_types_are_required_or_have_default() -> bool {
+    return (check_non_def_init_type_is_required_or_has_def<Ss>() && ...);
 }
 
 template <auto... Ops>
@@ -983,12 +1044,12 @@ struct CheckRules<> {};
 template <auto S>
 [[nodiscard]] auto default_arg_value() {
     if constexpr (std::is_invocable_v<typename decltype(S)::value_t>) {
-        return result_type_t<S>{};
+        return args_contained_type_t<S>{};
     } else if constexpr (requires { S._default_value; }) {
         return S._default_value;
     } else {
         // this is the case for positional arguments.
-        return result_type_t<S>{};
+        return args_contained_type_t<S>{};
     }
 }
 
@@ -1151,7 +1212,7 @@ constexpr auto options = Options<Usage, Description, Ops...>{};
 template <auto S>
 struct [[nodiscard]] CommandArgValue
     : std::conditional_t<is_flag_v<decltype(S)>, detail::WithCount, detail::DummyBase> {
-    detail::result_type_t<S> value{detail::default_arg_value<S>()};
+    detail::args_contained_type_t<S> value{detail::default_arg_value<S>()};
     bool is_used{false};
     static constexpr auto option = S;
 };
@@ -1171,7 +1232,7 @@ struct ArgsFromSubCommand<Subcommand<N, M, Usage, Description, Me, Ops...>> {
 
 template <auto S>
 struct [[nodiscard]] SubcommandArgValue {
-    detail::result_type_t<S> name{detail::default_arg_value<S>()};
+    detail::args_contained_type_t<S> name{detail::default_arg_value<S>()};
     bool is_used{false};
     ArgsFromSubCommand<decltype(S)>::args_t subcommands{};
     static constexpr auto option = S;
@@ -1195,12 +1256,12 @@ struct GetRet {
     using type = std::conditional_t<
         is_subcommand_v<decltype(S)>,
         typename GetRet<Ss...>::type,
-        result_type_t<S>>;
+        args_contained_type_t<S>>;
 };
 
 template <auto S>
 struct GetRet<S> {
-    using type = result_type_t<S>;
+    using type = args_contained_type_t<S>;
 };
 
 template <auto S, auto... Ss>
@@ -1395,8 +1456,8 @@ public:
     }
 
     template <auto S>
-    [[nodiscard]] constexpr auto get() const noexcept
-        -> detail::result_type_t<S> const & requires args::detail::Not<detail::SubcommandObject<S>>
+    [[nodiscard]] constexpr auto get() const noexcept -> detail::args_contained_type_t<S> const
+        & requires args::detail::Not<detail::SubcommandObject<S>>
     {
         return get_with_info<S>().value;
     }
@@ -1409,7 +1470,7 @@ public:
 
     template <auto Sb, auto S>
     requires(is_subcommand_v<decltype(Sb)> && !is_subcommand_v<decltype(S)>)
-    [[nodiscard]] constexpr auto get() const noexcept -> detail::result_type_t<S> const & {
+    [[nodiscard]] constexpr auto get() const noexcept -> detail::args_contained_type_t<S> const & {
         return get_with_info<Sb>().subcommands.template get<S>();
     }
 
