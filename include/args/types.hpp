@@ -62,10 +62,10 @@ template <auto S>
 concept HasRequired = requires { S._required; };
 
 template <typename T>
-concept HasDefaultInstance = requires(T t) { t._default_value; };
+concept HasDefaultMember = requires(T t) { t._default_value; };
 
 template <typename T>
-concept HasRequiredInstance = requires(T t) { t._required; };
+concept HasRequiredMember = requires(T t) { t._required; };
 
 template <auto S>
 consteval auto is_required() -> bool {
@@ -92,18 +92,37 @@ template <auto S>
 using result_type_t = result_type_impl_t<typename decltype(S)::value_t>;
 
 template <typename T>
+using default_fn_ptr_t = T (*)();
+
+template <typename>
+struct IsDefaultFnPtr: std::false_type {};
+
+template <typename T>
+struct IsDefaultFnPtr<default_fn_ptr_t<T>>: std::true_type {};
+
+template <typename T>
+inline constexpr auto is_def_fn_ptr_t = IsDefaultFnPtr<T>::value;
+
+template <typename T>
 consteval auto tag_to_default_type() {
     if constexpr (Trivial<T>) {
         return T{};
-    } else {
+    } else if constexpr (std::default_initializable<T>) {
         return [] {
             return T{};
         };
+    } else {
+        return std::declval<default_fn_ptr_t<T>>();
     }
 }
 
 template <typename T>
 using tag_to_default_type_t = decltype(tag_to_default_type<T>());
+
+template <typename X, typename P, typename D>
+concept DefaultSetterArg =
+    std::same_as<detail::result_type_impl_t<D>, P> && detail::HasDefaultMember<X>
+    && (std::default_initializable<P> || std::same_as<D, default_fn_ptr_t<P>>);
 
 }  // namespace detail
 
@@ -226,10 +245,10 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
             ._help = _help,
             ._validator = _validator,
         };
-        if constexpr (detail::HasDefaultInstance<decltype(f)>) {
+        if constexpr (detail::HasDefaultMember<decltype(f)>) {
             f._default_value = this->_default_value;
         }
-        if constexpr (detail::HasRequiredInstance<decltype(f)>) {
+        if constexpr (detail::HasRequiredMember<decltype(f)>) {
             f._required = this->_required;
         }
         return f;
@@ -245,10 +264,10 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
             ._help = help,
             ._validator = _validator,
         };
-        if constexpr (detail::HasDefaultInstance<decltype(f)>) {
+        if constexpr (detail::HasDefaultMember<decltype(f)>) {
             f._default_value = this->_default_value;
         }
-        if constexpr (detail::HasRequiredInstance<decltype(f)>) {
+        if constexpr (detail::HasRequiredMember<decltype(f)>) {
             f._required = this->_required;
         }
         return f;
@@ -262,10 +281,10 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
             ._help = _help,
             ._validator = _validator,
         };
-        if constexpr (detail::HasDefaultInstance<decltype(f)>) {
+        if constexpr (detail::HasDefaultMember<decltype(f)>) {
             f._default_value = this->_default_value;
         }
-        if constexpr (detail::HasRequiredInstance<decltype(f)>) {
+        if constexpr (detail::HasRequiredMember<decltype(f)>) {
             f._required = this->_required;
         }
         return f;
@@ -277,9 +296,10 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
     template <Trivial D>
     consteval auto Default(D default_value) const
         -> FlagWithValue<detail::result_type_impl_t<D>, N, M, V, D>
-        requires std::same_as<detail::result_type_impl_t<D>, Tag>
-                 && detail::HasDefaultInstance<
-                     FlagWithValue<detail::result_type_impl_t<D>, N, M, V, D>>
+        requires detail::DefaultSetterArg<
+            FlagWithValue<detail::result_type_impl_t<D>, N, M, V, D>,
+            Tag,
+            D>
     {
         auto f = FlagWithValue<detail::result_type_impl_t<D>, N, M, V, D>{
             ._long_form = _long_form,
@@ -289,7 +309,7 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
             ._validator = _validator,
         };
         f._default_value = default_value;
-        if constexpr (detail::HasRequiredInstance<decltype(f)>) {
+        if constexpr (detail::HasRequiredMember<decltype(f)>) {
             f._required = this->_required;
         }
         return f;
@@ -299,7 +319,7 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
         -> FlagWithValue<Tag, N, M, V, DefaultType> = delete;
 
     consteval auto Required(bool required) const -> FlagWithValue<Tag, N, M, V, DefaultType>
-        requires detail::HasRequiredInstance<FlagWithValue<Tag, N, M, V, DefaultType>>
+        requires detail::HasRequiredMember<FlagWithValue<Tag, N, M, V, DefaultType>>
     {
         auto f = FlagWithValue<Tag, N, M, V, DefaultType>{
             ._long_form = _long_form,
@@ -309,7 +329,7 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
             ._validator = _validator,
         };
         f._required = required;
-        if constexpr (detail::HasDefaultInstance<decltype(f)>) {
+        if constexpr (detail::HasDefaultMember<decltype(f)>) {
             f._default_value = this->_default_value;
         }
         return f;
@@ -340,10 +360,10 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
             ._help = _help,
             ._validator = validator,
         };
-        if constexpr (detail::HasDefaultInstance<decltype(f)>) {
+        if constexpr (detail::HasDefaultMember<decltype(f)>) {
             f._default_value = this->_default_value;
         }
-        if constexpr (detail::HasRequiredInstance<decltype(f)>) {
+        if constexpr (detail::HasRequiredMember<decltype(f)>) {
             f._required = this->_required;
         }
         return f;
@@ -400,7 +420,7 @@ struct [[nodiscard]] Positional: PositionalBase<P> {
             ._variadic = _variadic,
             ._validator = _validator,
         };
-        if constexpr (detail::HasRequiredInstance<decltype(f)>) {
+        if constexpr (detail::HasRequiredMember<decltype(f)>) {
             f._required = this->_required;
         }
         return f;
@@ -415,7 +435,7 @@ struct [[nodiscard]] Positional: PositionalBase<P> {
             ._variadic = _variadic,
             ._validator = _validator,
         };
-        if constexpr (detail::HasRequiredInstance<decltype(f)>) {
+        if constexpr (detail::HasRequiredMember<decltype(f)>) {
             f._required = this->_required;
         }
         return f;
@@ -424,7 +444,7 @@ struct [[nodiscard]] Positional: PositionalBase<P> {
     consteval auto Required(bool required) const -> Positional<P, N, M, V> = delete;
 
     consteval auto Required(bool required) const
-        -> Positional<P, N, M, V> requires detail::HasRequiredInstance<Positional<P, N, M, V>>
+        -> Positional<P, N, M, V> requires detail::HasRequiredMember<Positional<P, N, M, V>>
     {
         auto f = Positional<P, N, M, V>{
             ._type = _type,
@@ -447,7 +467,7 @@ struct [[nodiscard]] Positional: PositionalBase<P> {
             ._variadic = variadic,
             ._validator = _validator,
         };
-        if constexpr (detail::HasRequiredInstance<decltype(f)>) {
+        if constexpr (detail::HasRequiredMember<decltype(f)>) {
             f._required = this->_required;
         }
         return f;
@@ -462,7 +482,7 @@ struct [[nodiscard]] Positional: PositionalBase<P> {
             ._variadic = _variadic,
             ._validator = validator,
         };
-        if constexpr (detail::HasRequiredInstance<decltype(f)>) {
+        if constexpr (detail::HasRequiredMember<decltype(f)>) {
             f._required = this->_required;
         }
         return f;
@@ -917,6 +937,23 @@ template <auto S, auto... Ss>
     }
 }
 
+template <auto... Ss>
+[[nodiscard]] consteval auto check_non_default_init_types_are_required_or_have_default() -> bool {
+    template for (constexpr auto s : {Ss...}) {
+        using s_t = std::remove_cvref_t<decltype(s)>;
+        if constexpr (!std::default_initializable<typename s_t::value_t>) {
+            if constexpr (detail::HasRequired<s>) {
+                return s._requried;
+            } else {
+                return false;
+            }
+        } else if constexpr (detail::is_def_fn_ptr_t<typename s_t::value_t>) {
+            return s._default_value != nullptr;
+        }
+    }
+    return true;
+}
+
 template <auto... Ops>
 struct CheckRules {
     static_assert(check_all_different_names<Ops...>(), "All flags must have unique identifiers");
@@ -934,6 +971,9 @@ struct CheckRules {
     static_assert(assert_valid_defaults<Ops...>(), "Invalid default for specification");
     static_assert(
         check_repeatable_is_push_container<Ops...>(), "Only vector flags can be made repeatable");
+    static_assert(
+        check_non_default_init_types_are_required_or_have_default<Ops...>(),
+        "A non default-initializable type must either be required or have a default");
 };
 
 template <>

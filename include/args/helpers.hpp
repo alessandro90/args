@@ -130,6 +130,25 @@ concept InplaceContainer =
     std::default_initializable<C>
     && (VecLikeContainerExtendableWithRange<C> || SetLikeContainerExtendableWithRange<C>);
 
+template <typename Tag>
+struct DefaultStorage {
+    Tag *ptr{nullptr};
+    alignas(Tag) char storage[sizeof(Tag)]{};  // NOLINT
+
+    auto operator()() const -> Tag const & {
+        return *ptr;
+    }
+
+    constexpr ~DefaultStorage() requires std::is_trivially_destructible_v<Tag>
+    = default;
+
+    constexpr ~DefaultStorage() {
+        if (ptr != nullptr) {
+            ptr->~Tag();
+        }
+    }
+};
+
 }  // namespace args::detail
 
 namespace args {

@@ -546,7 +546,7 @@ auto assign_defaults_to_unused(std::tuple<ArgValue<Ops>...> &results) -> void {
         using S_t = decltype(arg_type_t::option);
         if constexpr (
             is_flag_with_value_v<S_t> && std::is_invocable_v<typename S_t::value_t>
-            && args::detail::HasDefaultInstance<S_t>) {
+            && args::detail::HasDefaultMember<S_t>) {
             if (!r.is_used) {
                 r.value = arg_type_t::option._default_value();
             }
