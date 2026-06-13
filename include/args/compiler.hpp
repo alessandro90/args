@@ -581,7 +581,7 @@ auto assign_defaults_to_unused(std::tuple<ArgValue<Ops>...> &results) -> void {
             && args::detail::HasDefaultMember<S_t>) {
             if (!r.is_used) {
                 if constexpr (args::detail::is_def_fn_ptr_v<typename S_t::value_t>) {
-                    if (arg_type_t::option._default_value == nullptr) {
+                    if constexpr (arg_type_t::option._default_value == nullptr) {
                         continue;
                     }
                 }
