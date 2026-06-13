@@ -83,7 +83,7 @@ consteval auto is_required() -> bool {
 }
 
 template <typename T>
-requires Not<args::detail::is_def_fn_ptr_t<T>>
+requires Not<args::detail::is_def_fn_ptr_v<T>>
 consteval auto args_contained_type() -> std::remove_cvref_t<T>;
 
 template <typename F>
@@ -97,7 +97,7 @@ struct InvocableResult<args::detail::default_fn_ptr_t<T>> {
 };
 
 template <typename T>
-requires std::invocable<T> || args::detail::is_def_fn_ptr_t<T>
+requires std::invocable<T> || args::detail::is_def_fn_ptr_v<T>
 consteval auto args_contained_type() -> auto {
     if constexpr (std::default_initializable<typename InvocableResult<T>::type>) {
         return typename InvocableResult<T>::type{};
@@ -1001,7 +1001,7 @@ template <auto S>
     using s_t = std::remove_cvref_t<decltype(S)>;
 
     if constexpr (!std::default_initializable<args::detail::result_type_t<S>>) {
-        if constexpr (args::detail::is_def_fn_ptr_t<typename s_t::value_t>) {
+        if constexpr (args::detail::is_def_fn_ptr_v<typename s_t::value_t>) {
             return S._default_value != nullptr || is_required<S>();
         } else {
             return is_required<S>();

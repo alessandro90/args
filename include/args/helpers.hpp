@@ -140,7 +140,7 @@ template <typename T>
 struct IsDefaultFnPtr<default_fn_ptr_t<T>>: std::true_type {};
 
 template <typename T>
-inline constexpr auto is_def_fn_ptr_t = IsDefaultFnPtr<T>::value;
+inline constexpr auto is_def_fn_ptr_v = IsDefaultFnPtr<T>::value;
 
 }  // namespace args::detail
 

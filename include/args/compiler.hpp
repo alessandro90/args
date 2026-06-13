@@ -548,6 +548,11 @@ auto assign_defaults_to_unused(std::tuple<ArgValue<Ops>...> &results) -> void {
             is_flag_with_value_v<S_t> && std::is_invocable_v<typename S_t::value_t>
             && args::detail::HasDefaultMember<S_t>) {
             if (!r.is_used) {
+                if constexpr (args::detail::is_def_fn_ptr_v<typename S_t::value_t>) {
+                    if (arg_type_t::option._default_value == nullptr) {
+                        continue;
+                    }
+                }
                 r.value = arg_type_t::option._default_value();
             }
         }
