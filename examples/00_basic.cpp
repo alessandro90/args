@@ -27,6 +27,11 @@ constexpr auto repeated_values = args::flag_with_value<std::vector<std::string_v
                                      .Repeatable(true)  // Can be used only with std::vector
                                      .Help("Accumulator of std::string_views");  // optional
 
+constexpr auto simple_string_view = args::flag_with_value<std::string_view>()
+                                        .Long("string-value")
+                                        .Short('s')                             // optional
+                                        .Help("Just a string_view flag type");  // optional
+
 constexpr auto text =
     args::positional<std::string_view>()
         .Name("pos-arg")
@@ -47,6 +52,7 @@ constexpr auto opts = args::options<
     counter,
     text,
     repeated_values,
+    simple_string_view,
     variadic_positional>;
 }  // namespace
 

@@ -141,8 +141,18 @@ public:
             return true;
         };
 
-        auto const handler_with_value = [this, short_flag]<auto S>(ArgValue<S> &item)
-                                            requires args::detail::ShortFlagWithValueObject<S>
+        bool const handled = try_handle_flag(
+            short_flag.has_equal, short_flag_with_value_checker(short_flag), handler);
+        if (!handled) {
+            return Error{std::format(
+                "Cannot find match for flag: '{}'", color::yellow("{}", short_flag.flag))};
+        }
+        return {};
+    }
+
+    [[nodiscard]] auto short_flag_with_value_checker(tokenizer::ShortFlag short_flag) {
+        return [this, short_flag]<auto S>(ArgValue<S> &item)
+                   requires args::detail::ShortFlagWithValueObject<S>
         {
             if (item.option._short_form.value != short_flag.flag) {
                 return false;
@@ -150,12 +160,6 @@ public:
             m_compiler_state = ParsingShortFlag{.short_flag = short_flag};
             return true;
         };
-        bool const handled = try_handle_flag(short_flag.has_equal, handler_with_value, handler);
-        if (!handled) {
-            return Error{std::format(
-                "Cannot find match for flag: '{}'", color::yellow("{}", short_flag.flag))};
-        }
-        return {};
     }
 
     [[nodiscard]] auto compile_flag(tokenizer::LongFlag long_flag) -> TokenCompileResult {
@@ -235,6 +239,14 @@ public:
     }
 
     [[nodiscard]] auto compile_flag(tokenizer::FlagGroup flag_group) -> TokenCompileResult {
+        if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
+            return Error{
+                std::format("Cannot parse flag: '{}'", color::yellow("{}", flag_group.group))};
+        }
+        auto clumped_flag = try_handle_clumped_short_flag(flag_group);
+        if (clumped_flag.has_value()) {
+            return std::move(clumped_flag).value();
+        }
         auto const flags_nr = flag_group.group.size();
         for (auto const [idx, short_flag] : flag_group.group | std::views::enumerate) {
             bool const is_last =
@@ -248,6 +260,26 @@ public:
             }
         }
         return {};
+    }
+
+    auto try_handle_clumped_short_flag(tokenizer::FlagGroup flag_group)
+        -> std::optional<TokenCompileResult> {
+        auto const short_flag = tokenizer::ShortFlag{
+            .raw = flag_group.raw,
+            .flag = flag_group.group[0],
+            .has_equal = false,
+        };
+        // force has equal so that the second callback is not even checked
+        bool const handled = try_handle_flag(true, short_flag_with_value_checker(short_flag), [] {
+            return false;
+        });
+        // single flag check failed, this is most likely a true flag group
+        if (!handled) {
+            return {};
+        }
+        // synthesize a fake argument now to actually parse the value
+        auto const argument = tokenizer::Argument{.value = flag_group.group.substr(1)};
+        return (*this)(argument);
     }
 
     /// Verify that the state of the compiler is 'monostate'. If not return an error string

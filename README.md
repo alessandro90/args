@@ -13,6 +13,10 @@
 - Optional and non-optional arguments
 - Groups of short flags like `-abc` and `-abc=3`/`-abc 3`
 - Parsing custom types directly into the final structure
+- Supports for non default intializable types
+- Parsing of common containers: `std::vector`, `std::set`, etc.. Provided their contained types are supported
+  - Concepts are used to parse the container, therefore even custom container could be automatically be supported provided they satisfy the necessary concepts (TODO: explain concepts).
+- the output of the parsing is compatible with `std::println`, provided all the parsed type are as well.
 
 To use the library define a set of constexpr objects for the expected command arguments. These objects are validated at compile-time and they define the structure of the parsed result. Meaning the result is a struct correctly typed based on the provided commands. See the [examples](./examples/) for more information.
 
@@ -58,7 +62,7 @@ Most commands (even the non-optional ones) must have a default value. Because ev
 ```cpp
 static constexpr auto vec = args::flag_with_value<std::vector<int>>()
                             .Long("a-vector")
-                            .Default([] { return std::vector<int>{1, 2}; }); // You need a default only if it is different from the default provided by the tpe itself.
+                            .Default([] { return std::vector<int>{1, 2}; }); // You need a default only if it is different from the default provided by the type itself.
 ```
 
 The library understands that the lambda is there for the sole purpose of allowing a non trivial type as default.
@@ -72,6 +76,7 @@ Provided the options are defined, the result can be obtained with either:
 
 Helpers are defined to inspect and read the result:
 
+- `is_empty`. `true` if no arguments where provided.
 - `has_error`, `has_args`, `has_help`.
 - `get_error`, `get_args`, `get_help`. Calling a getter without checking first if the result actually contains that value will raise an exception.
 
