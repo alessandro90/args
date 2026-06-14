@@ -16,7 +16,7 @@
 #include <vector>
 #include "colors.hpp"
 #include "helpers.hpp"
-#include "manual_storage.hpp"
+#include "lazy_storage.hpp"
 #include "typetag.hpp"
 #include "validators.hpp"
 
@@ -102,7 +102,7 @@ consteval auto args_contained_type() -> auto {
     if constexpr (std::default_initializable<typename InvocableResult<T>::type>) {
         return typename InvocableResult<T>::type{};
     } else {
-        return args::detail::ManualStorage<typename InvocableResult<T>::type>{};
+        return args::LazyStorage<typename InvocableResult<T>::type>{};
     }
 }
 
