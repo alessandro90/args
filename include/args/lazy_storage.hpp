@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <concepts>
 #include <format>
 #include <memory>
 #include <type_traits>
@@ -31,7 +32,9 @@ struct IsAssignNoExcept<LazyStorage<T> &&>: std::conjunction<
 }  // namespace lazy_storage::detail
 
 template <typename T>
-struct LazyStorage {
+struct [[nodiscard]] LazyStorage {
+    static_assert(!std::is_reference_v<T>, "LazyStorage does not support references");
+
     T *_ptr{nullptr};
 
     alignas(T) char _storage[sizeof(T)]{};  // NOLINT
@@ -106,7 +109,9 @@ struct LazyStorage {
     }
 
     friend constexpr auto swap(LazyStorage &a, LazyStorage &b) noexcept(
-        std::is_nothrow_swappable_v<T> && std::is_nothrow_move_constructible_v<T>) -> void {
+        std::is_nothrow_swappable_v<T> && std::is_nothrow_move_constructible_v<T>) -> void
+        requires std::swappable<T>
+    {
         using std::swap;
         if (a.is_init() && b.is_init()) {
             swap(*a._ptr, *b._ptr);
@@ -115,6 +120,31 @@ struct LazyStorage {
             a = std::move(b);
             b = std::move(tmp);
         }
+    }
+
+    [[nodiscard]] auto operator==(LazyStorage const &other) const -> bool
+        requires std::equality_comparable<T>
+    {
+        if (!is_init() && !other.is_init()) {
+            return true;
+        }
+        if (is_init() && other.is_init()) {
+            return as_ref() == other.as_ref();
+        }
+        return false;
+    }
+
+    [[nodiscard]] auto operator==(T const &other) const -> bool requires std::equality_comparable<T>
+    {
+        if (!is_init()) {
+            return false;
+        }
+        return as_ref() == other;
+    }
+
+    [[nodiscard]] auto operator!=(T const &other) const -> bool requires std::equality_comparable<T>
+    {
+        return !(*this == other);
     }
 
 private:
