@@ -5,8 +5,28 @@
 #include <cassert>
 #include <memory>
 #include <type_traits>
+#include <utility>
 
 namespace args {
+template <typename T>
+struct LazyStorage;
+
+namespace lazy_storage::detail {
+template <typename>
+struct IsAssignNoExcept {};
+
+template <typename T>
+struct IsAssignNoExcept<LazyStorage<T> &>: std::conjunction<
+                                               std::is_nothrow_copy_constructible<T>,
+                                               std::is_nothrow_copy_assignable<T>,
+                                               std::is_nothrow_destructible<T>> {};
+
+template <typename T>
+struct IsAssignNoExcept<LazyStorage<T> &&>: std::conjunction<
+                                                std::is_nothrow_move_constructible<T>,
+                                                std::is_nothrow_move_assignable<T>,
+                                                std::is_nothrow_destructible<T>> {};
+}  // namespace lazy_storage::detail
 
 template <typename T>
 struct LazyStorage {
@@ -16,17 +36,25 @@ struct LazyStorage {
 
     // ---
 
-    LazyStorage() = default;
+    constexpr LazyStorage() = default;
 
-    LazyStorage(LazyStorage &&) = delete;
-    auto operator=(LazyStorage &&) -> LazyStorage & = delete;
+    constexpr LazyStorage(LazyStorage &&other) noexcept(
+        noexcept(assign(std::declval<LazyStorage<T>>()))) {
+        assign(std::move(other));
+    }
 
-    LazyStorage(LazyStorage const &other) {
+    constexpr auto operator=(LazyStorage &&other) noexcept(
+        noexcept(assign(std::declval<LazyStorage<T>>()))) -> LazyStorage & {
+        assign(std::move(other));
+        return *this;
+    }
+
+    constexpr LazyStorage(LazyStorage const &other) {
         assign(other);
     }
 
     // NOLINTNEXTLINE(cert-oop54-cpp, bugprone-unhandled-self-assignment)
-    auto operator=(LazyStorage const &other) -> LazyStorage & {
+    constexpr auto operator=(LazyStorage const &other) -> LazyStorage & {
         if (_ptr == other._ptr) {
             return *this;
         }
@@ -34,11 +62,24 @@ struct LazyStorage {
         return *this;
     };
 
-    auto operator=(T const &other) -> LazyStorage & {
+    constexpr auto operator=(T const &other) -> LazyStorage & {
         if (_ptr != nullptr) {
             destroy();
         }
-        in_place(&other);
+        if (other._ptr == nullptr) {
+            return *this;
+        }
+        in_place(*other._ptr);
+        return *this;
+    };
+
+    constexpr auto operator=(T &&other) noexcept(
+        std::is_nothrow_move_constructible_v<T> && std::is_nothrow_destructible_v<T>)
+        -> LazyStorage & {
+        if (_ptr != nullptr) {
+            destroy();
+        }
+        in_place(std::move(other));
         return *this;
     };
 
@@ -62,7 +103,10 @@ struct LazyStorage {
     }
 
 private:
-    auto assign(LazyStorage const &other) -> void {
+    template <typename Other>
+    // NOLINTNEXTLINE(cppcoreguidelines-missing-std-forward)
+    constexpr auto assign(Other &&other) noexcept(
+        lazy_storage::detail::IsAssignNoExcept<Other &&>::value) -> void {
         if (_ptr == nullptr && other._ptr == nullptr) {
             return;
         }
@@ -71,12 +115,12 @@ private:
                 std::ranges::copy(other._storage, _storage);
                 _ptr = std::start_lifetime_as<T>(_storage);
             } else {
-                in_place(other._ptr);
+                in_place(std::forward_like<Other>(*other._ptr));
             }
             return;
         }
         if (_ptr != nullptr && other._ptr != nullptr) {
-            *_ptr = *other._ptr;
+            *_ptr = std::forward_like<Other>(*other._ptr);
             return;
         }
         if (_ptr != nullptr && other._ptr == nullptr) {
@@ -84,18 +128,17 @@ private:
         }
     }
 
-    auto destroy() -> void {
+    constexpr auto destroy() -> void {
         _ptr->~T();
         _ptr = nullptr;
     }
 
-    auto in_place(T const *other) -> void {
-        _ptr = ::new (static_cast<void *>(_storage)) T{*other};
+    template <typename K>
+    constexpr auto in_place(K &&other) -> void {
+        _ptr = ::new (static_cast<void *>(_storage)) T{std::forward<K>(other)};
     }
 };
 
-
 }  // namespace args
-
 
 #endif
