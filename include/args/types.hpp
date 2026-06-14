@@ -243,9 +243,6 @@ struct FlagWithValueBase {
 template <typename T, typename DefaultType>
 struct FlagWithValueBase<std::optional<T>, DefaultType> {};
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-
 /// A flag with value descriptor
 template <
     typename Tag,
@@ -272,56 +269,38 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
     template <std::size_t Nx>
     consteval auto Long(char const (&long_form)[Nx]) const
         -> FlagWithValue<Tag, Nx - 1, M, V, DefaultType> {
-        auto f = FlagWithValue<Tag, Nx - 1, M, V, DefaultType>{
-            ._long_form = Str<Nx - 1>{long_form},
-            ._short_form = _short_form,
-            ._repeatable = _repeatable,
-            ._help = _help,
-            ._validator = _validator,
+        return FlagWithValue<Tag, Nx - 1, M, V, DefaultType>{
+            FlagWithValueBase<Tag, DefaultType>{*this},
+            Str<Nx - 1>{long_form},
+            _short_form,
+            _repeatable,
+            _help,
+            _validator,
         };
-        if constexpr (detail::HasDefaultMember<decltype(f)>) {
-            f._default_value = this->_default_value;
-        }
-        if constexpr (detail::HasRequiredMember<decltype(f)>) {
-            f._required = this->_required;
-        }
-        return f;
     }
 
     template <std::size_t Mx>
     consteval auto Help(char const (&help)[Mx]) const
         -> FlagWithValue<Tag, N, Mx - 1, V, DefaultType> {
-        auto f = FlagWithValue<Tag, N, Mx - 1, V, DefaultType>{
-            ._long_form = _long_form,
-            ._short_form = _short_form,
-            ._repeatable = _repeatable,
-            ._help = help,
-            ._validator = _validator,
+        return FlagWithValue<Tag, N, Mx - 1, V, DefaultType>{
+            FlagWithValueBase<Tag, DefaultType>{*this},
+            _long_form,
+            _short_form,
+            _repeatable,
+            help,
+            _validator,
         };
-        if constexpr (detail::HasDefaultMember<decltype(f)>) {
-            f._default_value = this->_default_value;
-        }
-        if constexpr (detail::HasRequiredMember<decltype(f)>) {
-            f._required = this->_required;
-        }
-        return f;
     }
 
     consteval auto Short(char short_form) const -> FlagWithValue<Tag, N, M, V, DefaultType> {
-        auto f = FlagWithValue<Tag, N, M, V, DefaultType>{
-            ._long_form = _long_form,
-            ._short_form = Opt<char>::with(short_form),
-            ._repeatable = _repeatable,
-            ._help = _help,
-            ._validator = _validator,
+        return FlagWithValue<Tag, N, M, V, DefaultType>{
+            FlagWithValueBase<Tag, DefaultType>{*this},
+            _long_form,
+            Opt<char>::with(short_form),
+            _repeatable,
+            _help,
+            _validator,
         };
-        if constexpr (detail::HasDefaultMember<decltype(f)>) {
-            f._default_value = this->_default_value;
-        }
-        if constexpr (detail::HasRequiredMember<decltype(f)>) {
-            f._required = this->_required;
-        }
-        return f;
     }
 
     template <typename D>
@@ -335,18 +314,16 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
             Tag,
             D>
     {
-        auto f = FlagWithValue<detail::result_type_impl_t<D>, N, M, V, D>{
-            ._long_form = _long_form,
-            ._short_form = _short_form,
-            ._repeatable = _repeatable,
-            ._help = _help,
-            ._validator = _validator,
+        return FlagWithValue<detail::result_type_impl_t<D>, N, M, V, D>{
+            FlagWithValueBase<
+                Tag,
+                D>{._default_value = default_value, ._required = this->_required},
+            _long_form,
+            _short_form,
+            _repeatable,
+            _help,
+            _validator,
         };
-        f._default_value = default_value;
-        if constexpr (detail::HasRequiredMember<decltype(f)>) {
-            f._required = this->_required;
-        }
-        return f;
     }
 
     consteval auto Required(bool required) const
@@ -355,56 +332,43 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
     consteval auto Required(bool required) const -> FlagWithValue<Tag, N, M, V, DefaultType>
         requires detail::HasRequiredMember<FlagWithValue<Tag, N, M, V, DefaultType>>
     {
-        auto f = FlagWithValue<Tag, N, M, V, DefaultType>{
-            ._long_form = _long_form,
-            ._short_form = _short_form,
-            ._repeatable = _repeatable,
-            ._help = _help,
-            ._validator = _validator,
+        return FlagWithValue<Tag, N, M, V, DefaultType>{
+            FlagWithValueBase<
+                Tag,
+                DefaultType>{._default_value = this->_default_value, ._required = required},
+            _long_form,
+            _short_form,
+            _repeatable,
+            _help,
+            _validator,
         };
-        f._required = required;
-        if constexpr (detail::HasDefaultMember<decltype(f)>) {
-            f._default_value = this->_default_value;
-        }
-        return f;
     }
 
     consteval auto Repeatable(bool repeatable) const
         -> FlagWithValue<Tag, N, M, V, DefaultType> requires args::detail::StdVector<Tag>
     {
-        auto f = FlagWithValue<Tag, N, M, V, DefaultType>{
-            ._long_form = _long_form,
-            ._short_form = _short_form,
-            ._repeatable = repeatable,
-            ._help = _help,
-            ._validator = _validator,
+        return FlagWithValue<Tag, N, M, V, DefaultType>{
+            FlagWithValueBase<Tag, DefaultType>{*this},
+            _long_form,
+            _short_form,
+            repeatable,
+            _help,
+            _validator,
         };
-
-        f._default_value = this->_default_value;
-        f._required = this->_required;
-        return f;
     }
 
     template <ValidatorObject Vx>
     consteval auto Validator(Vx validator) const -> FlagWithValue<Tag, N, M, Vx, DefaultType> {
-        auto f = FlagWithValue<Tag, N, M, Vx, DefaultType>{
-            ._long_form = _long_form,
-            ._short_form = _short_form,
-            ._repeatable = _repeatable,
-            ._help = _help,
-            ._validator = validator,
+        return FlagWithValue<Tag, N, M, Vx, DefaultType>{
+            FlagWithValueBase<Tag, DefaultType>{*this},
+            _long_form,
+            _short_form,
+            _repeatable,
+            _help,
+            validator,
         };
-        if constexpr (detail::HasDefaultMember<decltype(f)>) {
-            f._default_value = this->_default_value;
-        }
-        if constexpr (detail::HasRequiredMember<decltype(f)>) {
-            f._required = this->_required;
-        }
-        return f;
     }
 };
-
-#pragma GCC diagnostic pop
 
 template <std::default_initializable T>
 consteval auto flag_with_value() -> FlagWithValue<T, 0, 0, always_t> {
@@ -424,9 +388,6 @@ struct PositionalBase {
 
 template <typename T>
 struct PositionalBase<std::optional<T>> {};
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 
 /// A positional value descriptor
 template <typename P, std::size_t N = 0, std::size_t M = 0, ValidatorObject V = always_t>
@@ -448,32 +409,26 @@ struct [[nodiscard]] Positional: PositionalBase<P> {
 
     template <std::size_t Nx>
     consteval auto Name(char const (&name)[Nx]) const -> Positional<P, Nx - 1, M, V> {
-        auto f = Positional<P, Nx - 1, M, V>{
-            ._type = _type,
-            ._name = Str<Nx - 1>{name},
-            ._help = _help,
-            ._variadic = _variadic,
-            ._validator = _validator,
+        return Positional<P, Nx - 1, M, V>{
+            PositionalBase<P>{*this},
+            _type,
+            Str<Nx - 1>{name},
+            _help,
+            _variadic,
+            _validator,
         };
-        if constexpr (detail::HasRequiredMember<decltype(f)>) {
-            f._required = this->_required;
-        }
-        return f;
     }
 
     template <std::size_t Mx>
     consteval auto Help(char const (&help)[Mx]) const -> Positional<P, N, Mx - 1, V> {
-        auto f = Positional<P, N, Mx - 1, V>{
-            ._type = _type,
-            ._name = _name,
-            ._help = Str<Mx - 1>{help},
-            ._variadic = _variadic,
-            ._validator = _validator,
+        return Positional<P, N, Mx - 1, V>{
+            PositionalBase<P>{*this},
+            _type,
+            _name,
+            Str<Mx - 1>{help},
+            _variadic,
+            _validator,
         };
-        if constexpr (detail::HasRequiredMember<decltype(f)>) {
-            f._required = this->_required;
-        }
-        return f;
     }
 
     consteval auto Required(bool required) const -> Positional<P, N, M, V> = delete;
@@ -481,50 +436,41 @@ struct [[nodiscard]] Positional: PositionalBase<P> {
     consteval auto Required(bool required) const
         -> Positional<P, N, M, V> requires detail::HasRequiredMember<Positional<P, N, M, V>>
     {
-        auto f = Positional<P, N, M, V>{
-            ._type = _type,
-            ._name = _name,
-            ._help = _help,
-            ._variadic = _variadic,
-            ._validator = _validator,
+        return Positional<P, N, M, V>{
+            required,
+            _type,
+            _name,
+            _help,
+            _variadic,
+            _validator,
         };
-        f._required = required;
-        return f;
     }
 
     consteval auto Variadic(bool variadic) const
         -> Positional<P, N, M, V> requires args::detail::StdVector<P>
     {
-        auto f = Positional<P, N, M, V>{
-            ._type = _type,
-            ._name = _name,
-            ._help = _help,
-            ._variadic = variadic,
-            ._validator = _validator,
+        return Positional<P, N, M, V>{
+            PositionalBase<P>{*this},
+            _type,
+            _name,
+            _help,
+            variadic,
+            _validator,
         };
-        if constexpr (detail::HasRequiredMember<decltype(f)>) {
-            f._required = this->_required;
-        }
-        return f;
     }
 
     template <ValidatorObject Vx>
     consteval auto Validator(Vx validator) const -> Positional<P, N, M, Vx> {
-        auto f = Positional<P, N, M, Vx>{
-            ._type = _type,
-            ._name = _name,
-            ._help = _help,
-            ._variadic = _variadic,
-            ._validator = validator,
+        return Positional<P, N, M, Vx>{
+            PositionalBase<P>{*this},
+            _type,
+            _name,
+            _help,
+            _variadic,
+            validator,
         };
-        if constexpr (detail::HasRequiredMember<decltype(f)>) {
-            f._required = this->_required;
-        }
-        return f;
     }
 };
-
-#pragma GCC diagnostic pop
 
 template <typename T>
 consteval auto positional() -> Positional<T, 0, 0, always_t> {
