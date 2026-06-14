@@ -1,12 +1,13 @@
 // NOTE: this example is enabled by default, but it can be enabled/disabled with the cmake option
 // `BUILD_CUSTOM_PARSER_EXAMPLE`
 
-#include <expected>
+#include <format>
 #include <nlohmann/json.hpp>
 #include <print>
 // #include <unordered_set>
 #include <vector>
 #include "args/args.hpp"
+#include "args/lazy_storage.hpp"
 #include "args/parsers.hpp"
 #include "args/types.hpp"
 #include "args/validators.hpp"
@@ -85,12 +86,21 @@ struct Parser<IntWrapper> {
 };
 }  // namespace args::parsers
 
+namespace std {
+
+template <>
+struct formatter<IntWrapper>: formatter<int> {  // NOLINT(cert-dcl58-cpp)
+
+    template <typename Ctx>
+    auto format(IntWrapper const &w, Ctx &ctx) const {  // NOLINT
+        return formatter<int>::format(w.x, ctx);
+    }
+};
+}  // namespace std
+
 auto main(int argc, char **argv) -> int {
     auto const commands = args::parse_or_exit(argc, argv, options);
-    // args::Args is std::print-compatible only if all its contents are. json is not
-    // std::print-compatible
     std::println("json: {}", commands.get<c_json>().dump());
-    auto const w = commands.get<c_int_wrapper>().as_ref();
-    std::println("Non default constructible flag: IntWrapper{{{}}}", w.x);
-    std::println("set: {}", commands.get<c_set>());
+    // It can always be printed anyway, but it will use a placeholder non printable types
+    std::println("{}", commands);
 }

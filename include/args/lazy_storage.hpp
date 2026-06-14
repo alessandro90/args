@@ -57,7 +57,7 @@ struct LazyStorage {
 
     // NOLINTNEXTLINE(cert-oop54-cpp, bugprone-unhandled-self-assignment)
     constexpr auto operator=(LazyStorage const &other) -> LazyStorage & {
-        if (_ptr == other._ptr) {
+        if (&_storage == &other._storage) {
             return *this;
         }
         assign(other);
@@ -68,10 +68,7 @@ struct LazyStorage {
         if (_ptr != nullptr) {
             destroy();
         }
-        if (other._ptr == nullptr) {
-            return *this;
-        }
-        in_place(*other._ptr);
+        in_place(other);
         return *this;
     };
 
@@ -95,7 +92,7 @@ struct LazyStorage {
     }
 
     // ---
-    constexpr operator T const &() {  // NOLINT(hicpp-explicit-conversions)
+    constexpr operator T const &() const {  // NOLINT(hicpp-explicit-conversions)
         return as_ref();
     }
 
@@ -106,6 +103,18 @@ struct LazyStorage {
     [[nodiscard]] constexpr auto as_ref() const -> T const & {
         assert(_ptr != nullptr);
         return *_ptr;
+    }
+
+    friend constexpr auto swap(LazyStorage &a, LazyStorage &b) noexcept(
+        std::is_nothrow_swappable_v<T> && std::is_nothrow_move_constructible_v<T>) -> void {
+        using std::swap;
+        if (a._ptr != nullptr && b._ptr != nullptr) {
+            swap(*a._ptr, *b._ptr);
+        } else {
+            auto tmp = LazyStorage{std::move(a)};
+            a = std::move(b);
+            b = std::move(tmp);
+        }
     }
 
 private:
@@ -152,14 +161,17 @@ namespace std {
 template <typename T>
 struct formatter<args::LazyStorage<T>>: formatter<T> {  // NOLINT(cert-dcl58-cpp)
 
-    auto format(args::LazyStorage<T> const &storage, format_context &ctx) const {  // NOLINT
+    template <typename Ctx>
+    auto format(args::LazyStorage<T> const &storage, Ctx &ctx) const {  // NOLINT
         if (!storage.is_init()) {
             return format_to(
                 ctx.out(), "[args::LazyStorage<{}>: uninitialized]", args::detail::name_of<T>());
         }
-        return formatter<T>{}.format(storage.as_ref(), ctx);
+        return formatter<T>::format(storage.as_ref(), ctx);
     }
 };
+
+
 }  // namespace std
 
 #endif

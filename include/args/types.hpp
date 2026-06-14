@@ -5,6 +5,7 @@
 #include <array>
 #include <concepts>
 #include <cstddef>
+#include <format>
 #include <optional>
 #include <ranges>
 #include <string>
@@ -1553,7 +1554,8 @@ namespace std {
 template <auto S>
 struct formatter<args::ArgValue<S>>  // NOLINT(cert-dcl58-cpp)
     : formatter<std::string_view> {
-    auto format(args::ArgValue<S> const &arg, format_context &ctx) const {
+    template <typename Ctx>
+    auto format(args::ArgValue<S> const &arg, Ctx &ctx) const {
         if constexpr (is_base_of_v<args::CommandArgValue<S>, args::ArgValue<S>>) {
             if constexpr (requires { arg.count; }) {
                 return format_to(
@@ -1563,13 +1565,20 @@ struct formatter<args::ArgValue<S>>  // NOLINT(cert-dcl58-cpp)
                     arg.is_used,
                     arg.value,
                     arg.count);
-            } else {
+            } else if constexpr (std::formattable<decltype(arg.value), char>) {
                 return format_to(
                     ctx.out(),
                     "{}: {{ is_used: {}, value: {} }}",
                     args::detail::option_name<S>(),
                     arg.is_used,
                     arg.value);
+            } else {
+                return format_to(
+                    ctx.out(),
+                    "{}: {{ is_used: {}, value: [{}] }}",
+                    args::detail::option_name<S>(),
+                    arg.is_used,
+                    args::detail::name_of<decltype(arg.value)>());
             }
         } else {
             return format_to(
@@ -1585,7 +1594,8 @@ struct formatter<args::ArgValue<S>>  // NOLINT(cert-dcl58-cpp)
 template <auto... Ops>
 struct formatter<args::Args<Ops...>>: formatter<string_view> {  // NOLINT(cert-dcl58-cpp)
 
-    auto format(args::Args<Ops...> const &arg, format_context &ctx) const {
+    template <typename Ctx>
+    auto format(args::Args<Ops...> const &arg, Ctx &ctx) const {
         ctx.advance_to(format_to(ctx.out(), "Args{{ "));
 
         static constexpr auto tuple_size = tuple_size_v<decltype(arg.m_results)>;
@@ -1601,25 +1611,28 @@ struct formatter<args::Args<Ops...>>: formatter<string_view> {  // NOLINT(cert-d
 };
 
 template <>
-struct formatter<args::Error>: formatter<std::string_view> {          // NOLINT(cert-dcl58-cpp)
+struct formatter<args::Error>: formatter<std::string_view> {  // NOLINT(cert-dcl58-cpp)
 
-    auto format(args::Error const &err, format_context &ctx) const {  // NOLINT
+    template <typename Ctx>
+    auto format(args::Error const &err, Ctx &ctx) const {  // NOLINT
         return format_to(ctx.out(), "Error{{\n{}\n}}", err.message);
     }
 };
 
 template <>
-struct formatter<args::Help>: formatter<std::string_view> {        // NOLINT(cert-dcl58-cpp)
+struct formatter<args::Help>: formatter<std::string_view> {  // NOLINT(cert-dcl58-cpp)
 
-    auto format(args::Help const &h, format_context &ctx) const {  // NOLINT
+    template <typename Ctx>
+    auto format(args::Help const &h, Ctx &ctx) const {  // NOLINT
         return format_to(ctx.out(), "Help{{\n{}\n}}", h.message);
     }
 };
 
 template <>
-struct formatter<args::NoArguments>: formatter<std::string_view> {       // NOLINT(cert-dcl58-cpp)
+struct formatter<args::NoArguments>: formatter<std::string_view> {  // NOLINT(cert-dcl58-cpp)
 
-    auto format(args::NoArguments const &, format_context &ctx) const {  // NOLINT
+    template <typename Ctx>
+    auto format(args::NoArguments const &, Ctx &ctx) const {  // NOLINT
         return format_to(ctx.out(), "NoArguments");
     }
 };
@@ -1627,7 +1640,8 @@ struct formatter<args::NoArguments>: formatter<std::string_view> {       // NOLI
 template <auto... Ss>
 struct formatter<args::compile_result_t<Ss...>>  // NOLINT(cert-dcl58-cpp)
     : formatter<std::string_view> {
-    auto format(args::compile_result_t<Ss...> const &result, format_context &ctx) const {  // NOLINT
+    template <typename Ctx>
+    auto format(args::compile_result_t<Ss...> const &result, Ctx &ctx) const {  // NOLINT
         return result.visit([&](auto const &v) {
             return formatter<remove_cvref_t<decltype(v)>>{}.format(v, ctx);
         });
