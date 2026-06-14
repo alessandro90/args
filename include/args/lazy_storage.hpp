@@ -65,7 +65,7 @@ struct LazyStorage {
     };
 
     constexpr auto operator=(T const &other) -> LazyStorage & {
-        if (_ptr != nullptr) {
+        if (is_init()) {
             destroy();
         }
         in_place(other);
@@ -75,7 +75,7 @@ struct LazyStorage {
     constexpr auto operator=(T &&other) noexcept(
         std::is_nothrow_move_constructible_v<T> && std::is_nothrow_destructible_v<T>)
         -> LazyStorage & {
-        if (_ptr != nullptr) {
+        if (is_init()) {
             destroy();
         }
         in_place(std::move(other));
@@ -86,7 +86,7 @@ struct LazyStorage {
     = default;
 
     constexpr ~LazyStorage() {
-        if (_ptr != nullptr) {
+        if (is_init()) {
             destroy();
         }
     }
@@ -108,7 +108,7 @@ struct LazyStorage {
     friend constexpr auto swap(LazyStorage &a, LazyStorage &b) noexcept(
         std::is_nothrow_swappable_v<T> && std::is_nothrow_move_constructible_v<T>) -> void {
         using std::swap;
-        if (a._ptr != nullptr && b._ptr != nullptr) {
+        if (a.is_init() && b.is_init()) {
             swap(*a._ptr, *b._ptr);
         } else {
             auto tmp = LazyStorage{std::move(a)};
@@ -122,10 +122,10 @@ private:
     // NOLINTNEXTLINE(cppcoreguidelines-missing-std-forward)
     constexpr auto assign(Other &&other) noexcept(
         lazy_storage::detail::IsAssignNoExcept<Other &&>::value) -> void {
-        if (_ptr == nullptr && other._ptr == nullptr) {
+        if (!is_init() && !other.is_init()) {
             return;
         }
-        if (_ptr == nullptr && other._ptr != nullptr) {
+        if (!is_init() && other.is_init()) {
             if constexpr (std::is_trivially_copyable_v<T>) {
                 std::ranges::copy(other._storage, _storage);
                 _ptr = std::start_lifetime_as<T>(_storage);
@@ -134,11 +134,11 @@ private:
             }
             return;
         }
-        if (_ptr != nullptr && other._ptr != nullptr) {
+        if (is_init() && other.is_init()) {
             *_ptr = std::forward_like<Other>(*other._ptr);
             return;
         }
-        if (_ptr != nullptr && other._ptr == nullptr) {
+        if (is_init() && !other.is_init()) {
             destroy();
         }
     }
