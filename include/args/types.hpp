@@ -1426,6 +1426,9 @@ template <auto... Ss, auto... Gg>
         return {};
     }
 }
+
+template <auto... Ops>
+using ArgsValues = std::tuple<ArgValue<Ops>...>;
 }  // namespace detail
 
 /// A container class for all parsed commands
@@ -1445,7 +1448,7 @@ class [[nodiscard]] Args {
     friend std::formatter<Args<Ops...>>;
 
 public:
-    explicit Args(std::tuple<ArgValue<Ops>...> results)
+    explicit Args(args::detail::ArgsValues<Ops...> results)
         : m_results{std::move(results)} {}
 
     explicit Args() = default;
@@ -1488,7 +1491,7 @@ public:
     }
 
 private:
-    std::tuple<ArgValue<Ops>...> m_results{};
+    args::detail::ArgsValues<Ops...> m_results{};
 };
 
 struct [[nodiscard]] Help {

@@ -77,7 +77,7 @@ public:
     explicit TokenCompiler(Options<Usage, Description, Ops...> compile_opts)
         : m_compile_opts{compile_opts} {}
 
-    std::tuple<ArgValue<Ops>...> results{};
+    args::detail::ArgsValues<Ops...> results{};
 
     [[nodiscard]] auto operator()(tokenizer::Argument argument) -> TokenCompileResult {
         if (m_mode == Mode::PositionalOnlySkipNext) {
@@ -308,7 +308,7 @@ public:
             if (Is != subcommand_tuple_index) {
                 continue;
             }
-            using arg_value_t = std::tuple_element_t<Is, std::tuple<ArgValue<Ops>...>>;
+            using arg_value_t = std::tuple_element_t<Is, args::detail::ArgsValues<Ops...>>;
             if constexpr (is_subcommand_v<decltype(arg_value_t::option)>) {
                 auto &subcommand = std::get<Is>(results);
                 auto subcommand_result = compiler(
@@ -528,7 +528,7 @@ private:
 
 template <auto... Ops>
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-[[nodiscard]] auto verify_required_args(std::tuple<ArgValue<Ops>...> const &results)
+[[nodiscard]] auto verify_required_args(args::detail::ArgsValues<Ops...> const &results)
     -> std::vector<std::string> {
     // NOTE: an empty vec (meaning no errors) does not allocate, so we are good
     auto v = std::vector<std::string>{};
@@ -572,7 +572,7 @@ template <auto... Ops>
 /// If the flag was not used, set its value to the result of the invocation
 /// of `default_value`
 template <auto... Ops>
-auto assign_defaults_to_unused(std::tuple<ArgValue<Ops>...> &results) -> void {
+auto assign_defaults_to_unused(args::detail::ArgsValues<Ops...> &results) -> void {
     template for (auto &r : results) {
         using arg_type_t = std::remove_cvref_t<decltype(r)>;
         using S_t = decltype(arg_type_t::option);
@@ -592,7 +592,7 @@ auto assign_defaults_to_unused(std::tuple<ArgValue<Ops>...> &results) -> void {
 }
 
 template <auto... Ops>
-[[nodiscard]] auto val_var_pos_and_rep(std::tuple<ArgValue<Ops>...> &results)
+[[nodiscard]] auto val_var_pos_and_rep(args::detail::ArgsValues<Ops...> &results)
     -> std::expected<void, std::vector<validator_error_t>> {
     auto validation_errors = std::vector<validator_error_t>{};
     template for (auto &r : results) {
