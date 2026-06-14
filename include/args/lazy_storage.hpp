@@ -3,9 +3,11 @@
 
 #include <algorithm>
 #include <cassert>
+#include <format>
 #include <memory>
 #include <type_traits>
 #include <utility>
+#include "helpers.hpp"
 
 namespace args {
 template <typename T>
@@ -97,6 +99,10 @@ struct LazyStorage {
         return as_ref();
     }
 
+    [[nodiscard]] constexpr auto is_init() const -> bool {
+        return _ptr != nullptr;
+    }
+
     [[nodiscard]] constexpr auto as_ref() const -> T const & {
         assert(_ptr != nullptr);
         return *_ptr;
@@ -140,5 +146,20 @@ private:
 };
 
 }  // namespace args
+
+namespace std {
+
+template <typename T>
+struct formatter<args::LazyStorage<T>>: formatter<T> {  // NOLINT(cert-dcl58-cpp)
+
+    auto format(args::LazyStorage<T> const &storage, format_context &ctx) const {  // NOLINT
+        if (!storage.is_init()) {
+            return format_to(
+                ctx.out(), "[args::LazyStorage<{}>: uninitialized]", args::detail::name_of<T>());
+        }
+        return formatter<T>{}.format(storage.as_ref(), ctx);
+    }
+};
+}  // namespace std
 
 #endif
