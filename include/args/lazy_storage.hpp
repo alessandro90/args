@@ -35,10 +35,7 @@ template <typename T>
 struct [[nodiscard]] LazyStorage {
     static_assert(!std::is_reference_v<T>, "LazyStorage does not support references");
 
-    T *_ptr{nullptr};
-
-    alignas(T) char _storage[sizeof(T)]{};  // NOLINT
-
+public:
     // ---
 
     constexpr LazyStorage() = default;
@@ -182,6 +179,11 @@ private:
     constexpr auto in_place(K &&other) -> void {
         _ptr = ::new (static_cast<void *>(_storage)) T{std::forward<K>(other)};
     }
+
+    // member variables
+    T *_ptr{nullptr};
+
+    alignas(T) char _storage[sizeof(T)]{};  // NOLINT
 };
 
 }  // namespace args
