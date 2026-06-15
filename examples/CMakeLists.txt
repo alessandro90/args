@@ -26,6 +26,7 @@ set(
     02_validation
     03_custom_parser
     04_mutually_exclusive
+    05_non_default_initializable_arguments
 )
 
 foreach(example ${examples})
