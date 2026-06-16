@@ -16,7 +16,7 @@ namespace args {
 template <Str Usage, Str Description, auto... Ops, auto... Gg>
 [[nodiscard]] auto try_parse(
     int argc,
-    char **argv,
+    char const *const *argv,
     Options<Usage, Description, Ops...> opts,
     MutuallyExclusiveGroups<Gg...> mutually_exclusive) -> compile_result_t<Ops...> {
     // TODO: move this inside compile (need to check also subcommands)
@@ -26,11 +26,11 @@ template <Str Usage, Str Description, auto... Ops, auto... Gg>
     if (argc <= 1) {
         return NoArguments{};
     }
-    auto const constify = [](char **x) -> char const *const * {
-        return x;
-    };
+    // auto const constify = [](char **x) -> char const *const * {
+    //     return x;
+    // };
     // Skip the program name
-    auto s = std::span{std::next(constify(argv)), static_cast<std::size_t>(argc - 1)};
+    auto s = std::span{std::next(argv), static_cast<std::size_t>(argc - 1)};
     auto tokens = tokenizer::tokenize(s);
     if (!tokens.has_value()) {
         return compile_result_t<Ops...>{Error{.message = std::move(tokens).error()}};
@@ -40,7 +40,8 @@ template <Str Usage, Str Description, auto... Ops, auto... Gg>
 }
 
 template <Str Usage, Str Description, auto... Ops>
-[[nodiscard]] auto try_parse(int argc, char **argv, Options<Usage, Description, Ops...> opts)
+[[nodiscard]] auto try_parse(
+    int argc, char const *const *argv, Options<Usage, Description, Ops...> opts)
     -> compile_result_t<Ops...> {
     return try_parse(argc, argv, opts, MutuallyExclusiveGroups<>{});
 }
@@ -48,7 +49,7 @@ template <Str Usage, Str Description, auto... Ops>
 template <Str Usage, Str Description, auto... Ops, auto... Gg>
 [[nodiscard]] auto parse_or_exit(
     int argc,
-    char **argv,
+    char const *const *argv,
     Options<Usage, Description, Ops...> opts,
     MutuallyExclusiveGroups<Gg...> mutually_exclusive) -> Args<Ops...> {
     auto args = try_parse(argc, argv, opts, mutually_exclusive);
