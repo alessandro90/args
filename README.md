@@ -170,6 +170,26 @@ target_link_libraries(my_app PRIVATE args::args)
 
 Headers are then imported as `args/args.hpp`, etc..
 
+## Benchmarks
+
+The `benchmark` directory contains some benchmarks against commonly used similar libraries: [`argparse`](https://github.com/p-ranav/argparse), [`cxxopts`](https://github.com/jarro2783/cxxopts), [`CLI11`](https://github.com/cliutils/cli11). Only two simple tests are performad:
+
+- parsing simple flags/scalar options
+- parsing `std::vector<int>`
+
+The results looks good, but surely the compared libraries offer a much greater functionality and I am not sure of how representative the tests are. Anyway on a machine with a _AMD Ryzen 7 7800X3D_ these are the results:
+
+| Benchmark           | Time (ns) | CPU (ns) | Iterations |
+| :------------------ | --------: | -------: | :--------: |
+| bm_static_argparse  |      1265 |     1261 |   546864   |
+| bm_static_cli11     |      3901 |     3891 |   180683   |
+| bm_static_cxxopts   |      6941 |     6914 |   101274   |
+| **bm_static_args**  |       285 |      284 |  2452499   |
+| bm_dynamic_argparse |      1067 |     1063 |   661088   |
+| bm_dynamic_cli11    |      2734 |     2723 |   253009   |
+| bm_dynamic_cxxopts  |      6040 |     6016 |   116415   |
+| **bm_dynamic_args** |       583 |      581 |  1206783   |
+
 ## Building from source
 
 The project builds with Cmake. Tested only using gcc. _C++26 and reflection_ (via `-freflection`) support is required. At the moment there is really no support for other compilers. Many several warnings exists only for C++. However the code is fully portable and the CMakeLists could be adjusted to support multiple compilers.
@@ -188,9 +208,10 @@ cmake ..
 cmake --build .
 ```
 
-The `make` command without any specific target builds tests and examples.
+The `make` command without any specific target builds tests and examples. Benchmarks are not built by default. To build the benchmarks use `-DBUILD_BENCHMARKS=ON`.
 
 ### Specific targets
 
 - _args_tests_ Build just the tests.
 - _args_examples_ Build just the examples. add `-DBUILD_CUSTOM_PARSER_EXAMPLE` to build `03_custom_parser`. It downlaods the `nlohman` json library. So disable the flag if do not want to download it.
+- _args_bench_ Build the benchmarks. You should configure cmake with `-DCMAKE_BUILD_TYPE=Release -DBUILD_BENCHMARKS=ON -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF`.
