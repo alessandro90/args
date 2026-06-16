@@ -84,6 +84,5 @@ auto main(int argc, char **argv) -> int {
     std::println("provided text: '{}', used: {}", text_info.value, text_info.is_used);
 
     auto const &variadic_positional_info = commands.get_with_info<variadic_positional>();
-    std::println("{}", variadic_positional_info);  // args::ArgValue is printable provided the type
-                                                   // it contains is printable too
+    std::println("{}", variadic_positional_info);  // args::ArgValue is printable
 }

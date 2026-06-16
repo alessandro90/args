@@ -74,6 +74,7 @@ endif()
 
 add_custom_target(args_tests)
 add_custom_target(args_examples)
+add_custom_target(args_bench)
 
 if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     option(BUILD_TESTING "Build tests" ON)
@@ -85,6 +86,15 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     option(BUILD_EXAMPLES "Build examples" ON)
     if(BUILD_EXAMPLES)
         add_subdirectory(examples)
+    endif()
+
+    option(BUILD_BENCHMARKS "Build the benchmark suite" OFF)
+    if(BUILD_BENCHMARKS)
+        # Prevents Google Benchmark from building its own internal tests/benchmarks
+        set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+        set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+        
+        add_subdirectory(benchmark)
     endif()
 endif()
 

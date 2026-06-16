@@ -438,7 +438,7 @@ struct [[nodiscard]] Positional: PositionalBase<P> {
         -> Positional<P, N, M, V> requires detail::HasRequiredMember<Positional<P, N, M, V>>
     {
         return Positional<P, N, M, V>{
-            required,
+            PositionalBase<P>{required},
             _type,
             _name,
             _help,

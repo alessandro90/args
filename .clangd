@@ -1,2 +1,14 @@
+If:
+  PathExclude: benchmark/.*
 CompileFlags:
   Add: [-std=c++26]
+  CompilationDatabase: "build/"
+
+---
+
+# Specific configuration for the benchmarks folder
+If:
+  PathMatch: benchmark/.*
+CompileFlags:
+  Add: [-std=c++26]
+  CompilationDatabase: "build/bench/"
