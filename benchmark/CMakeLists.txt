@@ -35,7 +35,12 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(cxxopts)
 
-add_executable(bench_exe bench.cpp)
+add_executable(
+    bench_exe
+    bench.cpp
+    static.cpp
+    dynamic.cpp
+)
 
 target_link_libraries(bench_exe
     PRIVATE
