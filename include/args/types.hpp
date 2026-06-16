@@ -218,7 +218,7 @@ struct [[nodiscard]] Flag {
         };
     }
 
-    consteval auto Required(bool required) const -> Flag<N, M> {
+    consteval auto Required(bool required = true) const -> Flag<N, M> {
         return Flag<N, M>{
             ._long_form = _long_form,
             ._short_form = _short_form,
@@ -330,7 +330,7 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
     consteval auto Required(bool required) const
         -> FlagWithValue<Tag, N, M, V, DefaultType> = delete;
 
-    consteval auto Required(bool required) const -> FlagWithValue<Tag, N, M, V, DefaultType>
+    consteval auto Required(bool required = true) const -> FlagWithValue<Tag, N, M, V, DefaultType>
         requires detail::HasRequiredMember<FlagWithValue<Tag, N, M, V, DefaultType>>
     {
         return FlagWithValue<Tag, N, M, V, DefaultType>{
@@ -345,7 +345,7 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
         };
     }
 
-    consteval auto Repeatable(bool repeatable) const
+    consteval auto Repeatable(bool repeatable = true) const
         -> FlagWithValue<Tag, N, M, V, DefaultType> requires args::detail::StdVector<Tag>
     {
         return FlagWithValue<Tag, N, M, V, DefaultType>{
@@ -434,7 +434,7 @@ struct [[nodiscard]] Positional: PositionalBase<P> {
 
     consteval auto Required(bool required) const -> Positional<P, N, M, V> = delete;
 
-    consteval auto Required(bool required) const
+    consteval auto Required(bool required = true) const
         -> Positional<P, N, M, V> requires detail::HasRequiredMember<Positional<P, N, M, V>>
     {
         return Positional<P, N, M, V>{
@@ -447,7 +447,7 @@ struct [[nodiscard]] Positional: PositionalBase<P> {
         };
     }
 
-    consteval auto Variadic(bool variadic) const
+    consteval auto Variadic(bool variadic = true) const
         -> Positional<P, N, M, V> requires args::detail::StdVector<P>
     {
         return Positional<P, N, M, V>{
