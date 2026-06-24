@@ -52,8 +52,8 @@ inline constexpr auto empty = Str{""};
 
 namespace detail {
 template <typename T>
-consteval auto materialize() -> T {
-    std::unreachable();
+consteval auto opt_new(T t) -> Opt<T> {
+    return Opt<T>::with(t);
 }
 
 constexpr auto help_str = std::string_view{"help"};
@@ -161,10 +161,10 @@ concept DefaultSetterArg =
 }  // namespace detail
 
 /// A boolean flag descriptor
-template <std::size_t N, std::size_t M = 0>
+template <std::size_t N = 0, std::size_t M = 0>
 struct [[nodiscard]] Flag {
     /// The long form of the flag (e.g. `"verbose"_str` will parse `--verbose`)
-    Str<N> _long_form;
+    Opt<Str<N>> _long_form;
     /// The short form, a `char` (e.g. `"j"_str` will parse `-j`)
     Opt<char> _short_form{Opt<char>::empty()};
     /// The default value if no flag is parsed (defaults to `false`)
@@ -179,7 +179,7 @@ struct [[nodiscard]] Flag {
     template <std::size_t Nx>
     consteval auto Long(char const (&long_form)[Nx]) const -> Flag<Nx - 1, M> {
         return Flag<Nx - 1, M>{
-            ._long_form = Str<Nx - 1>{long_form},
+            ._long_form = detail::opt_new(Str<Nx - 1>{long_form}),
             ._short_form = _short_form,
             ._default_value = _default_value,
             ._required = _required,
@@ -254,7 +254,7 @@ template <
 requires std::default_initializable<DefaultType>
 struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
     /// The long form of the flag (e.g. `"verbose"_str` will parse `--verbose`)
-    Str<N> _long_form;
+    Opt<Str<N>> _long_form;
     /// The short form, a `char` (e.g. `"j"_str` will parse `-j`)
     Opt<char> _short_form{Opt<char>::empty()};
     /// `true` if the flag can be specified multiple times. Default is true if `Value` is a
@@ -272,7 +272,7 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
         -> FlagWithValue<Tag, Nx - 1, M, V, DefaultType> {
         return FlagWithValue<Tag, Nx - 1, M, V, DefaultType>{
             FlagWithValueBase<Tag, DefaultType>{*this},
-            Str<Nx - 1>{long_form},
+            detail::opt_new(Str<Nx - 1>{long_form}),
             _short_form,
             _repeatable,
             _help,
@@ -637,11 +637,15 @@ template <auto S>
 struct Fail;
 
 template <auto S>
-[[nodiscard]] constexpr auto option_name() -> std::string_view {
+[[nodiscard]] constexpr auto option_name() -> std::string {
     if constexpr (requires { S._name; }) {
-        return S._name.as_string_view();
+        return std::string(S._name.as_string_view());
     } else if constexpr (requires { S._long_form; }) {
-        return S._long_form.as_string_view();
+        if constexpr (S._long_form.has_value) {
+            return std::string(S._long_form.value.as_string_view());
+        } else {
+            return std::string(1, S._short_form.value);
+        }
     } else {
         Fail<S>{};
     }
@@ -749,23 +753,12 @@ template <auto S>
     return is_subcommand_v<decltype(S)> || FlagObject<S>;
 }
 
-template <auto S>
-[[nodiscard]] consteval auto get_unique_name() -> std::string_view {
-    if constexpr (is_subcommand_v<decltype(S)>) {
-        return S._name.as_string_view();
-    } else if constexpr (FlagObject<S>) {
-        return S._long_form.as_string_view();
-    } else {
-        static_assert(false, "Invalid argument");
-    }
-}
-
 template <auto S1, auto S2>
 [[nodiscard]] consteval auto have_different_flag_names() -> bool {
     if constexpr (!need_unique_name<S1>() || !need_unique_name<S2>()) {
         return true;
     } else {
-        if (get_unique_name<S1>() == get_unique_name<S2>()) {
+        if (option_name<S1>() == option_name<S2>()) {
             return false;
         }
         if constexpr (FlagObject<S1> && FlagObject<S2>) {
@@ -825,7 +818,10 @@ template <auto S1, auto... Ss>
         }
     }
     if constexpr (FlagObject<S1>) {
-        if (!is_valid_name(S1._long_form.as_string_view())) {
+        if (!S1._short_form.has_value && !S1._long_form.has_value) {
+            return false;
+        }
+        if (S1._long_form.has_value && !is_valid_name(S1._long_form.value.as_string_view())) {
             return false;
         }
         if (!S1._short_form.has_value) {
@@ -850,7 +846,7 @@ template <auto S1, auto... Ss>
         }
     }
     if constexpr (FlagObject<S1>) {
-        if constexpr (S1._long_form.as_string_view() == help_str) {
+        if constexpr (S1._long_form.has_value && S1._long_form.value.as_string_view() == help_str) {
             return false;
         }
     }
@@ -967,7 +963,8 @@ struct CheckRules {
     static_assert(check_all_different_names<Ops...>(), "All flags must have unique identifiers");
     static_assert(
         check_valid_names<Ops...>(),
-        "All flags must begin with a letter, both long and short forms");
+        "All flags must have at least one between long and short form. All flags must begin with a "
+        "letter, both long and short forms");
     static_assert(check_help_reserved<Ops...>(), "'help' is a reserved flag name");
     static_assert(detail::check_variadics<Ops...>(), "Variadics positionals must be vector<T>");
     static_assert(
@@ -1031,7 +1028,7 @@ auto build_help_data(
         pure_flags.push_back(
             FlagHelp{
                 .short_name = short_name,
-                .long_name = S._long_form.as_string_view(),
+                .long_name = S._long_form.has_value ? S._long_form.value.as_string_view() : "",
                 .description = S._help.as_string_view(),
                 .is_required = S._required});
     } else if constexpr (is_flag_with_value_v<s_t>) {
@@ -1039,7 +1036,7 @@ auto build_help_data(
             S._short_form.has_value ? std::optional{S._short_form.value} : std::optional<char>{};
         auto f = FlagHelp{
             .short_name = short_name,
-            .long_name = S._long_form.as_string_view(),
+            .long_name = S._long_form.has_value ? S._long_form.value.as_string_view() : "",
             .description = S._help.as_string_view()};
         if constexpr (detail::HasRequired<S>) {
             f.is_required = S._required;
@@ -1304,7 +1301,8 @@ template <auto... Ss>
 [[nodiscard]] auto group_names() -> std::string {
     auto index = 0uz;
     auto names = std::string(1, '{');
-    template for (constexpr auto name : {args::detail::option_name<Ss>()...}) {
+    auto const names_arr = std::array{args::detail::option_name<Ss>()...};
+    for (auto name : {args::detail::option_name<Ss>()...}) {
         names += name;
         if (static_cast<std::size_t>(index) < sizeof...(Ss) - 1uz) {
             names += ", ";

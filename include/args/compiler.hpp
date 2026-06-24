@@ -24,6 +24,12 @@
 namespace args::compiler {
 namespace detail {
 
+template <typename T>
+[[nodiscard]] auto is_match(T const &item, tokenizer::LongFlag long_flag) -> bool {
+    return item.option._long_form.has_value
+           && item.option._long_form.value.as_string_view() != long_flag.flag;
+}
+
 template <auto S>
 [[nodiscard]] auto format_validation_error(std::string_view error) -> std::string {
     return std::format("{} -> {}", color::yellow("{}", args::detail::option_name<S>()), error);
@@ -210,7 +216,7 @@ public:
         auto const handler = [this, long_flag]<auto S>(ArgValue<S> &item)
                                  requires args::detail::LongFlagObject<S>
         {
-            if (item.option._long_form.as_string_view() != long_flag.flag) {
+            if (!detail::is_match(item, long_flag)) {
                 return false;
             }
             item.is_used = true;
@@ -224,7 +230,7 @@ public:
         auto const handler_with_value = [this, long_flag]<auto S>(ArgValue<S> &item)
                                             requires args::detail::LongFlagWithValueObject<S>
         {
-            if (item.option._long_form.as_string_view() != long_flag.flag) {
+            if (!detail::is_match(item, long_flag)) {
                 return false;
             }
             m_compiler_state = ParsingLongFlag{.long_flag = long_flag};
@@ -498,7 +504,7 @@ private:
                                      requires args::detail::LongFlagWithValueObject<S>
 
             {
-                if (item.option._long_form.as_string_view() != long_flag_state.long_flag.flag) {
+                if (!detail::is_match(item, long_flag_state.long_flag)) {
                     return false;
                 }
 
@@ -548,10 +554,13 @@ template <auto... Ops>
                 if constexpr (args::detail::HasRequired<arg_type_t::option>) {
                     if constexpr (arg_type_t::option._required) {
                         if (!r.is_used) {
-                            auto err = std::format(
-                                "Missing required flag. Long form: '{}'.",
-                                color::yellow(
-                                    "{}", arg_type_t::option._long_form.as_string_view()));
+                            auto err = std::string("");
+                            if (arg_type_t::option._long_form.has_value)
+                                err = std::format(
+                                    "Missing required flag. Long form: '{}'.",
+                                    color::yellow(
+                                        "{}",
+                                        arg_type_t::option._long_form.value.as_string_view()));
                             if (arg_type_t::option._short_form.has_value) {
                                 err += std::format(
                                     " Short form: '{}'.",

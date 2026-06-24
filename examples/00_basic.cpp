@@ -9,13 +9,13 @@ namespace {
 constexpr auto toggle = args::flag()
                             .Long("toggle")
                             .Required(false)                    // optional
-                            .Short('t')                         // optional
+                            .Short('t')
                             .Help("A simple boolean toggle.");  // optional
 
 constexpr auto counter =
     args::flag_with_value<int>()
         .Long("counter")
-        .Short('c')      // optional
+        .Short('c')
         .Default(-1)     // optional
         .Required(true)  // optional
         // .Repeatable(false)                   // optional - valid only for std::vector
@@ -23,13 +23,13 @@ constexpr auto counter =
 
 constexpr auto repeated_values = args::flag_with_value<std::vector<std::string_view>>()
                                      .Long("repeated-values")
-                                     .Short('r')        // optional
+                                     .Short('r')
                                      .Repeatable(true)  // Can be used only with std::vector
                                      .Help("Accumulator of std::string_views");  // optional
 
 constexpr auto simple_string_view = args::flag_with_value<std::string_view>()
                                         .Long("string-value")
-                                        .Short('s')                             // optional
+                                        .Short('s')
                                         .Help("Just a string_view flag type");  // optional
 
 constexpr auto text =
