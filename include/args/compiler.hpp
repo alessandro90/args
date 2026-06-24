@@ -27,7 +27,7 @@ namespace detail {
 template <typename T>
 [[nodiscard]] auto is_match(T const &item, tokenizer::LongFlag long_flag) -> bool {
     return item.option._long_form.has_value
-           && item.option._long_form.value.as_string_view() != long_flag.flag;
+           && item.option._long_form.value.as_string_view() == long_flag.flag;
 }
 
 template <auto S>
