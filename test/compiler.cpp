@@ -8,7 +8,6 @@
 #include <vector>
 #include "args/tokenizer.hpp"
 #include "args/types.hpp"
-#include "args/typetag.hpp"
 #include "catch2/catch_test_macros.hpp"
 #include "catch2/matchers/catch_matchers_floating_point.hpp"
 
@@ -361,9 +360,6 @@ TEST_CASE("mutually-exclusive-multiple-groups", "[compiler]") {
             std::span{tokens},
             opts,
             MutuallyExclusiveGroups<mutually_exclusive_group_0, mutually_exclusive_group_1>{});
-        if (has_error(out)) {
-            std::println("ERROR: {}", get_error(out).message);
-        }
         REQUIRE(has_args(out));
     }
     SECTION("not-ok-case-with-args-1") {

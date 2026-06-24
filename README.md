@@ -22,6 +22,8 @@ To use the library define a set of constexpr objects for the expected command ar
 
 The result object `args::Args` does not allocate anything on the heap. Of course parsed types that do allocate (e.g. `std::vector`) will still allocate. Another vector is allocated is performed for the tokenization of the input arguments, before creating `args::Args`.
 
+My goal was to write a library that does not perform any conversion when reading an already parsed value and also with a lookup system checked a compile-time. Here no conversion is made because the final class contains exactly the expected types. Lookup is checked at compile-time because the 'key' used to access the value is a compile-time constant, so providing something wrong produces a compile-time error.
+
 ### Quick example
 
 For example for a simple flag one gets:
