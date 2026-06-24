@@ -14,13 +14,13 @@
 - Groups of short flags like `-abc` and `-abc=3`/`-abc 3`
 - Parsing custom types directly into the final structure
 - Supports for non default intializable types
-- Parsing of common containers: `std::vector`, `std::set`, etc.. Provided their contained types are supported
-  - Concepts are used to parse the container, therefore even custom container could be automatically be supported provided they satisfy the necessary concepts (TODO: explain concepts).
-- the output of the parsing is compatible with `std::println`. It a parsed type is not printable its name will be printed instead.
+- Parsing of common containers: `std::vector`, `std::set`, etc.. provided their contained types are supported
+  - Concepts are used to parse the container, therefore even custom container could be automatically be supported provided they satisfy the necessary concepts currently define in [`helpers.hpp`](./include/args/helpers.hpp).
+- the output of the parsing is compatible with `std::println`. If a parsed type is not printable its name will be printed instead.
 
 To use the library define a set of constexpr objects for the expected command arguments. These objects are validated at compile-time and they define the structure of the parsed result. Meaning the result is a struct correctly typed based on the provided commands. See the [examples](./examples/) for more information.
 
-The result object `args::Args` does not allocate anything on the heap. Of course parsed types that do allocate (e.g. `std::vector`) will still allocate.
+The result object `args::Args` does not allocate anything on the heap. Of course parsed types that do allocate (e.g. `std::vector`) will still allocate. Another vector is allocated is performed for the tokenization of the input arguments, before creating `args::Args`.
 
 ### Quick example
 
@@ -192,7 +192,7 @@ The results looks good, but surely the compared libraries offer a much greater f
 
 ## Building from source
 
-The project builds with Cmake. Tested only using gcc. _C++26 and reflection_ (via `-freflection`) support is required. At the moment there is really no support for other compilers. Many several warnings exists only for C++. However the code is fully portable and the CMakeLists could be adjusted to support multiple compilers.
+The project builds with CMake. Tested only using gcc. _C++26 and reflection_ (via `-freflection`) support is required. At the moment there is really no support for other compilers. Many several warnings exists only for C++. However the code is fully portable and the CMakeLists could be adjusted to support multiple compilers. Default build is debug, use `CMAKE_BUILD_TYPE=Relase` for release version.
 
 ```bash
 mkdir build && cd build
