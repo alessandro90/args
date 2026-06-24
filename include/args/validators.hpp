@@ -192,15 +192,6 @@ inline constexpr auto less_than = Validator{
     },
     .err_fn = [](auto const &value) -> std::string {
         return detail::less_than_error_message(Limit, value);
-        // FIXME: for some reason these lines makes clangd crash. But they are correct
-        // if constexpr (requires {
-        //                   requires detail::both_formattable<decltype(Limit), decltype(value)>;
-        //               }) {
-        //     return std::format("value '{}' must be less than '{}'", value, Limit);
-        // } else {
-        // static_cast<void>(value);
-        // return "value must be less than target";
-        // }
     }};
 
 /// Checks that the parsed value is equal to the provided target
@@ -215,15 +206,6 @@ inline constexpr auto equal_to = Validator{
     },
     .err_fn = [](auto const &value) -> std::string {
         return detail::equal_error_message(Target, value);
-        // FIXME: for some reason these lines makes clangd crash. But they are correct
-        // if constexpr (requires {
-        //                   requires detail::both_formattable<decltype(Target), decltype(value)>;
-        //               }) {
-        //     return std::format("value '{}' must be equal to '{}'", value, Target);
-        // } else {
-        // static_cast<void>(value);
-        // return "value must be equal to target";
-        // }
     }};
 
 /// Checks that the parsed value is greater than the provided limit
@@ -238,15 +220,6 @@ inline constexpr auto greater_than = Validator{
     },
     .err_fn = [](auto const &value) -> std::string {
         return detail::greater_than_error_message(Limit, value);
-        // FIXME: for some reason these lines makes clangd crash. But they are correct
-        // if constexpr (requires {
-        //                   requires detail::both_formattable<decltype(Limit), decltype(value)>;
-        //               }) {
-        //     return std::format("value '{}' must be greater than '{}'", value, Limit);
-        // } else {
-        // static_cast<void>(value);
-        // return "value must be greater than target";
-        // }
     }};
 
 
@@ -256,7 +229,7 @@ inline constexpr auto greater_than = Validator{
 ///
 /// `choices<c0, c1, c2, ...>`
 template <auto... Cc>
-inline constexpr auto choices = Or<equal_to<Cc...>>;
+inline constexpr auto choices = Or<equal_to<Cc>...>;
 
 
 /// Apply the provided validator to each element of the parsed value.
