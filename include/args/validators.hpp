@@ -326,7 +326,7 @@ inline constexpr auto len = ValidatorTransformer{
         return value.size();
     },
     .err_fn = [](std::string msg) -> std::string {
-        return std::format("size mismacth: {}", msg);
+        return std::format("size mismatch: {}", msg);
     }};
 
 namespace detail {

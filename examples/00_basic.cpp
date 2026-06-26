@@ -7,7 +7,6 @@ using namespace args::literals;
 
 namespace {
 constexpr auto toggle = args::flag()
-                            .Long("toggle")
                             .Required(false)                    // optional
                             .Short('t')
                             .Help("A simple boolean toggle.");  // optional
@@ -18,7 +17,7 @@ constexpr auto counter =
         .Short('c')
         .Default(-1)     // optional
         .Required(true)  // optional
-        // .Repeatable(false)                   // optional - valid only for std::vector
+        // .Repeatable(false)                   // optional - valid only for containers
         .Help("Integer counter argument.");  // optional
 
 constexpr auto repeated_values = args::flag_with_value<std::vector<std::string_view>>()

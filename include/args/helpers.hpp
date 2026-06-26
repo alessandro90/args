@@ -5,12 +5,10 @@
 #include <array>
 #include <concepts>
 #include <meta>
-#include <optional>
 #include <print>
 #include <string_view>
 #include <type_traits>
 #include <utility>
-#include <vector>
 #ifndef NDUBUG
     #include <cstdio>
     #include <cstdlib>
@@ -18,54 +16,6 @@
 #endif
 
 namespace args::detail {
-template <typename T>
-struct IsVector: std::false_type {};
-
-template <typename T, typename A>
-struct IsVector<std::vector<T, A>>: std::true_type {};
-
-template <typename T>
-inline constexpr auto is_vector_v = IsVector<T>::value;
-
-template <typename T>
-concept StdVector = is_vector_v<T>;
-
-template <typename T>
-struct IsStringView: std::false_type {};
-
-template <>
-struct IsStringView<std::string_view>: std::true_type {};
-
-template <typename T>
-inline constexpr auto is_string_view_v = IsStringView<T>::value;
-
-template <typename T>
-concept StdStringView = is_string_view_v<T>;
-
-template <typename T>
-struct IsString: std::false_type {};
-
-template <>
-struct IsString<std::string>: std::true_type {};
-
-template <typename T>
-inline constexpr auto is_string_v = IsString<T>::value;
-
-template <typename T>
-concept StdString = is_string_v<T>;
-
-template <typename T>
-struct IsOptional: std::false_type {};
-
-template <typename T>
-struct IsOptional<std::optional<T>>: std::true_type {};
-
-template <typename T>
-inline constexpr auto is_optional_v = IsOptional<T>::value;
-
-template <typename T>
-concept StdOptional = is_optional_v<T>;
-
 template <std::invocable F>
 class [[nodiscard]] Defer {
 public:
@@ -195,7 +145,7 @@ Str(char const (&s)[N]) -> Str<N - 1>;  // NOLINT
 }  // namespace args
 
 #ifndef NDEBUG
-[[noreturn]] inline auto args_log_and_abort(
+[[noreturn]] inline auto ARGS_LOG_AND_ABORT(
     std::string_view msg, std::source_location loc = std::source_location::current()) -> void {
     std::println(
         stderr,
@@ -208,7 +158,7 @@ Str(char const (&s)[N]) -> Str<N - 1>;  // NOLINT
     std::abort();
 }
 #else
-    #define args_log_and_abort(...)
+    #define ARGS_LOG_AND_ABORT(...)
 #endif
 
 

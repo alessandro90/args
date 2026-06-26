@@ -192,6 +192,8 @@ The results looks good, but surely the compared libraries offer a much greater f
 | bm_dynamic_cxxopts  |      6040 |     6016 |   116415   |
 | **bm_dynamic_args** |       583 |      581 |  1206783   |
 
+These tests are no comprehensive in any way. I just wanted to see how the library performs with a couple of basic cases.
+
 ## Building from source
 
 The project builds with CMake. Tested only using gcc. _C++26 and reflection_ (via `-freflection`) support is required. At the moment there is really no support for other compilers. Many several warnings exists only for C++. However the code is fully portable and the CMakeLists could be adjusted to support multiple compilers. Default build is debug, use `CMAKE_BUILD_TYPE=Relase` for release version.

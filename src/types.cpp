@@ -147,12 +147,15 @@ auto build_flags_help(std::string &help, std::vector<FlagHelp> &flags, std::size
             help += ' ';
         }
         if (help_data.short_name.has_value()) {
-            help += std::format("-{}, ", help_data.short_name.value());
+            help += std::format("-{}", help_data.short_name.value());
             offset += 4;
         }
-        offset += name.size();
-        help += "--";
-        offset += 2;
+        if (!name.empty()) {
+            help += ", ";
+            offset += name.size();
+            help += "--";
+            offset += 2;
+        }
         help += name;
         if (!help_data.is_required) {
             offset += 1;

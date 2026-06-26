@@ -107,17 +107,6 @@ consteval auto args_contained_type() -> auto {
     }
 }
 
-// template <typename T>
-// requires std::invocable<T> || args::detail::is_def_fn_ptr_t<T>
-// consteval auto args_contained_type() -> auto {
-//     using invoke_result_t = std::remove_cvref_t<std::invoke_result_t<T>>;
-//     if constexpr (std::default_initializable<invoke_result_t>) {
-//         return invoke_result_t{};
-//     } else {
-//         return args::detail::ManualStorage<invoke_result_t>{};
-//     }
-// }
-
 template <auto S>
 using args_contained_type_t = decltype(args_contained_type<typename decltype(S)::value_t>());
 
@@ -163,19 +152,17 @@ concept DefaultSetterArg =
 /// A boolean flag descriptor
 template <std::size_t N = 0, std::size_t M = 0>
 struct [[nodiscard]] Flag {
-    /// The long form of the flag (e.g. `"verbose"_str` will parse `--verbose`)
     Opt<Str<N>> _long_form;
-    /// The short form, a `char` (e.g. `"j"_str` will parse `-j`)
     Opt<char> _short_form{Opt<char>::empty()};
-    /// The default value if no flag is parsed (defaults to `false`)
     bool _default_value{};
-    /// `true` if the flag is required (defaults to `false`)
     bool _required{};
-    /// An optional help message
     Str<M> _help{};
 
     using value_t = bool;
 
+    // NOLINTBEGIN(hicpp-avoid-c-arrays, cppcoreguidelines-avoid-c-arrays, modernize-avoid-c-arrays)
+
+    /// The long form of the flag (e.g. `"verbose"_str` will parse `--verbose`)
     template <std::size_t Nx>
     consteval auto Long(char const (&long_form)[Nx]) const -> Flag<Nx - 1, M> {
         return Flag<Nx - 1, M>{
@@ -187,6 +174,7 @@ struct [[nodiscard]] Flag {
         };
     }
 
+    /// An optional help message
     template <std::size_t Mx>
     consteval auto Help(char const (&help)[Mx]) const -> Flag<N, Mx - 1> {
         return Flag<N, Mx - 1>{
@@ -198,6 +186,9 @@ struct [[nodiscard]] Flag {
         };
     }
 
+    // NOLINTEND(hicpp-avoid-c-arrays, cppcoreguidelines-avoid-c-arrays, modernize-avoid-c-arrays)
+
+    /// The short form, a `char` (e.g. `"j"_str` will parse `-j`)
     consteval auto Short(char short_form) const -> Flag<N, M> {
         return Flag<N, M>{
             ._long_form = _long_form,
@@ -208,6 +199,8 @@ struct [[nodiscard]] Flag {
         };
     }
 
+    /// The default value if no flag is parsed (defaults to `false`) if
+    /// this function is not called
     consteval auto Default(bool default_value) const -> Flag<N, M> {
         return Flag<N, M>{
             ._long_form = _long_form,
@@ -218,6 +211,8 @@ struct [[nodiscard]] Flag {
         };
     }
 
+    /// `true` if the flag is required (defaults to `false`) if
+    /// this function is not called
     consteval auto Required(bool required = true) const -> Flag<N, M> {
         return Flag<N, M>{
             ._long_form = _long_form,
@@ -229,15 +224,14 @@ struct [[nodiscard]] Flag {
     }
 };
 
+/// Creates a boolean flag
 consteval auto flag() -> Flag<0, 0> {
     return Flag<0, 0>{};
 }
 
 template <typename Tag, std::default_initializable DefaultType>
 struct FlagWithValueBase {
-    /// The default value if no flag is parsed (defaults to a default constructed `Value`)
     DefaultType _default_value{};
-    /// `true` if the flag is required (defaults to `false`)
     bool _required{};
 };
 
@@ -253,20 +247,17 @@ template <
     typename DefaultType = detail::tag_to_default_type_t<Tag>>
 requires std::default_initializable<DefaultType>
 struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
-    /// The long form of the flag (e.g. `"verbose"_str` will parse `--verbose`)
     Opt<Str<N>> _long_form;
-    /// The short form, a `char` (e.g. `"j"_str` will parse `-j`)
     Opt<char> _short_form{Opt<char>::empty()};
-    /// `true` if the flag can be specified multiple times. Default is true if `Value` is a
-    /// std::vector
     bool _repeatable{args::detail::InplaceContainer<Tag>};
-    /// An optional help message
     Str<M> _help{};
-    /// A validator to apply to the parsed result (defaults to an infallible validator)
     V _validator{always};
 
     using value_t = detail::tag_to_default_type_t<Tag>;
 
+    // NOLINTBEGIN(hicpp-avoid-c-arrays, cppcoreguidelines-avoid-c-arrays, modernize-avoid-c-arrays)
+
+    /// The long form of the flag (e.g. `"verbose"_str` will parse `--verbose`)
     template <std::size_t Nx>
     consteval auto Long(char const (&long_form)[Nx]) const
         -> FlagWithValue<Tag, Nx - 1, M, V, DefaultType> {
@@ -280,6 +271,7 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
         };
     }
 
+    /// An optional help message
     template <std::size_t Mx>
     consteval auto Help(char const (&help)[Mx]) const
         -> FlagWithValue<Tag, N, Mx - 1, V, DefaultType> {
@@ -293,6 +285,9 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
         };
     }
 
+    // NOLINTEND(hicpp-avoid-c-arrays, cppcoreguidelines-avoid-c-arrays, modernize-avoid-c-arrays)
+
+    /// The short form, a `char` (e.g. `"j"_str` will parse `-j`)
     consteval auto Short(char short_form) const -> FlagWithValue<Tag, N, M, V, DefaultType> {
         return FlagWithValue<Tag, N, M, V, DefaultType>{
             FlagWithValueBase<Tag, DefaultType>{*this},
@@ -307,6 +302,7 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
     template <typename D>
     consteval auto Default(D default_value) const = delete;
 
+    /// The default value if no flag is parsed (defaults to a default constructed `Value`)
     template <Trivial D>
     consteval auto Default(D default_value) const
         -> FlagWithValue<detail::result_type_impl_t<D>, N, M, V, D>
@@ -330,6 +326,7 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
     consteval auto Required(bool required) const
         -> FlagWithValue<Tag, N, M, V, DefaultType> = delete;
 
+    /// `true` if the flag is required (defaults to `false`) if this function is not called
     consteval auto Required(bool required = true) const -> FlagWithValue<Tag, N, M, V, DefaultType>
         requires detail::HasRequiredMember<FlagWithValue<Tag, N, M, V, DefaultType>>
     {
@@ -345,8 +342,11 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
         };
     }
 
+    /// `true` if the flag can be specified multiple times.
+    /// If this function is not called, the default is true if `Value` is a
+    /// container that support pushing.
     consteval auto Repeatable(bool repeatable = true) const
-        -> FlagWithValue<Tag, N, M, V, DefaultType> requires args::detail::StdVector<Tag>
+        -> FlagWithValue<Tag, N, M, V, DefaultType> requires args::detail::InplaceContainer<Tag>
     {
         return FlagWithValue<Tag, N, M, V, DefaultType>{
             FlagWithValueBase<Tag, DefaultType>{*this},
@@ -358,6 +358,7 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
         };
     }
 
+    /// A validator to apply to the parsed result (defaults to an infallible validator)
     template <ValidatorObject Vx>
     consteval auto Validator(Vx validator) const -> FlagWithValue<Tag, N, M, Vx, DefaultType> {
         return FlagWithValue<Tag, N, M, Vx, DefaultType>{
@@ -371,11 +372,13 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
     }
 };
 
+/// Create a flag with an explicit argument type
 template <std::default_initializable T>
 consteval auto flag_with_value() -> FlagWithValue<T, 0, 0, always_t> {
     return {};
 }
 
+/// Create a flag with an explicit argument type
 template <typename T>
 consteval auto flag_with_value() -> FlagWithValue<T, 0, 0, always_t, detail::default_fn_ptr_t<T>> {
     return {};
@@ -383,7 +386,6 @@ consteval auto flag_with_value() -> FlagWithValue<T, 0, 0, always_t, detail::def
 
 template <typename P>
 struct PositionalBase {
-    /// `true` if the flag is required (defaults to `false`)
     bool _required{};
 };
 
@@ -395,19 +397,16 @@ template <typename P, std::size_t N = 0, std::size_t M = 0, ValidatorObject V = 
 struct [[nodiscard]] Positional: PositionalBase<P> {
     /// A tag to indicate the target type (specify as `tag<target_type>`)
     Typetag<P> _type;
-    /// Optional name to be displayed int the help message
     Str<N> _name{};
-    /// Optional help message
     Str<M> _help{};
-    /// If `true` the parsed value must be a `std::vector`. Successive values will be stored into
-    /// the vecotor, e.g. `value_1 value_2 value_3` will be parsed into a unique vector of
-    /// appropriately parsed values
     bool _variadic{};
-    /// A validator to apply to the parsed result (defaults to an infallible validator)
     V _validator{always};
 
     using value_t = P;
 
+    // NOLINTBEGIN(hicpp-avoid-c-arrays, cppcoreguidelines-avoid-c-arrays, modernize-avoid-c-arrays)
+
+    /// Optional name to be displayed int the help message
     template <std::size_t Nx>
     consteval auto Name(char const (&name)[Nx]) const -> Positional<P, Nx - 1, M, V> {
         return Positional<P, Nx - 1, M, V>{
@@ -420,6 +419,7 @@ struct [[nodiscard]] Positional: PositionalBase<P> {
         };
     }
 
+    /// Optional help message
     template <std::size_t Mx>
     consteval auto Help(char const (&help)[Mx]) const -> Positional<P, N, Mx - 1, V> {
         return Positional<P, N, Mx - 1, V>{
@@ -432,8 +432,11 @@ struct [[nodiscard]] Positional: PositionalBase<P> {
         };
     }
 
+    // NOLINTEND(hicpp-avoid-c-arrays, cppcoreguidelines-avoid-c-arrays, modernize-avoid-c-arrays)
+
     consteval auto Required(bool required) const -> Positional<P, N, M, V> = delete;
 
+    /// `true` if the flag is required (defaults to `false`)
     consteval auto Required(bool required = true) const
         -> Positional<P, N, M, V> requires detail::HasRequiredMember<Positional<P, N, M, V>>
     {
@@ -447,8 +450,11 @@ struct [[nodiscard]] Positional: PositionalBase<P> {
         };
     }
 
+    /// If `true` the parsed value must be a `std::vector`. Successive values will be stored into
+    /// the vecotor, e.g. `value_1 value_2 value_3` will be parsed into a unique vector of
+    /// appropriately parsed values
     consteval auto Variadic(bool variadic = true) const
-        -> Positional<P, N, M, V> requires args::detail::StdVector<P>
+        -> Positional<P, N, M, V> requires args::detail::InplaceContainer<P>
     {
         return Positional<P, N, M, V>{
             PositionalBase<P>{*this},
@@ -460,6 +466,7 @@ struct [[nodiscard]] Positional: PositionalBase<P> {
         };
     }
 
+    /// A validator to apply to the parsed result (defaults to an infallible validator)
     template <ValidatorObject Vx>
     consteval auto Validator(Vx validator) const -> Positional<P, N, M, Vx> {
         return Positional<P, N, M, Vx>{
@@ -473,6 +480,7 @@ struct [[nodiscard]] Positional: PositionalBase<P> {
     }
 };
 
+/// Creates an unnamed positional argument
 template <typename T>
 consteval auto positional() -> Positional<T, 0, 0, always_t> {
     return Positional<T, 0, 0, always_t>{};
@@ -487,15 +495,18 @@ struct [[nodiscard]] MutuallyExclusive {
     bool at_least_one{};
 };
 
+/// Defines a mutually exclusive set with no member required
 template <auto... Ss>
 inline constexpr auto mutually_exclusive = MutuallyExclusive<Ss...>{};
 
+/// Defines a mutually exclusive set with one required member
 template <auto... Ss>
 inline constexpr auto mutually_exclusive_required = MutuallyExclusive<Ss...>{.at_least_one = true};
 
 template <auto... Ss>
 struct MutuallyExclusiveGroups {};
 
+/// Defines a group of mutually exclusive sets
 template <auto... Ss>
 inline constexpr auto mutually_exclusive_groups = MutuallyExclusiveGroups<Ss...>{};
 
@@ -507,9 +518,6 @@ template <auto... Gg>
 struct IsMutuallyExclusiveGroup<MutuallyExclusiveGroups<Gg...>>: std::true_type {};
 }  // namespace detail
 
-/// A subcommand descriptor
-///
-/// A subcommand can only be the first argument of a set of options
 template <
     std::size_t N,
     std::size_t M = 0,
@@ -518,15 +526,10 @@ template <
     typename Me = MutuallyExclusiveGroups<>,
     auto... Ops>
 struct [[nodiscard]] Subcommand {
-    /// The name to parse
     Str<N> _name{};
-    /// An optional help message
     Str<M> _help{};
-    /// The set of options (arguments) for this subcommand
     Options<Usage, Description, Ops...> _options{};
-    /// `true` if this subcommand is invoked as a long flag
     bool _is_flag{};
-    /// Arbitrary mutually exclusive groups
     Me _mutually_exclusive{};
 
     static_assert(
@@ -535,6 +538,9 @@ struct [[nodiscard]] Subcommand {
 
     using value_t = std::string_view;
 
+    // NOLINTBEGIN(hicpp-avoid-c-arrays, cppcoreguidelines-avoid-c-arrays, modernize-avoid-c-arrays)
+
+    /// The name to parse
     template <std::size_t Nx>
     consteval auto Name(char const (&name)[Nx]) const
         -> Subcommand<Nx - 1, M, Usage, Description, Me, Ops...> {
@@ -547,6 +553,11 @@ struct [[nodiscard]] Subcommand {
         };
     }
 
+    // NOLINTEND(hicpp-avoid-c-arrays, cppcoreguidelines-avoid-c-arrays, modernize-avoid-c-arrays)
+
+    // NOLINTBEGIN(hicpp-avoid-c-arrays, cppcoreguidelines-avoid-c-arrays, modernize-avoid-c-arrays)
+
+    /// An optional help message
     template <std::size_t Mx>
     consteval auto Help(char const (&help)[Mx]) const
         -> Subcommand<N, Mx - 1, Usage, Description, Me, Ops...> {
@@ -559,7 +570,11 @@ struct [[nodiscard]] Subcommand {
         };
     }
 
-    consteval auto Flag(bool is_flag) const -> Subcommand<N, M, Usage, Description, Me, Ops...> {
+    // NOLINTEND(hicpp-avoid-c-arrays, cppcoreguidelines-avoid-c-arrays, modernize-avoid-c-arrays)
+
+    /// `true` if this subcommand is invoked as a long flag
+    consteval auto Flag(bool is_flag = true) const
+        -> Subcommand<N, M, Usage, Description, Me, Ops...> {
         return Subcommand<N, M, Usage, Description, Me, Ops...>{
             ._name = _name,
             ._help = _help,
@@ -569,6 +584,7 @@ struct [[nodiscard]] Subcommand {
         };
     }
 
+    /// Arbitrary mutually exclusive groups
     template <typename NewMe>
     consteval auto MutuallyExclusive(NewMe groups) const
         -> Subcommand<N, M, Usage, Description, NewMe, Ops...> {
@@ -581,7 +597,7 @@ struct [[nodiscard]] Subcommand {
         };
     }
 
-    /// Update the options layout, altering the structural type properties of the Subcommand
+    /// The set of options (arguments) for this subcommand
     template <Str NewUsage, Str NewDescription, auto... NewSpecs>
     consteval auto Opts(Options<NewUsage, NewDescription, NewSpecs...> opts) const
         -> Subcommand<N, M, NewUsage, NewDescription, Me, NewSpecs...> {
@@ -695,7 +711,7 @@ using parse_type_t = decltype(parse_type<S>());
 template <auto S1, auto... Ss>
 [[nodiscard]] consteval auto check_variadics() -> bool {
     if constexpr (is_positional_variadic_v<S1>) {
-        return is_vector_v<result_type_t<S1>>;
+        return InplaceContainer<result_type_t<S1>>;
     }
     if constexpr (sizeof...(Ss) > 0) {
         return check_variadics<Ss...>();
@@ -1146,10 +1162,14 @@ private:
     static constexpr detail::rule_assertions::CheckRules<Ops...> rule_checker{};
 };
 
+/// A subcommand descriptor
+///
+/// A subcommand can only be the first argument of a set of options
 consteval auto subcommand() -> Subcommand<0, 0, empty, empty, MutuallyExclusiveGroups<>> {
     return Subcommand<0, 0, empty, empty, MutuallyExclusiveGroups<>>{};
 }
 
+/// The command line schema. Specifies all possible arguments
 template <Str Usage, Str Description, auto... Ops>
 constexpr auto options = Options<Usage, Description, Ops...>{};
 
@@ -1293,7 +1313,7 @@ template <auto... Ops>
             }
         }
     }
-    args_log_and_abort(std::format("cannot find name of positional argument number {}", nth));
+    ARGS_LOG_AND_ABORT(std::format("cannot find name of positional argument number {}", nth));
     return "";
 }
 
@@ -1535,16 +1555,6 @@ consteval auto operator""_str() -> decltype(X) {
     return X;
 }
 
-template <Str X>
-consteval auto operator""_flag() -> decltype(X) {
-    return X;
-}
-
-template <Str X>
-requires(X.chars.size() == 2 && X.chars[1] == '\0')
-consteval auto operator""_sflag() -> Opt<char> {
-    return Opt<char>::with(X.chars[0]);
-}
 }  // namespace literals
 }  // namespace args
 
