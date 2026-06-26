@@ -31,12 +31,12 @@ struct [[nodiscard]] LongFlag {
     [[nodiscard]] constexpr auto operator==(LongFlag const &) const -> bool = default;
 };
 
-struct [[nodiscard]] FlagGroup {
+struct [[nodiscard]] GroupFlag {
     std::string_view raw;
     std::string_view group;
     bool has_equal{};
 
-    [[nodiscard]] constexpr auto operator==(FlagGroup const &) const -> bool = default;
+    [[nodiscard]] constexpr auto operator==(GroupFlag const &) const -> bool = default;
 };
 
 struct [[nodiscard]] DoubleDash {
@@ -45,7 +45,7 @@ struct [[nodiscard]] DoubleDash {
     }
 };
 
-using token_t = std::variant<ShortFlag, LongFlag, FlagGroup, Argument, DoubleDash>;
+using token_t = std::variant<ShortFlag, LongFlag, GroupFlag, Argument, DoubleDash>;
 
 [[nodiscard]] auto tokenize(std::span<char const *const> src)
     -> std::expected<std::vector<token_t>, std::string>;

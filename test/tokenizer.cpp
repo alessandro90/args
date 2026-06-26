@@ -186,8 +186,8 @@ TEST_CASE("integer-group-flag-no-equal", "[tokenizer]") {
     auto const key = toks.value()[0];
     auto const value = toks.value()[1];
 
-    REQUIRE(std::holds_alternative<FlagGroup>(key));
-    auto const k = std::get<FlagGroup>(key);
+    REQUIRE(std::holds_alternative<GroupFlag>(key));
+    auto const k = std::get<GroupFlag>(key);
     REQUIRE(std::holds_alternative<Argument>(value));
     auto const v = std::get<Argument>(value);
 
@@ -208,8 +208,8 @@ TEST_CASE("integer-group-flag-with-equal", "[tokenizer]") {
     auto const key = toks.value()[0];
     auto const value = toks.value()[1];
 
-    REQUIRE(std::holds_alternative<FlagGroup>(key));
-    auto const k = std::get<FlagGroup>(key);
+    REQUIRE(std::holds_alternative<GroupFlag>(key));
+    auto const k = std::get<GroupFlag>(key);
     REQUIRE(std::holds_alternative<Argument>(value));
     auto const v = std::get<Argument>(value);
 
@@ -230,8 +230,8 @@ TEST_CASE("integer-group-flag-clumped", "[tokenizer]") {
     auto const key = toks.value()[0];
     auto const value = toks.value()[1];
 
-    REQUIRE(std::holds_alternative<FlagGroup>(key));
-    auto const k = std::get<FlagGroup>(key);
+    REQUIRE(std::holds_alternative<GroupFlag>(key));
+    auto const k = std::get<GroupFlag>(key);
     REQUIRE(std::holds_alternative<Argument>(value));
     auto const v = std::get<Argument>(value);
 
@@ -253,8 +253,8 @@ TEST_CASE("string-group-flag-clumped", "[tokenizer]") {
     auto const key = toks.value()[0];
     auto const value = toks.value()[1];
 
-    REQUIRE(std::holds_alternative<FlagGroup>(key));
-    auto const k = std::get<FlagGroup>(key);
+    REQUIRE(std::holds_alternative<GroupFlag>(key));
+    auto const k = std::get<GroupFlag>(key);
     REQUIRE(std::holds_alternative<Argument>(value));
     auto const v = std::get<Argument>(value);
 
@@ -292,7 +292,7 @@ TEST_CASE("complex-example", "[tokenizer]") {
     ASSERT_TOKEN(ts[2], LongFlag{.raw = "--version", .flag = "version", .has_equal = false});
     ASSERT_TOKEN(ts[3], LongFlag{.raw = "--full=\"no\"", .flag = "full", .has_equal = true});
     ASSERT_TOKEN(ts[4], Argument{.value = "\"no\""});
-    ASSERT_TOKEN(ts[5], FlagGroup{.raw = "-xyz=0", .group = "xyz", .has_equal = true});
+    ASSERT_TOKEN(ts[5], GroupFlag{.raw = "-xyz=0", .group = "xyz", .has_equal = true});
     ASSERT_TOKEN(ts[6], Argument{.value = "0"});
     ASSERT_TOKEN(ts[7], DoubleDash{});
     ASSERT_TOKEN(ts[8], ShortFlag{.raw = "-f", .flag = 'f', .has_equal = false});

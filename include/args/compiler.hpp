@@ -244,7 +244,7 @@ public:
         return {};
     }
 
-    [[nodiscard]] auto compile_flag(tokenizer::FlagGroup flag_group) -> TokenCompileResult {
+    [[nodiscard]] auto compile_flag(tokenizer::GroupFlag flag_group) -> TokenCompileResult {
         if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
             return Error{
                 std::format("Cannot parse flag: '{}'", color::yellow("{}", flag_group.group))};
@@ -268,7 +268,7 @@ public:
         return {};
     }
 
-    auto try_handle_clumped_short_flag(tokenizer::FlagGroup flag_group)
+    auto try_handle_clumped_short_flag(tokenizer::GroupFlag flag_group)
         -> std::optional<TokenCompileResult> {
         auto const short_flag = tokenizer::ShortFlag{
             .raw = flag_group.raw,

@@ -107,7 +107,7 @@ template <std::optional<ParseResult> (&f)(std::string_view)>
                   arg.substr(2), args::detail::rule_assertions::is_valid_first_char);
     if (group_it == std::ranges::end(arg)) {
         return ParseResult{
-            .token = FlagGroup{.raw = arg, .group = arg.substr(1), .has_equal = false},
+            .token = GroupFlag{.raw = arg, .group = arg.substr(1), .has_equal = false},
             .remaining = ""
         };
     }
@@ -118,7 +118,7 @@ template <std::optional<ParseResult> (&f)(std::string_view)>
             // '-c"some-string"'
             return ParseResult{
                 .token =
-                    FlagGroup{
+                    GroupFlag{
                               .raw = arg, .group = arg.substr(1, group_idx - 1), .has_equal = false},
                 .remaining = std::string_view(&arg[group_idx])
             };
@@ -126,7 +126,7 @@ template <std::optional<ParseResult> (&f)(std::string_view)>
     }
 
     return ParseResult{
-        .token = FlagGroup{.raw = arg, .group = arg.substr(1, group_idx - 1), .has_equal = true},
+        .token = GroupFlag{.raw = arg, .group = arg.substr(1, group_idx - 1), .has_equal = true},
         .remaining = std::string_view(&arg[group_idx + 1])
     };
 }
