@@ -94,7 +94,7 @@ Helpers are defined to inspect and read the result if `parse_or_exit` is not use
 
 - `is_empty`. `true` if no arguments where provided.
 - `has_error`, `has_args`, `has_help`.
-- `get_error`, `get_args`, `get_help`. Calling a getter without checking first if the result actually contains that value will raise an exception.
+- `get_error`, `get_args`, `get_help`. Calling a getter if the result actually contains that value will raise an exception.
 
 ## Parse result
 

@@ -323,7 +323,7 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
         };
     }
 
-    consteval auto Required(bool required) const
+    consteval auto Required(bool required = true) const
         -> FlagWithValue<Tag, N, M, V, DefaultType> = delete;
 
     /// `true` if the flag is required (defaults to `false`) if this function is not called
@@ -434,7 +434,7 @@ struct [[nodiscard]] Positional: PositionalBase<P> {
 
     // NOLINTEND(hicpp-avoid-c-arrays, cppcoreguidelines-avoid-c-arrays, modernize-avoid-c-arrays)
 
-    consteval auto Required(bool required) const -> Positional<P, N, M, V> = delete;
+    consteval auto Required(bool required = true) const -> Positional<P, N, M, V> = delete;
 
     /// `true` if the flag is required (defaults to `false`)
     consteval auto Required(bool required = true) const
@@ -1332,12 +1332,6 @@ template <auto... Ss>
     names += '}';
     return names;
 }
-
-template <auto S>
-struct UseCheck {
-    bool is_used{};
-    std::string_view name{};
-};
 
 template <auto... Ss, auto... Gg>
 [[nodiscard]] auto check_mutually_exclusive_set_satisfied(
