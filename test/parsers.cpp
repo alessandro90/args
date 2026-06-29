@@ -133,5 +133,14 @@ TEST_CASE("multiple-str-vec-spaces-and-commas-weird-quotes", "[parsers]") {
     REQUIRE(v.value() == std::vector{"10"sv, "11"sv, "12"sv, "13"sv});
 }
 
+TEST_CASE("str-vec-inplace", "[parsers]") {
+    auto const to_parse = "hello,world"sv;
+    auto v = std::vector<std::string_view>{};
+    auto const ok = parsers::Parser<std::vector<std::string_view>>::parse_inplace(v, to_parse);
+
+    REQUIRE(ok.has_value());
+    REQUIRE(v == std::vector{"hello"sv, "world"sv});
+}
+
 // NOLINTEND(cppcoreguidelines-avoid-do-while, misc-use-anonymous-namespace,
 // readability-function-congnitive-complexity)

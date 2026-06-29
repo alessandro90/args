@@ -43,23 +43,6 @@ auto container_push_range(Container &c, Container v) {
     c.insert_range(std::move(v));
 }
 
-template <args::detail::InplaceContainer C>
-[[nodiscard]] auto parse_inplace(C &out, std::string_view v) -> std::expected<void, std::string> {
-    // try to parse a single element first
-    auto res = Parser<typename C::value_type>::parse(v);
-    if (res.has_value()) {
-        detail::container_push_value(out, std::move(res).value());
-        return {};
-    }
-    // In case of failure try a full container
-    auto res_continer = Parser<C>::parse(v);
-    if (res_continer.has_value()) {
-        detail::container_push_range(out, std::move(res_continer).value());
-        return {};
-    }
-    return std::unexpected{std::move(res).error()};
-}
-
 template <typename It>
 [[nodiscard]] auto skip_space(It begin, It end) -> It {
     while (begin != end && std::isspace(*begin)) {
@@ -288,6 +271,16 @@ struct Parser<C> {
             detail::parse_container(container, std::ranges::begin(v), std::ranges::end(v));
         if (result.has_value()) {
             return container;
+        }
+        return std::unexpected{std::move(result).error()};
+    }
+
+    [[nodiscard]] static auto parse_inplace(C &container, std::string_view v)
+        -> std::expected<void, std::string> {
+        auto result =
+            detail::parse_container(container, std::ranges::begin(v), std::ranges::end(v));
+        if (result.has_value()) {
+            return {};
         }
         return std::unexpected{std::move(result).error()};
     }

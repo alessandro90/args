@@ -366,7 +366,8 @@ private:
         if constexpr (
             args::detail::InplaceContainer<result_type_t<S>>
             && !requires_immediate_validation_v<S>) {
-            auto const parsed_ok = args::parsers::detail::parse_inplace(item.value, argument.value);
+            auto const parsed_ok =
+                args::parsers::Parser<result_type_t<S>>::parse_inplace(item.value, argument.value);
             if (parsed_ok) {
                 item.is_used = true;
                 m_compiler_state = std::monostate{};
