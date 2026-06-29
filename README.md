@@ -8,7 +8,7 @@
 - Flags specified multiple times
 - Mutually exclusive flags and groups of mutually exclusive flags
 - Subcommands
-- Automatic help generation
+- Automatic help generation. _The quality of the help message is currenlty quite low. Needs to be improved_.
 - Arbitrary argument validation
 - Optional and non-optional arguments
 - Groups of short flags like `-abc` and `-abc=3`/`-abc 3`
