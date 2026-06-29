@@ -17,6 +17,7 @@
 - Parsing of common containers: `std::vector`, `std::set`, etc.. provided their contained types are supported
   - Concepts are used to parse the container, therefore even custom container could be automatically be supported provided they satisfy the necessary concepts currently define in [`helpers.hpp`](./include/args/helpers.hpp).
 - the output of the parsing is compatible with `std::println`. If a parsed type is not printable its name will be printed instead.
+- _nargs_. Stuff like `--name 1 2 3 4` with the resulting parsed value being a vector of `1,2,3,4`.
 
 To use the library define a set of constexpr objects for the expected command arguments. These objects are validated at compile-time and they define the structure of the parsed result. Meaning the result is a struct correctly typed based on the provided commands. See the [examples](./examples/) for more information.
 

@@ -37,7 +37,8 @@ template <auto S>
 
 template <auto S>
 inline constexpr auto requires_immediate_validation_v =
-    !args::detail::is_repeatable_v<S> && !args::detail::is_positional_variadic_v<S>;
+    !args::detail::is_repeatable_v<S> && !args::detail::is_positional_variadic_v<S>
+    && !args::detail::is_nargs_v<S>;
 
 using TokenCompileResult = std::variant<std::monostate, Help, Error>;
 
@@ -47,6 +48,22 @@ struct [[nodiscard]] ParsingShortFlag {
 
 struct [[nodiscard]] ParsingLongFlag {
     tokenizer::LongFlag long_flag;
+};
+
+struct [[nodiscard]] ParsingNargs {
+    std::variant<std::string_view, char> flag;
+
+    [[nodiscard]] auto name() const -> std::string {
+        return flag.visit(
+            args::detail::Overload{
+                [](std::string_view v) {
+                    return std::format("--{}", v);
+                },
+                [](char c) {
+                    return std::format("-{}", c);
+                },
+            });
+    }
 };
 
 template <auto S>
@@ -94,6 +111,7 @@ public:
             m_is_first_argument = false;
         }};
         auto compile_argument = args::detail::Overload{
+            compile_nargs(argument),
             compile_positional_argument(argument),
             compile_valued_short_flag(argument),
             compile_valued_long_flag(argument),
@@ -121,6 +139,7 @@ public:
         auto const defer = args::detail::Defer{[this] {
             m_is_first_argument = false;
         }};
+        cancel_nargs_state();
         if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
             return Error{"Cannot begin a positional only mode"};
         }
@@ -129,6 +148,7 @@ public:
     }
 
     [[nodiscard]] auto compile_flag(tokenizer::ShortFlag short_flag) -> TokenCompileResult {
+        cancel_nargs_state();
         if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
             return Error{
                 std::format("Cannot parse short flag: '{}'", color::yellow("{}", short_flag.flag))};
@@ -163,12 +183,17 @@ public:
             if (item.option._short_form.value != short_flag.flag) {
                 return false;
             }
-            m_compiler_state = ParsingShortFlag{.short_flag = short_flag};
+            if constexpr (S._nargs.has_value) {
+                m_compiler_state = ParsingNargs{.flag = item.option._short_form.value};
+            } else {
+                m_compiler_state = ParsingShortFlag{.short_flag = short_flag};
+            }
             return true;
         };
     }
 
     [[nodiscard]] auto compile_flag(tokenizer::LongFlag long_flag) -> TokenCompileResult {
+        cancel_nargs_state();
         if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
             return Error{
                 std::format("Cannot parse long flag: '{}'", color::yellow("{}", long_flag.flag))};
@@ -233,7 +258,11 @@ public:
             if (!detail::is_match(item, long_flag)) {
                 return false;
             }
-            m_compiler_state = ParsingLongFlag{.long_flag = long_flag};
+            if constexpr (S._nargs.has_value) {
+                m_compiler_state = ParsingNargs{.flag = long_flag.flag};
+            } else {
+                m_compiler_state = ParsingLongFlag{.long_flag = long_flag};
+            }
             return true;
         };
 
@@ -245,6 +274,7 @@ public:
     }
 
     [[nodiscard]] auto compile_flag(tokenizer::GroupFlag flag_group) -> TokenCompileResult {
+        cancel_nargs_state();
         if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
             return Error{
                 std::format("Cannot parse flag: '{}'", color::yellow("{}", flag_group.group))};
@@ -292,6 +322,10 @@ public:
     [[nodiscard]] auto check_correct_final_state() const -> std::optional<std::string> {
         auto const state_checker = args::detail::Overload{
             [](std::monostate) -> std::optional<std::string> {
+                return {};
+            },
+            // allow for nargs pending state, check is performed later
+            [](ParsingNargs) -> std::optional<std::string> {
                 return {};
             },
             [](ParsingLongFlag state) -> std::optional<std::string> {
@@ -370,7 +404,14 @@ private:
                 args::parsers::Parser<result_type_t<S>>::parse_inplace(item.value, argument.value);
             if (parsed_ok) {
                 item.is_used = true;
-                m_compiler_state = std::monostate{};
+                if constexpr (args::detail::is_nargs_v<S>) {
+                    // we stop only if we consumed all nargs
+                    if (S._nargs.value.max_reached(item.value.size())) {
+                        m_compiler_state = std::monostate{};
+                    }
+                } else {
+                    m_compiler_state = std::monostate{};
+                }
                 return;
             }
             parse_error = std::move(parsed_ok).error();
@@ -413,6 +454,29 @@ private:
         bool has_equal, auto handler_with_value, auto handler_without_value) -> bool {
         return has_equal ? handle_token(handler_with_value)
                          : handle_token(handler_without_value) || handle_token(handler_with_value);
+    }
+
+    [[nodiscard]] auto compile_nargs(tokenizer::Argument argument) {
+        return [this, argument](ParsingNargs nargs) -> TokenCompileResult {
+            auto error = std::optional<std::string>{};
+            auto const handler = [&]<auto S>(ArgValue<S> &item) requires args::detail::is_nargs_v<S>
+            {
+                parse_and_validate_argument(argument, item, error);
+                return !error.has_value();
+            };
+
+            if (!handle_token(handler)) {
+                auto msg = std::format(
+                    "Cannot find match for positional narg argument named '{}' with provided '{}'",
+                    color::yellow("{}", nargs.name()),
+                    color::cyan("{}", argument.value));
+                return Error{std::move(msg)};
+            }
+            if (error.has_value()) {
+                return Error{std::move(error).value()};
+            }
+            return {};
+        };
     }
 
     [[nodiscard]] auto compile_positional_argument(tokenizer::Argument argument) {
@@ -479,7 +543,8 @@ private:
             auto const handler = [&]<auto S>(ArgValue<S> &item)
                                      requires args::detail::ShortFlagWithValueObject<S>
             {
-                if (item.option._short_form.value != short_flag_state.short_flag.flag) {
+                if (!item.option._short_form.has_value
+                    || item.option._short_form.value != short_flag_state.short_flag.flag) {
                     return false;
                 }
                 parse_and_validate_argument(argument, item, error);
@@ -525,8 +590,16 @@ private:
         };
     }
 
+    // If parsing nargs and find something else, just start parsing the new stuff
+    auto cancel_nargs_state() -> void {
+        if (std::holds_alternative<ParsingNargs>(m_compiler_state)) {
+            m_compiler_state = std::monostate{};
+        }
+    }
+
     Options<Usage, Description, Ops...> m_compile_opts;
-    std::variant<std::monostate, ParsingShortFlag, ParsingLongFlag> m_compiler_state{};
+    std::variant<std::monostate, ParsingShortFlag, ParsingLongFlag, ParsingNargs>
+        m_compiler_state{};
     std::size_t m_current_positional_index{};
     bool m_is_first_argument{true};
     std::optional<std::size_t> m_subcommand_tuple_index{};
@@ -625,6 +698,27 @@ template <auto... Ops>
     return {};
 }
 
+template <auto... Ops>
+[[nodiscard]] auto check_nargs(args::detail::ArgsValues<Ops...> &results)
+    -> std::expected<void, std::vector<validator_error_t>> {
+    auto errors = std::vector<validator_error_t>{};
+    template for (auto &r : results) {
+        using arg_type_t = std::remove_cvref_t<decltype(r)>;
+        if constexpr (args::detail::is_nargs_v<arg_type_t::option>) {
+            auto const nargs = arg_type_t::option._nargs.value;
+            if (r.value.size() < nargs.min || r.value.size() > nargs.max) {
+                errors.push_back(
+                    detail::format_validation_error<arg_type_t::option>(
+                        std::format("count must be in {}", color::cyan("{}", nargs))));
+            }
+        }
+    }
+    if (!errors.empty()) {
+        return std::unexpected{errors};
+    }
+    return {};
+}
+
 }  // namespace detail
 
 template <std::size_t Extent, Str Usage, Str Description, auto... Ops, auto... Gg>
@@ -673,6 +767,13 @@ template <std::size_t Extent, Str Usage, Str Description, auto... Ops, auto... G
     }
 
     detail::assign_defaults_to_unused(token_compiler.results);
+
+    if (auto wrong_nargs = detail::check_nargs(token_compiler.results); !wrong_nargs.has_value()) {
+        return Error{
+            .message = std::move(wrong_nargs).error()
+                       | std::views::join_with(std::string_view{"\n"})
+                       | std::ranges::to<std::string>()};
+    }
 
     if (auto posvar_and_rep_val_result = detail::val_var_pos_and_rep(token_compiler.results);
         !posvar_and_rep_val_result.has_value()) {

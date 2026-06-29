@@ -27,6 +27,7 @@ set(
     03_custom_parser
     04_mutually_exclusive
     05_non_default_initializable_arguments
+    06_nargs
 )
 
 foreach(example ${examples})

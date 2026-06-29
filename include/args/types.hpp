@@ -6,6 +6,7 @@
 #include <concepts>
 #include <cstddef>
 #include <format>
+#include <limits>
 #include <optional>
 #include <ranges>
 #include <string>
@@ -238,6 +239,31 @@ struct FlagWithValueBase {
 template <typename T, typename DefaultType>
 struct FlagWithValueBase<std::optional<T>, DefaultType> {};
 
+struct [[nodiscard]] NargsOpt {
+    std::size_t min{};
+    std::size_t max{};
+
+    static consteval auto at_least(std::size_t n) -> NargsOpt {
+        return NargsOpt{.min = n, .max = std::numeric_limits<std::size_t>::max()};
+    }
+
+    static consteval auto at_most(std::size_t n) -> NargsOpt {
+        return NargsOpt{.min = 0, .max = n};
+    }
+
+    static consteval auto in_range(std::size_t min, std::size_t max) -> NargsOpt {
+        return NargsOpt{.min = min, .max = max};
+    }
+
+    static consteval auto exactly(std::size_t n) -> NargsOpt {
+        return NargsOpt{.min = n, .max = n};
+    }
+
+    [[nodiscard]] auto max_reached(std::size_t x) const -> bool {
+        return x == max;
+    }
+};
+
 /// A flag with value descriptor
 template <
     typename Tag,
@@ -250,6 +276,7 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
     Opt<Str<N>> _long_form;
     Opt<char> _short_form{Opt<char>::empty()};
     bool _repeatable{args::detail::InplaceContainer<Tag>};
+    Opt<NargsOpt> _nargs{Opt<NargsOpt>::empty()};
     Str<M> _help{};
     V _validator{always};
 
@@ -266,6 +293,7 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
             detail::opt_new(Str<Nx - 1>{long_form}),
             _short_form,
             _repeatable,
+            _nargs,
             _help,
             _validator,
         };
@@ -280,6 +308,7 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
             _long_form,
             _short_form,
             _repeatable,
+            _nargs,
             help,
             _validator,
         };
@@ -294,6 +323,7 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
             _long_form,
             Opt<char>::with(short_form),
             _repeatable,
+            _nargs,
             _help,
             _validator,
         };
@@ -318,6 +348,7 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
             _long_form,
             _short_form,
             _repeatable,
+            _nargs,
             _help,
             _validator,
         };
@@ -337,6 +368,7 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
             _long_form,
             _short_form,
             _repeatable,
+            _nargs,
             _help,
             _validator,
         };
@@ -353,6 +385,21 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
             _long_form,
             _short_form,
             repeatable,
+            _nargs,
+            _help,
+            _validator,
+        };
+    }
+
+    consteval auto Nargs(NargsOpt nargs) const
+        -> FlagWithValue<Tag, N, M, V, DefaultType> requires args::detail::InplaceContainer<Tag>
+    {
+        return FlagWithValue<Tag, N, M, V, DefaultType>{
+            FlagWithValueBase<Tag, DefaultType>{*this},
+            _long_form,
+            _short_form,
+            false,
+            Opt<NargsOpt>::with(nargs),
             _help,
             _validator,
         };
@@ -366,6 +413,7 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
             _long_form,
             _short_form,
             _repeatable,
+            _nargs,
             _help,
             validator,
         };
@@ -686,10 +734,22 @@ template <auto S>
 }
 
 template <auto S>
+[[nodiscard]] consteval auto is_nargs() -> bool {
+    if constexpr (requires { S._nargs; }) {
+        return S._nargs.has_value;
+    } else {
+        return false;
+    }
+}
+
+template <auto S>
 inline constexpr auto is_repeatable_v = is_repeatable<S>();
 
 template <auto S>
 inline constexpr auto is_positional_variadic_v = is_positional_variadic(S);
+
+template <auto S>
+inline constexpr auto is_nargs_v = is_nargs<S>();
 
 template <auto S>
 concept PositionalVariadic = is_positional_variadic_v<S>;
@@ -917,6 +977,20 @@ template <auto... Ss>
 }
 
 template <auto S>
+[[nodiscard]] consteval auto check_nargs_config() -> bool {
+    if constexpr (is_nargs_v<S>) {
+        return !(is_positional_variadic_v<S> || is_repeatable_v<S>);
+    } else {
+        return true;
+    }
+}
+
+template <auto... Ss>
+[[nodiscard]] consteval auto check_nargs_configs() -> bool {
+    return (... && check_nargs_config<Ss>());
+}
+
+template <auto S>
 [[nodiscard]] consteval auto check_repeatable_is_push_container_value() -> bool {
     if constexpr (is_flag_with_value_v<decltype(S)>) {
         if constexpr (S._repeatable) {
@@ -992,6 +1066,7 @@ struct CheckRules {
     static_assert(assert_valid_defaults<Ops...>(), "Invalid default for specification");
     static_assert(
         check_repeatable_is_push_container<Ops...>(), "Only vector flags can be made repeatable");
+    static_assert(check_nargs_configs<Ops...>(), "Invalid nargs option");
     static_assert(
         check_non_default_init_types_are_required_or_have_default<Ops...>(),
         "A non default-initializable type must either be required or have a default");
@@ -1313,8 +1388,7 @@ template <auto... Ops>
             }
         }
     }
-    ARGS_LOG_AND_ABORT(std::format("cannot find name of positional argument number {}", nth));
-    return "";
+    return "<unknown>";
 }
 
 template <auto... Ss>
@@ -1647,6 +1721,18 @@ struct formatter<args::compile_result_t<Ss...>>  // NOLINT(cert-dcl58-cpp)
         return result.visit([&](auto const &v) {
             return formatter<remove_cvref_t<decltype(v)>>{}.format(v, ctx);
         });
+    }
+};
+
+template <>
+struct formatter<args::NargsOpt>  // NOLINT(cert-dcl58-cpp)
+    : formatter<std::string_view> {
+    template <typename Ctx>
+    auto format(args::NargsOpt const &result, Ctx &ctx) const {  // NOLINT
+        if (result.max == numeric_limits<std::size_t>::max()) {
+            return format_to(ctx.out(), "[{}, {})", result.min, "infinite");
+        }
+        return format_to(ctx.out(), "[{}, {}]", result.min, result.max);
     }
 };
 }  // namespace std

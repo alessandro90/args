@@ -14,6 +14,7 @@
 using namespace args;
 using namespace args::tokenizer;
 using namespace args::literals;
+using namespace std::string_view_literals;
 
 TEST_CASE("boolean-short-flag", "[compiler]") {
     static constexpr auto option = flag().Long("value").Short('v');
@@ -390,6 +391,329 @@ TEST_CASE("mutually-exclusive-multiple-groups", "[compiler]") {
             MutuallyExclusiveGroups<mutually_exclusive_group_0, mutually_exclusive_group_1>{});
         REQUIRE(has_error(out));
     }
+}
+
+TEST_CASE("nargs-simple-case-at-least", "[compiler]") {
+    static constexpr auto f =
+        flag_with_value<std::vector<std::string>>().Short('f').Nargs(NargsOpt::at_least(2));
+    static constexpr auto opts = options<""_str, ""_str, f>;
+
+
+    SECTION("pass-2-values-succeeds-parsing") {
+        auto const tokens = std::array{
+            token_t{ShortFlag{.raw = "-f", .flag = 'f', .has_equal = false}},
+            token_t{Argument{.value = "hello"sv}},
+            token_t{Argument{.value = "world"sv}}};
+
+        auto const out = compiler::compile(std::span{tokens}, opts, MutuallyExclusiveGroups<>{});
+
+        REQUIRE(has_args(out));
+        auto const &fs = get_args(out).get<f>();
+
+        REQUIRE(fs[0] == "hello"sv);
+        REQUIRE(fs[1] == "world"sv);
+    }
+    SECTION("pass-3-values-succeeds-parsing") {
+        auto const tokens = std::array{
+            token_t{ShortFlag{.raw = "-f", .flag = 'f', .has_equal = false}},
+            token_t{Argument{.value = "hello"sv}},
+            token_t{Argument{.value = "extra"sv}},
+            token_t{Argument{.value = "world"sv}}};
+
+        auto const out = compiler::compile(std::span{tokens}, opts, MutuallyExclusiveGroups<>{});
+
+        REQUIRE(has_args(out));
+        auto const &fs = get_args(out).get<f>();
+
+        REQUIRE(fs[0] == "hello"sv);
+        REQUIRE(fs[1] == "extra"sv);
+        REQUIRE(fs[2] == "world"sv);
+    }
+
+    SECTION("pass-1-value-fails-parsing") {
+        auto const tokens = std::array{
+            token_t{ShortFlag{.raw = "-f", .flag = 'f', .has_equal = false}},
+            token_t{Argument{.value = "world"sv}}};
+
+        auto const out = compiler::compile(std::span{tokens}, opts, MutuallyExclusiveGroups<>{});
+
+        REQUIRE(has_error(out));
+    }
+}
+
+TEST_CASE("nargs-simple-case-at-most", "[compiler]") {
+    static constexpr auto f =
+        flag_with_value<std::vector<std::string>>().Short('f').Nargs(NargsOpt::at_most(2));
+    static constexpr auto opts = options<""_str, ""_str, f>;
+
+
+    SECTION("pass-2-values-succeeds-parsing") {
+        auto const tokens = std::array{
+            token_t{ShortFlag{.raw = "-f", .flag = 'f', .has_equal = false}},
+            token_t{Argument{.value = "hello"sv}},
+            token_t{Argument{.value = "world"sv}}};
+
+        auto const out = compiler::compile(std::span{tokens}, opts, MutuallyExclusiveGroups<>{});
+
+        REQUIRE(has_args(out));
+        auto const &fs = get_args(out).get<f>();
+
+        REQUIRE(fs[0] == "hello"sv);
+        REQUIRE(fs[1] == "world"sv);
+    }
+    SECTION("pass-3-values-fails-parsing") {
+        auto const tokens = std::array{
+            token_t{ShortFlag{.raw = "-f", .flag = 'f', .has_equal = false}},
+            token_t{Argument{.value = "hello"sv}},
+            token_t{Argument{.value = "wrong"sv}},
+            token_t{Argument{.value = "world"sv}}};
+
+        auto const out = compiler::compile(std::span{tokens}, opts, MutuallyExclusiveGroups<>{});
+
+        REQUIRE(has_error(out));
+    }
+
+    SECTION("pass-1-value-succeeds-parsing") {
+        auto const tokens = std::array{
+            token_t{ShortFlag{.raw = "-f", .flag = 'f', .has_equal = false}},
+            token_t{Argument{.value = "hello"sv}}};
+
+        auto const out = compiler::compile(std::span{tokens}, opts, MutuallyExclusiveGroups<>{});
+
+        REQUIRE(has_args(out));
+        auto const &fs = get_args(out).get<f>();
+
+        REQUIRE(fs[0] == "hello"sv);
+    }
+}
+
+TEST_CASE("nargs-simple-case-exactly", "[compiler]") {
+    static constexpr auto f =
+        flag_with_value<std::vector<std::string>>().Short('f').Nargs(NargsOpt::exactly(2));
+    static constexpr auto opts = options<""_str, ""_str, f>;
+
+
+    SECTION("pass-2-values-succeeds-parsing") {
+        auto const tokens = std::array{
+            token_t{ShortFlag{.raw = "-f", .flag = 'f', .has_equal = false}},
+            token_t{Argument{.value = "hello"sv}},
+            token_t{Argument{.value = "world"sv}}};
+
+        auto const out = compiler::compile(std::span{tokens}, opts, MutuallyExclusiveGroups<>{});
+
+        REQUIRE(has_args(out));
+        auto const &fs = get_args(out).get<f>();
+
+        REQUIRE(fs[0] == "hello"sv);
+        REQUIRE(fs[1] == "world"sv);
+    }
+    SECTION("pass-3-values-fails-parsing") {
+        auto const tokens = std::array{
+            token_t{ShortFlag{.raw = "-f", .flag = 'f', .has_equal = false}},
+            token_t{Argument{.value = "hello"sv}},
+            token_t{Argument{.value = "wrong"sv}},
+            token_t{Argument{.value = "world"sv}}};
+
+        auto const out = compiler::compile(std::span{tokens}, opts, MutuallyExclusiveGroups<>{});
+
+        REQUIRE(has_error(out));
+    }
+
+    SECTION("pass-1-value-fails-parsing") {
+        auto const tokens = std::array{
+            token_t{ShortFlag{.raw = "-f", .flag = 'f', .has_equal = false}},
+            token_t{Argument{.value = "hello"sv}}};
+
+        auto const out = compiler::compile(std::span{tokens}, opts, MutuallyExclusiveGroups<>{});
+
+        REQUIRE(has_error(out));
+    }
+}
+
+TEST_CASE("nargs-simple-case-in-range", "[compiler]") {
+    static constexpr auto f =
+        flag_with_value<std::vector<std::string>>().Short('f').Nargs(NargsOpt::in_range(1, 3));
+    static constexpr auto opts = options<""_str, ""_str, f>;
+
+
+    SECTION("pass-2-values-succeeds-parsing") {
+        auto const tokens = std::array{
+            token_t{ShortFlag{.raw = "-f", .flag = 'f', .has_equal = false}},
+            token_t{Argument{.value = "hello"sv}},
+            token_t{Argument{.value = "world"sv}}};
+
+        auto const out = compiler::compile(std::span{tokens}, opts, MutuallyExclusiveGroups<>{});
+
+        REQUIRE(has_args(out));
+        auto const &fs = get_args(out).get<f>();
+
+        REQUIRE(fs[0] == "hello"sv);
+        REQUIRE(fs[1] == "world"sv);
+    }
+    SECTION("pass-3-values-succeeds-parsing") {
+        auto const tokens = std::array{
+            token_t{ShortFlag{.raw = "-f", .flag = 'f', .has_equal = false}},
+            token_t{Argument{.value = "hello"sv}},
+            token_t{Argument{.value = "extra"sv}},
+            token_t{Argument{.value = "world"sv}}};
+
+        auto const out = compiler::compile(std::span{tokens}, opts, MutuallyExclusiveGroups<>{});
+
+        REQUIRE(has_args(out));
+        auto const &fs = get_args(out).get<f>();
+
+        REQUIRE(fs[0] == "hello"sv);
+        REQUIRE(fs[1] == "extra"sv);
+        REQUIRE(fs[2] == "world"sv);
+    }
+
+    SECTION("pass-1-value-succeeds-parsing") {
+        auto const tokens = std::array{
+            token_t{ShortFlag{.raw = "-f", .flag = 'f', .has_equal = false}},
+            token_t{Argument{.value = "hello"sv}}};
+
+        auto const out = compiler::compile(std::span{tokens}, opts, MutuallyExclusiveGroups<>{});
+
+        REQUIRE(has_args(out));
+        auto const &fs = get_args(out).get<f>();
+
+        REQUIRE(fs[0] == "hello"sv);
+    }
+
+    SECTION("pass-0-values-fails-parsing") {
+        auto const tokens =
+            std::array{token_t{ShortFlag{.raw = "-f", .flag = 'f', .has_equal = false}}};
+
+        auto const out = compiler::compile(std::span{tokens}, opts, MutuallyExclusiveGroups<>{});
+
+        REQUIRE(has_error(out));
+    }
+
+    SECTION("pass-4-values-fails-parsing") {
+        auto const tokens = std::array{
+            token_t{ShortFlag{.raw = "-f", .flag = 'f', .has_equal = false}},
+            token_t{Argument{.value = "hello"sv}},
+            token_t{Argument{.value = "extra"sv}},
+            token_t{Argument{.value = "wow"sv}},
+            token_t{Argument{.value = "world"sv}}};
+
+        auto const out = compiler::compile(std::span{tokens}, opts, MutuallyExclusiveGroups<>{});
+
+        REQUIRE(has_error(out));
+    }
+}
+
+TEST_CASE("nargs-in-range-optional-value", "[compiler]") {
+    static constexpr auto f =
+        flag_with_value<std::vector<std::string>>().Short('f').Nargs(NargsOpt::in_range(0, 1));
+    static constexpr auto opts = options<""_str, ""_str, f>;
+
+
+    SECTION("pass-0-values-succeeds-parsing") {
+        auto const tokens =
+            std::array{token_t{ShortFlag{.raw = "-f", .flag = 'f', .has_equal = false}}};
+
+        auto const out = compiler::compile(std::span{tokens}, opts, MutuallyExclusiveGroups<>{});
+
+        REQUIRE(has_args(out));
+        auto const &fs = get_args(out).get<f>();
+
+        REQUIRE(fs.size() == 0);
+    }
+
+    SECTION("pass-1-value-succeeds-parsing") {
+        auto const tokens = std::array{
+            token_t{ShortFlag{.raw = "-f", .flag = 'f', .has_equal = false}},
+            token_t{Argument{.value = "hello"sv}}};
+
+        auto const out = compiler::compile(std::span{tokens}, opts, MutuallyExclusiveGroups<>{});
+
+        REQUIRE(has_args(out));
+        auto const &fs = get_args(out).get<f>();
+
+        REQUIRE(fs.size() == 1);
+    }
+}
+
+TEST_CASE("nargs-works-when-there-are-further-flags", "[compiler]") {
+    static constexpr auto f =
+        flag_with_value<std::vector<std::string>>().Short('f').Nargs(NargsOpt::at_least(1));
+    static constexpr auto g = flag_with_value<int>().Short('g');
+    static constexpr auto opts = options<""_str, ""_str, f, g>;
+
+    // We can provide many values, when the new flag is found the system should handle that
+    auto const tokens = std::array{
+        token_t{ShortFlag{.raw = "-f", .flag = 'f', .has_equal = false}},
+        token_t{Argument{.value = "hello"sv}},
+        token_t{Argument{.value = "world"sv}},
+        token_t{ShortFlag{.raw = "-g", .flag = 'g', .has_equal = false}},
+        token_t{Argument{.value = "1"sv}}};
+
+    auto const out = compiler::compile(std::span{tokens}, opts, MutuallyExclusiveGroups<>{});
+
+    REQUIRE(has_args(out));
+    auto const &cmds = get_args(out);
+    auto const &fs = cmds.get<f>();
+
+    REQUIRE(fs[0] == "hello"sv);
+    REQUIRE(fs[1] == "world"sv);
+
+    auto const gs = cmds.get<g>();
+    REQUIRE(gs == 1);
+}
+
+TEST_CASE(
+    "nargs-works-when-there-are-further-positionals-only-if-nargs-is-exhausted", "[compiler]") {
+    static constexpr auto f =
+        flag_with_value<std::vector<std::string>>().Short('f').Nargs(NargsOpt::at_most(2));
+    static constexpr auto g = positional<int>().Name("integer");
+    static constexpr auto opts = options<""_str, ""_str, f, g>;
+
+    // We can provide many values, when the new flag is found the system should handle that
+    auto const tokens = std::array{
+        token_t{ShortFlag{.raw = "-f", .flag = 'f', .has_equal = false}},
+        token_t{Argument{.value = "hello"sv}},
+        token_t{Argument{.value = "world"sv}},
+        token_t{Argument{.value = "1"sv}}};
+
+    auto const out = compiler::compile(std::span{tokens}, opts, MutuallyExclusiveGroups<>{});
+
+    REQUIRE(has_args(out));
+    auto const &cmds = get_args(out);
+    auto const &fs = cmds.get<f>();
+
+    REQUIRE(fs[0] == "hello"sv);
+    REQUIRE(fs[1] == "world"sv);
+
+    auto const gs = cmds.get<g>();
+    REQUIRE(gs == 1);
+}
+
+TEST_CASE("nargs-swallows-further-positionals-if-nargs-is-not-exhausted", "[compiler]") {
+    static constexpr auto f =
+        flag_with_value<std::vector<std::string>>().Short('f').Nargs(NargsOpt::at_least(2));
+    static constexpr auto g = positional<int>().Name("integer");
+    static constexpr auto opts = options<""_str, ""_str, f, g>;
+
+    // We can provide many values, when the new flag is found the system should handle that
+    auto const tokens = std::array{
+        token_t{ShortFlag{.raw = "-f", .flag = 'f', .has_equal = false}},
+        token_t{Argument{.value = "hello"sv}},
+        token_t{Argument{.value = "world"sv}},
+        token_t{Argument{.value = "1"sv}}};
+
+    auto const out = compiler::compile(std::span{tokens}, opts, MutuallyExclusiveGroups<>{});
+
+    REQUIRE(has_args(out));
+    auto const &cmds = get_args(out);
+    auto const &fs = cmds.get<f>();
+
+    REQUIRE(fs[0] == "hello"sv);
+    REQUIRE(fs[1] == "world"sv);
+    REQUIRE(fs[2] == "1"sv);
+
+    auto const gs = cmds.get<g>();
+    REQUIRE(gs == 0);  // default value has been used
 }
 
 // NOLINTEND(cppcoreguidelines-avoid-do-while, misc-use-anonymous-namespace,

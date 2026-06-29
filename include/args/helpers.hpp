@@ -5,15 +5,9 @@
 #include <array>
 #include <concepts>
 #include <meta>
-#include <print>
 #include <string_view>
 #include <type_traits>
 #include <utility>
-#ifndef NDUBUG
-    #include <cstdio>
-    #include <cstdlib>
-    #include <source_location>
-#endif
 
 namespace args::detail {
 template <std::invocable F>
@@ -49,19 +43,26 @@ consteval auto name_of() -> std::string_view {
 }
 
 template <typename C>
+concept SizedContainer = requires(C c) {
+    { c.size() } -> std::convertible_to<std::size_t>;
+};
+
+template <typename C>
 concept ValuedContainer = requires { typename C::value_type; };
 
 template <typename C>
-concept VecLikeContainer = ValuedContainer<C> && requires(C &c, typename C::value_type v) {
-    c.push_back(std::move(v));
-    c.append_range(std::move(c));
-};
+concept VecLikeContainer =
+    SizedContainer<C> && ValuedContainer<C> && requires(C &c, typename C::value_type v) {
+        c.push_back(std::move(v));
+        c.append_range(std::move(c));
+    };
 
 template <typename C>
-concept SetLikeContainer = ValuedContainer<C> && requires(C &c, typename C::value_type v) {
-    c.insert(std::move(v));
-    c.insert_range(std::move(c));
-};
+concept SetLikeContainer =
+    SizedContainer<C> && ValuedContainer<C> && requires(C &c, typename C::value_type v) {
+        c.insert(std::move(v));
+        c.insert_range(std::move(c));
+    };
 
 template <typename C>
 concept PushContainer =
@@ -143,23 +144,5 @@ struct [[nodiscard]] Str {
 template <std::size_t N>
 Str(char const (&s)[N]) -> Str<N - 1>;  // NOLINT
 }  // namespace args
-
-#ifndef NDEBUG
-[[noreturn]] inline auto ARGS_LOG_AND_ABORT(
-    std::string_view msg, std::source_location loc = std::source_location::current()) -> void {
-    std::println(
-        stderr,
-        "File: {} ({}:{}) `{}`: {}",
-        loc.file_name(),
-        loc.line(),
-        loc.column(),
-        loc.function_name(),
-        msg);
-    std::abort();
-}
-#else
-    #define ARGS_LOG_AND_ABORT(...)
-#endif
-
 
 #endif
