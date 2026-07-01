@@ -35,6 +35,24 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(cxxopts)
 
+# 1. Declare the dependency but skip processing its CMakeLists.txt
+FetchContent_Declare(
+    taywee_args
+    GIT_REPOSITORY https://github.com/Taywee/args.git
+    GIT_TAG        6.4.16
+    SYSTEM
+    SOURCE_SUBDIR  "bypassed" # Prevents CMake from running Taywee's CMakeLists.txt
+)
+
+FetchContent_MakeAvailable(taywee_args)
+
+# Create your custom interface target
+add_library(taywee_args_lib INTERFACE)
+target_include_directories(taywee_args_lib SYSTEM INTERFACE ${taywee_args_SOURCE_DIR})
+
+# 4. Create the namespaced alias for your target link block
+add_library(taywee::args ALIAS taywee_args_lib)
+
 add_executable(
     bench_exe
     bench.cpp
@@ -45,6 +63,7 @@ add_executable(
 target_link_libraries(bench_exe
     PRIVATE
         args::args
+        taywee::args
         project_warnings
         benchmark::benchmark
         CLI11::CLI11

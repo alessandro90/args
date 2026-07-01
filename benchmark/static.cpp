@@ -1,3 +1,6 @@
+#define args taywee
+#include <args.hxx>
+#undef args
 #include <argparse/argparse.hpp>
 #include <array>
 #include <benchmark/benchmark.h>
@@ -78,6 +81,33 @@ void bm_static_cxxopts(benchmark::State &state) {
     }
 }
 
+void bm_static_taywee_args(benchmark::State &state) {
+    for (auto _ : state) {
+        // Use taywee:: instead of args::
+        taywee::ArgumentParser parser("test_bench");
+
+        taywee::ValueFlag<int> integer(parser, "integer", "The integer", {'i', "integer"});
+        taywee::ValueFlag<double> decimal(parser, "float", "The float", {'f', "float"});
+        taywee::Flag verbose(parser, "verbose", "The verbose flag", {'v', "verbose"});
+        taywee::Flag debug(parser, "debug", "The debug flag", {'d', "debug"});
+
+        try {
+            parser.ParseCLI(fake_static_argc, fake_static_argv.data());
+
+            benchmark::DoNotOptimize(parser);
+            benchmark::DoNotOptimize(integer);
+            benchmark::DoNotOptimize(decimal);
+            benchmark::DoNotOptimize(verbose);
+            benchmark::DoNotOptimize(debug);
+            benchmark::ClobberMemory();
+        } catch (taywee::ParseError const &err) {
+            state.SkipWithError(err.what());
+        } catch (taywee::ValidationError const &err) {
+            state.SkipWithError(err.what());
+        }
+    }
+}
+
 constexpr auto flag_i = args::flag_with_value<int>().Long("integer").Short('i');
 constexpr auto flag_f = args::flag_with_value<double>().Long("float").Short('f');
 constexpr auto flag_v = args::flag().Long("verbose").Short('v');
@@ -98,3 +128,4 @@ BENCHMARK(bm_static_argparse);
 BENCHMARK(bm_static_cli11);
 BENCHMARK(bm_static_cxxopts);
 BENCHMARK(bm_static_args);
+BENCHMARK(bm_static_taywee_args);

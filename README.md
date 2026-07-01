@@ -175,23 +175,25 @@ Headers are then imported as `args/args.hpp`, etc..
 
 ## Benchmarks
 
-The `benchmark` directory contains some benchmarks against commonly used similar libraries: [`argparse`](https://github.com/p-ranav/argparse), [`cxxopts`](https://github.com/jarro2783/cxxopts), [`CLI11`](https://github.com/cliutils/cli11). Only two simple tests are performad:
+The `benchmark` directory contains some benchmarks against commonly used similar libraries: [`argparse`](https://github.com/p-ranav/argparse), [`cxxopts`](https://github.com/jarro2783/cxxopts), [`CLI11`](https://github.com/cliutils/cli11), [`args`](https://github.com/Taywee/args) (mine has actually the same name and exported namespace because I found out about his one only much later for some reason). Only two simple tests are performad:
 
 - parsing simple flags/scalar options
 - parsing `std::vector<int>`
 
 The results looks good, but surely the compared libraries offer a much greater functionality and I am not sure of how representative the tests are. Anyway on a machine with a _AMD Ryzen 7 7800X3D_ these are the results:
 
-| Benchmark           | Time (ns) | CPU (ns) | Iterations |
-| :------------------ | --------: | -------: | :--------: |
-| bm_static_argparse  |      1265 |     1261 |   546864   |
-| bm_static_cli11     |      3901 |     3891 |   180683   |
-| bm_static_cxxopts   |      6941 |     6914 |   101274   |
-| **bm_static_args**  |       285 |      284 |  2452499   |
-| bm_dynamic_argparse |      1067 |     1063 |   661088   |
-| bm_dynamic_cli11    |      2734 |     2723 |   253009   |
-| bm_dynamic_cxxopts  |      6040 |     6016 |   116415   |
-| **bm_dynamic_args** |       583 |      581 |  1206783   |
+| Benchmark              | Time (ns) | CPU (ns) | Iterations |
+| :--------------------- | --------: | -------: | :--------: |
+| bm_dynamic_argparse    |      1082 |     1075 |   650057   |
+| bm_dynamic_cli11       |      2818 |     2793 |   248141   |
+| bm_dynamic_cxxopts     |      5800 |     5762 |   121146   |
+| bm_dynamic_taywee_args |       807 |      804 |   871004   |
+| _bm_dynamic_args_      |       542 |      539 |  1290237   |
+| bm_static_argparse     |      1361 |     1355 |   516353   |
+| bm_static_cli11        |      3978 |     3960 |   177150   |
+| bm_static_cxxopts      |      6913 |     6873 |   101897   |
+| bm_static_taywee_args  |      1323 |     1305 |   539586   |
+| _bm_static_args_       |       302 |      300 |  2344296   |
 
 These tests are no comprehensive in any way. I just wanted to see how the library performs with a couple of basic cases.
 

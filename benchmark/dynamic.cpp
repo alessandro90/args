@@ -1,6 +1,9 @@
 
 // cmake ../.. -DCMAKE_BUILD_TYPE=Release -DBUILD_BENCHMARKS=ON -DBUILD_EXAMPLES=OFF
 // -DBUILD_TESTING=OFF
+#define args taywee
+#include <args.hxx>
+#undef args
 #include <argparse/argparse.hpp>
 #include <array>
 #include <benchmark/benchmark.h>
@@ -72,6 +75,33 @@ void bm_dynamic_cxxopts(benchmark::State &state) {
     }
 }
 
+void bm_dynamic_taywee_args(benchmark::State &state) {
+    for (auto _ : state) {
+        taywee::ArgumentParser parser("test_bench");
+
+        // Plain string flag for CSV
+        taywee::ValueFlag<std::string> csv(parser, "csv", "CSV string", {'c', "csv"});
+
+        // ValueFlagList automatically handles multiple occurrences/appending
+        taywee::ValueFlagList<int>
+            multi(parser, "multi", "Multi-value integer list", {'m', "multi"});
+
+        try {
+            parser.ParseCLI(fake_dynamic_argc, fake_dynamic_argv.data());
+
+            benchmark::DoNotOptimize(parser);
+            benchmark::DoNotOptimize(csv);
+            // cast to base to avoid compiler error
+            benchmark::DoNotOptimize(static_cast<taywee::ValueFlagBase &>(multi));
+            benchmark::ClobberMemory();
+        } catch (taywee::ParseError const &err) {
+            state.SkipWithError(err.what());
+        } catch (taywee::ValidationError const &err) {
+            state.SkipWithError(err.what());
+        }
+    }
+}
+
 constexpr auto flag_c = args::flag_with_value<std::vector<int>>().Long("csv").Short('c');
 constexpr auto flag_m =
     args::flag_with_value<std::vector<int>>().Long("multi").Short('m').Repeatable();
@@ -92,3 +122,4 @@ BENCHMARK(bm_dynamic_argparse);
 BENCHMARK(bm_dynamic_cli11);
 BENCHMARK(bm_dynamic_cxxopts);
 BENCHMARK(bm_dynamic_args);
+BENCHMARK(bm_dynamic_taywee_args);
