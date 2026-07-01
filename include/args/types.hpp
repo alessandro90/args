@@ -233,7 +233,6 @@ consteval auto flag() -> Flag<0, 0> {
 template <typename Tag, std::default_initializable DefaultType>
 struct FlagWithValueBase {
     DefaultType _default_value{};
-    bool _required{};
 };
 
 template <typename T, typename DefaultType>
@@ -273,6 +272,7 @@ template <
     typename DefaultType = detail::tag_to_default_type_t<Tag>>
 requires std::default_initializable<DefaultType>
 struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
+    bool _required{};
     Opt<Str<N>> _long_form;
     Opt<char> _short_form{Opt<char>::empty()};
     bool _repeatable{args::detail::InplaceContainer<Tag>};
@@ -290,6 +290,7 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
         -> FlagWithValue<Tag, Nx - 1, M, V, DefaultType> {
         return FlagWithValue<Tag, Nx - 1, M, V, DefaultType>{
             FlagWithValueBase<Tag, DefaultType>{*this},
+            _required,
             detail::opt_new(Str<Nx - 1>{long_form}),
             _short_form,
             _repeatable,
@@ -305,6 +306,7 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
         -> FlagWithValue<Tag, N, Mx - 1, V, DefaultType> {
         return FlagWithValue<Tag, N, Mx - 1, V, DefaultType>{
             FlagWithValueBase<Tag, DefaultType>{*this},
+            _required,
             _long_form,
             _short_form,
             _repeatable,
@@ -320,6 +322,7 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
     consteval auto Short(char short_form) const -> FlagWithValue<Tag, N, M, V, DefaultType> {
         return FlagWithValue<Tag, N, M, V, DefaultType>{
             FlagWithValueBase<Tag, DefaultType>{*this},
+            _required,
             _long_form,
             Opt<char>::with(short_form),
             _repeatable,
@@ -342,9 +345,8 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
             D>
     {
         return FlagWithValue<detail::result_type_impl_t<D>, N, M, V, D>{
-            FlagWithValueBase<
-                Tag,
-                D>{._default_value = default_value, ._required = this->_required},
+            FlagWithValueBase<Tag, D>{._default_value = default_value},
+            this->_required,
             _long_form,
             _short_form,
             _repeatable,
@@ -354,17 +356,12 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
         };
     }
 
-    consteval auto Required(bool required = true) const
-        -> FlagWithValue<Tag, N, M, V, DefaultType> = delete;
-
     /// `true` if the flag is required (defaults to `false`) if this function is not called
-    consteval auto Required(bool required = true) const -> FlagWithValue<Tag, N, M, V, DefaultType>
-        requires detail::HasRequiredMember<FlagWithValue<Tag, N, M, V, DefaultType>>
-    {
+    consteval auto Required(bool required = true) const
+        -> FlagWithValue<Tag, N, M, V, DefaultType> {
         return FlagWithValue<Tag, N, M, V, DefaultType>{
-            FlagWithValueBase<
-                Tag,
-                DefaultType>{._default_value = this->_default_value, ._required = required},
+            FlagWithValueBase<Tag, DefaultType>{*this},
+            required,
             _long_form,
             _short_form,
             _repeatable,
@@ -382,6 +379,7 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
     {
         return FlagWithValue<Tag, N, M, V, DefaultType>{
             FlagWithValueBase<Tag, DefaultType>{*this},
+            _required,
             _long_form,
             _short_form,
             repeatable,
@@ -396,6 +394,7 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
     {
         return FlagWithValue<Tag, N, M, V, DefaultType>{
             FlagWithValueBase<Tag, DefaultType>{*this},
+            _required,
             _long_form,
             _short_form,
             false,
@@ -410,6 +409,7 @@ struct [[nodiscard]] FlagWithValue: FlagWithValueBase<Tag, DefaultType> {
     consteval auto Validator(Vx validator) const -> FlagWithValue<Tag, N, M, Vx, DefaultType> {
         return FlagWithValue<Tag, N, M, Vx, DefaultType>{
             FlagWithValueBase<Tag, DefaultType>{*this},
+            _required,
             _long_form,
             _short_form,
             _repeatable,
@@ -674,6 +674,13 @@ struct IsFlagWithValue: std::false_type {};
 template <typename Tag, std::size_t N, std::size_t M, ValidatorObject V, typename DefaultType>
 struct IsFlagWithValue<FlagWithValue<Tag, N, M, V, DefaultType>>: std::true_type {};
 
+template <typename>
+struct IsOptionalFlagWithValue: std::false_type {};
+
+template <typename T, std::size_t N, std::size_t M, ValidatorObject V, typename DefaultType>
+struct IsOptionalFlagWithValue<FlagWithValue<std::optional<T>, N, M, V, DefaultType>>
+    : std::true_type {};
+
 template <typename P>
 struct IsPositional: std::false_type {};
 
@@ -685,6 +692,10 @@ inline constexpr bool is_positional_v = IsPositional<std::remove_cvref_t<P>>::va
 
 template <typename T>
 inline constexpr bool is_flag_with_value_v = IsFlagWithValue<std::remove_cvref_t<T>>::value;
+
+template <typename T>
+inline constexpr bool is_optional_flag_with_value_v =
+    IsOptionalFlagWithValue<std::remove_cvref_t<T>>::value;
 
 template <typename>
 struct IsSubcommand: std::false_type {};
@@ -979,7 +990,9 @@ template <auto... Ss>
 template <auto S>
 [[nodiscard]] consteval auto check_nargs_config() -> bool {
     if constexpr (is_nargs_v<S>) {
-        return !(is_positional_variadic_v<S> || is_repeatable_v<S>);
+        return !(
+            is_positional_variadic_v<S> || is_repeatable_v<S>
+            || is_optional_flag_with_value_v<decltype(S)>);
     } else {
         return true;
     }
@@ -1360,11 +1373,15 @@ concept ShortFlagObject =
 template <auto S>
 concept ShortFlagWithValueObject = S._short_form.has_value && is_flag_with_value_v<decltype(S)>;
 
+
 template <auto S>
 concept LongFlagObject = is_flag_v<decltype(S)> && !is_flag_with_value_v<decltype(S)>;
 
 template <auto S>
-concept LongFlagWithValueObject = is_flag_with_value_v<decltype(S)>;
+concept LongFlagWithValueObject = S._long_form.has_value && is_flag_with_value_v<decltype(S)>;
+
+template <auto S>
+concept OptionalFlagWithValueObject = is_optional_flag_with_value_v<decltype(S)>;
 
 template <auto S>
 concept PositionalObject = is_positional_v<decltype(S)>;

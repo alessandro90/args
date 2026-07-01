@@ -2,6 +2,7 @@
 // readability-function-congnitive-complexity)
 #include "args/compiler.hpp"
 #include <array>
+#include <optional>
 #include <span>
 #include <string_view>
 #include <variant>
@@ -714,6 +715,128 @@ TEST_CASE("nargs-swallows-further-positionals-if-nargs-is-not-exhausted", "[comp
 
     auto const gs = cmds.get<g>();
     REQUIRE(gs == 0);  // default value has been used
+}
+
+TEST_CASE("optional-flag-accepts-value", "[compiler]") {
+    static constexpr auto f = flag_with_value<std::optional<int>>().Short('f');
+    static constexpr auto opts = options<""_str, ""_str, f>;
+
+    auto const tokens = std::array{
+        token_t{ShortFlag{.raw = "-f", .flag = 'f', .has_equal = false}},
+        token_t{Argument{.value = "1"sv}}};
+
+    auto const out = compiler::compile(std::span{tokens}, opts, MutuallyExclusiveGroups<>{});
+
+    REQUIRE(has_args(out));
+
+    auto const &cmds = get_args(out);
+
+    auto const info = cmds.get_with_info<f>();
+
+    REQUIRE(info.is_used);
+    REQUIRE(info.value.has_value());
+    REQUIRE(info.value.value() == 1);
+}
+
+TEST_CASE("optional-flag-accepts-value-with-equal", "[compiler]") {
+    static constexpr auto f = flag_with_value<std::optional<int>>().Short('f');
+    static constexpr auto opts = options<""_str, ""_str, f>;
+
+    auto const tokens = std::array{
+        token_t{ShortFlag{.raw = "-f=1", .flag = 'f', .has_equal = true}},
+        token_t{Argument{.value = "1"}}};
+
+    auto const out = compiler::compile(std::span{tokens}, opts, MutuallyExclusiveGroups<>{});
+
+    REQUIRE(has_args(out));
+
+    auto const &cmds = get_args(out);
+
+    auto const info = cmds.get_with_info<f>();
+
+    REQUIRE(info.is_used);
+    REQUIRE(info.value.has_value());
+    REQUIRE(info.value.value() == 1);
+}
+
+TEST_CASE("optional-flag-works-with-no-value", "[compiler]") {
+    static constexpr auto f = flag_with_value<std::optional<int>>().Short('f');
+    static constexpr auto opts = options<""_str, ""_str, f>;
+
+    auto const tokens =
+        std::array{token_t{ShortFlag{.raw = "-f", .flag = 'f', .has_equal = false}}};
+
+    auto const out = compiler::compile(std::span{tokens}, opts, MutuallyExclusiveGroups<>{});
+
+    REQUIRE(has_args(out));
+
+    auto const &cmds = get_args(out);
+
+    auto const info = cmds.get_with_info<f>();
+
+    REQUIRE(info.is_used);
+    REQUIRE(!info.value.has_value());
+}
+
+TEST_CASE("optional-flag-works-with-no-value-before-another-flag", "[compiler]") {
+    static constexpr auto f = flag_with_value<std::optional<int>>().Short('f');
+    static constexpr auto g = flag().Short('g');
+    static constexpr auto opts = options<""_str, ""_str, f, g>;
+
+    auto const tokens = std::array{
+        token_t{ShortFlag{.raw = "-f", .flag = 'f', .has_equal = false}},
+        token_t{ShortFlag{.raw = "-g", .flag = 'g', .has_equal = false}}};
+
+    auto const out = compiler::compile(std::span{tokens}, opts, MutuallyExclusiveGroups<>{});
+
+    REQUIRE(has_args(out));
+
+    auto const &cmds = get_args(out);
+
+    auto const info = cmds.get_with_info<f>();
+
+    REQUIRE(info.is_used);
+    REQUIRE(!info.value.has_value());
+
+    REQUIRE(cmds.get<g>());
+}
+
+TEST_CASE("optional-flag-works-with-no-value-before-another-flag-with-value", "[compiler]") {
+    static constexpr auto f = flag_with_value<std::optional<int>>().Short('f');
+    static constexpr auto g = flag_with_value<std::string_view>().Short('g');
+    static constexpr auto opts = options<""_str, ""_str, f, g>;
+
+    auto const tokens = std::array{
+        token_t{ShortFlag{.raw = "-f", .flag = 'f', .has_equal = false}},
+        token_t{ShortFlag{.raw = "-g", .flag = 'g', .has_equal = false}},
+        token_t{Argument{.value = "hello"sv}}};
+
+    auto const out = compiler::compile(std::span{tokens}, opts, MutuallyExclusiveGroups<>{});
+
+    REQUIRE(has_args(out));
+
+    auto const &cmds = get_args(out);
+
+    auto const info = cmds.get_with_info<f>();
+
+    REQUIRE(info.is_used);
+    REQUIRE(!info.value.has_value());
+
+    REQUIRE(cmds.get<g>() == "hello"sv);
+}
+
+TEST_CASE("optional-flag-fails-with-no-value-before-another-positional", "[compiler]") {
+    static constexpr auto f = flag_with_value<std::optional<int>>().Short('f');
+    static constexpr auto g = positional<std::string_view>().Name("positional");
+    static constexpr auto opts = options<""_str, ""_str, f, g>;
+
+    auto const tokens = std::array{
+        token_t{ShortFlag{.raw = "-f", .flag = 'f', .has_equal = false}},
+        token_t{Argument{.value = "hello"sv}}};
+
+    auto const out = compiler::compile(std::span{tokens}, opts, MutuallyExclusiveGroups<>{});
+
+    REQUIRE(has_error(out));
 }
 
 // NOLINTEND(cppcoreguidelines-avoid-do-while, misc-use-anonymous-namespace,

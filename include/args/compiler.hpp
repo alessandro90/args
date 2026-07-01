@@ -36,6 +36,13 @@ template <auto S>
 }
 
 template <auto S>
+auto set_used_if_optional_value(auto &item) -> void {
+    if constexpr (args::is_optional_flag_with_value_v<decltype(S)>) {
+        item.is_used = true;
+    }
+}
+
+template <auto S>
 inline constexpr auto requires_immediate_validation_v =
     !args::detail::is_repeatable_v<S> && !args::detail::is_positional_variadic_v<S>
     && !args::detail::is_nargs_v<S>;
@@ -44,10 +51,12 @@ using TokenCompileResult = std::variant<std::monostate, Help, Error>;
 
 struct [[nodiscard]] ParsingShortFlag {
     tokenizer::ShortFlag short_flag;
+    bool has_optional_value{};
 };
 
 struct [[nodiscard]] ParsingLongFlag {
     tokenizer::LongFlag long_flag;
+    bool has_optional_value{};
 };
 
 struct [[nodiscard]] ParsingNargs {
@@ -139,7 +148,7 @@ public:
         auto const defer = args::detail::Defer{[this] {
             m_is_first_argument = false;
         }};
-        cancel_nargs_state();
+        prepare_for_new_flag();
         if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
             return Error{"Cannot begin a positional only mode"};
         }
@@ -148,7 +157,7 @@ public:
     }
 
     [[nodiscard]] auto compile_flag(tokenizer::ShortFlag short_flag) -> TokenCompileResult {
-        cancel_nargs_state();
+        prepare_for_new_flag();
         if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
             return Error{
                 std::format("Cannot parse short flag: '{}'", color::yellow("{}", short_flag.flag))};
@@ -186,14 +195,17 @@ public:
             if constexpr (S._nargs.has_value) {
                 m_compiler_state = ParsingNargs{.flag = item.option._short_form.value};
             } else {
-                m_compiler_state = ParsingShortFlag{.short_flag = short_flag};
+                m_compiler_state = ParsingShortFlag{
+                    .short_flag = short_flag,
+                    .has_optional_value = args::is_optional_flag_with_value_v<decltype(S)>};
+                detail::set_used_if_optional_value<S>(item);
             }
             return true;
         };
     }
 
     [[nodiscard]] auto compile_flag(tokenizer::LongFlag long_flag) -> TokenCompileResult {
-        cancel_nargs_state();
+        prepare_for_new_flag();
         if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
             return Error{
                 std::format("Cannot parse long flag: '{}'", color::yellow("{}", long_flag.flag))};
@@ -261,7 +273,10 @@ public:
             if constexpr (S._nargs.has_value) {
                 m_compiler_state = ParsingNargs{.flag = long_flag.flag};
             } else {
-                m_compiler_state = ParsingLongFlag{.long_flag = long_flag};
+                m_compiler_state = ParsingLongFlag{
+                    .long_flag = long_flag,
+                    .has_optional_value = args::is_optional_flag_with_value_v<decltype(S)>};
+                detail::set_used_if_optional_value<S>(item);
             }
             return true;
         };
@@ -274,7 +289,7 @@ public:
     }
 
     [[nodiscard]] auto compile_flag(tokenizer::GroupFlag flag_group) -> TokenCompileResult {
-        cancel_nargs_state();
+        prepare_for_new_flag();
         if (!std::holds_alternative<std::monostate>(m_compiler_state)) {
             return Error{
                 std::format("Cannot parse flag: '{}'", color::yellow("{}", flag_group.group))};
@@ -329,10 +344,16 @@ public:
                 return {};
             },
             [](ParsingLongFlag state) -> std::optional<std::string> {
+                if (state.has_optional_value) {
+                    return {};
+                }
                 return std::format(
                     "Missing value for flag: '{}'", color::yellow("{}", state.long_flag.flag));
             },
             [](ParsingShortFlag state) -> std::optional<std::string> {
+                if (state.has_optional_value) {
+                    return {};
+                }
                 return std::format(
                     "Missing value for flag: '{}'", color::yellow("{}", state.short_flag.flag));
             }};
@@ -591,10 +612,21 @@ private:
     }
 
     // If parsing nargs and find something else, just start parsing the new stuff
-    auto cancel_nargs_state() -> void {
-        if (std::holds_alternative<ParsingNargs>(m_compiler_state)) {
-            m_compiler_state = std::monostate{};
-        }
+    // If parsing a flag with an optional value and find something else, same as above
+    auto prepare_for_new_flag() -> void {
+        m_compiler_state.visit(
+            args::detail::Overload{
+                [](std::monostate) {},
+                [this](ParsingNargs const &) {
+                    m_compiler_state = std::monostate{};
+                },
+                [this](auto const &parsing_flag)
+                    requires requires { parsing_flag.has_optional_value; }
+                {
+                    if (parsing_flag.has_optional_value) {
+                        m_compiler_state = std::monostate{};
+                    }
+                }});
     }
 
     Options<Usage, Description, Ops...> m_compile_opts;

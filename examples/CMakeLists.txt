@@ -28,6 +28,7 @@ set(
     04_mutually_exclusive
     05_non_default_initializable_arguments
     06_nargs
+    07_flag_with_optional_value
 )
 
 foreach(example ${examples})

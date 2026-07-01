@@ -18,6 +18,7 @@
   - Concepts are used to parse the container, therefore even custom container could be automatically be supported provided they satisfy the necessary concepts currently define in [`helpers.hpp`](./include/args/helpers.hpp).
 - the output of the parsing is compatible with `std::println`. If a parsed type is not printable its name will be printed instead.
 - _nargs_. Stuff like `--name 1 2 3 4` with the resulting parsed value being a vector of `1,2,3,4`.
+- flags with optional values, like `-j` and `-j 8`, see #optional-arguments
 
 To use the library define a set of constexpr objects for the expected command arguments. These objects are validated at compile-time and they define the structure of the parsed result. Meaning the result is a struct correctly typed based on the provided commands. See the [examples](./examples/) for more information.
 
@@ -80,9 +81,9 @@ The library understands that the lambda is there for the sole purpose of allowin
 
 The library can handle non default-initializable types. Such types must be either have a default value set via `Default` or be explicitly _required_ with `Required(true)`. The result returned by the library is actally a static storage in which the value lives (see [`args::LazyStorage<T>`](./include/args/lazy_storage.hpp)). The inner type can be retrieved with `.as_ref()`. See [`05_non_default_intializable_arguments.cpp`](./examples/05_non_default_intializable_arguments.cpp).
 
-### `std::optional` arguments
+### `std::optional` arguments (#optional-arguments)
 
-Arguments of type `std::optional` cannot be set as _required_ and cannot have a default value. Their default value is just an empty optional.
+Arguments of type `std::optional` cannot a default value. Their default value is just an empty optional. If the argument is a `args::Positional`, it cannot have a default value (it is an empty `std::optional` by default). If the argument is a `args::flag_with_value` than it has a special logic such that the flag can be specifies both with and without its corresponding value. Meaning both `-j` and `-j8` are valid. In the first case the flag is used but its value is an empty `std::optional`. In the second case its value is an `std::optional{8}`.
 
 ## Parsing
 
