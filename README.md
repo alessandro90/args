@@ -15,7 +15,7 @@
 - Parsing custom types directly into the final structure
 - Supports for non default intializable types
 - Parsing of common containers: `std::vector`, `std::set`, etc.. provided their contained types are supported
-  - Concepts are used to parse the container, therefore even custom container could be automatically be supported provided they satisfy the necessary concepts currently define in [`helpers.hpp`](./include/args/helpers.hpp).
+  - Concepts are used to parse the containers, therefore even custom containers are automatically supported provided they satisfy the necessary concepts defined in [`helpers.hpp`](./include/args/helpers.hpp).
 - the output of the parsing is compatible with `std::println`. If a parsed type is not printable its name will be printed instead.
 - _nargs_. Stuff like `--name 1 2 3 4` with the resulting parsed value being a vector of `1,2,3,4`.
 - flags with optional values, like `-j` and `-j 8`, see #optional-arguments
