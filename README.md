@@ -79,7 +79,7 @@ The library understands that the lambda is there for the sole purpose of allowin
 
 ### Non default-initializable types
 
-The library can handle non default-initializable types. Such types must be either have a default value set via `Default` or be explicitly _required_ with `Required(true)`. The result returned by the library is actally a static storage in which the value lives (see [`args::LazyStorage<T>`](./include/args/lazy_storage.hpp)). The inner type can be retrieved with `.as_ref()`. See [`05_non_default_intializable_arguments.cpp`](./examples/05_non_default_intializable_arguments.cpp).
+The library can handle non default-initializable types. Such types must be either have a default value set via `Default` or be explicitly _required_ with `Required(true)`. The result returned by the library is actally a static storage in which the value lives (see [`args::LazyStorage<T>`](./include/args/lazy_storage.hpp)). The inner type can be retrieved with `.as_ref()`. See [`05_non_default_intializable_arguments.cpp`](./examples/05_non_default_initializable_arguments.cpp).
 
 ### `std::optional` arguments (#optional-arguments)
 
@@ -189,12 +189,12 @@ The results looks good, but surely the compared libraries offer a much greater f
 | bm_dynamic_cli11       |      2818 |     2793 |   248141   |
 | bm_dynamic_cxxopts     |      5800 |     5762 |   121146   |
 | bm_dynamic_taywee_args |       807 |      804 |   871004   |
-| _bm_dynamic_args_      |       542 |      539 |  1290237   |
+| **bm_dynamic_args**    |       542 |      539 |  1290237   |
 | bm_static_argparse     |      1361 |     1355 |   516353   |
 | bm_static_cli11        |      3978 |     3960 |   177150   |
 | bm_static_cxxopts      |      6913 |     6873 |   101897   |
 | bm_static_taywee_args  |      1323 |     1305 |   539586   |
-| _bm_static_args_       |       302 |      300 |  2344296   |
+| **bm_static_args**     |       302 |      300 |  2344296   |
 
 These tests are no comprehensive in any way. I just wanted to see how the library performs with a couple of basic cases.
 
