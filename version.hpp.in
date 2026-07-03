@@ -1,0 +1,18 @@
+#ifndef ARGS_VERSION_HPP
+#define ARGS_VERSION_HPP
+
+#include <cstdint>
+#include <string_view>
+
+namespace args::version {
+
+// clang-format off
+inline constexpr std::uint8_t major = @PROJECT_VERSION_MAJOR@;
+inline constexpr std::uint8_t minor = @PROJECT_VERSION_MINOR@;
+inline constexpr std::uint8_t patch = @PROJECT_VERSION_PATCH@;
+inline constexpr std::string_view str = "@PROJECT_VERSION@";
+// clang-format on
+
+}  // namespace args::version
+
+#endif

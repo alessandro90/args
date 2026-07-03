@@ -1,5 +1,15 @@
 cmake_minimum_required(VERSION 4.0.0)
-project(args LANGUAGES CXX)
+project(
+    args
+    VERSION 0.1.0
+    LANGUAGES
+    CXX
+)
+
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/version.hpp.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/args/version.hpp"
+)
 
 
 set(CMAKE_CXX_STANDARD 26)
@@ -64,6 +74,7 @@ add_library(args::args ALIAS args)
 target_link_libraries(args PRIVATE project_warnings)
 
 target_include_directories(args PUBLIC ${PROJECT_SOURCE_DIR}/include)
+target_include_directories(args PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
 if( supported )
     message(STATUS "IPO / LTO enabled")

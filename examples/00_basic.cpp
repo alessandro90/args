@@ -2,6 +2,7 @@
 #include <vector>
 #include "args/args.hpp"
 #include "args/types.hpp"
+#include "args/version.hpp"
 
 using namespace args::literals;
 
@@ -60,6 +61,9 @@ auto main(int argc, char **argv) -> int {
     // Commands has the right shape based on the options provided
     // No cast is performed when retrieving the data, the struct args::Args
     // already contains the correct types
+    std::print("Basic example. Current version: ");
+    // or use args::version::str to get a std::string_view
+    std::println("{}.{}.{}", args::version::major, args::version::minor, args::version::patch);
     auto const commands = args::parse_or_exit(argc, argv, opts);
     std::println("Provided commands:");
     std::println("{}", commands);  // args::Args is printable provided all the parsed types are too

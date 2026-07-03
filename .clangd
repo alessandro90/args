@@ -1,8 +1,8 @@
 If:
   PathExclude: benchmark/.*
 CompileFlags:
-  Add: [-std=c++26]
-  CompilationDatabase: "build/"
+  CompilationDatabase: "build"
+  Add: [-std=c++26, -freflection, -Ibuild/generated]
 
 ---
 
@@ -10,5 +10,5 @@ CompileFlags:
 If:
   PathMatch: benchmark/.*
 CompileFlags:
-  Add: [-std=c++26]
-  CompilationDatabase: "build/bench/"
+  CompilationDatabase: "build/bench"
+  Add: [-std=c++26, -freflection, -Ibuild/generated]
