@@ -15,7 +15,7 @@
 #include <utility>
 #include <variant>
 #include <vector>
-#include "args/colors.hpp"
+#include "colors.hpp"
 #include "helpers.hpp"
 #include "parsers.hpp"
 #include "tokenizer.hpp"
