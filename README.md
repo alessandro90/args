@@ -183,18 +183,18 @@ The `benchmark` directory contains some benchmarks against commonly used similar
 
 The results looks good, but surely the compared libraries offer a much greater functionality and I am not sure of how representative the tests are. Anyway on a machine with a _AMD Ryzen 7 7800X3D_ these are the results:
 
-| Benchmark              | Time (ns) | CPU (ns) | Iterations |
-| :--------------------- | --------: | -------: | :--------: |
-| bm_dynamic_argparse    |      1082 |     1075 |   650057   |
-| bm_dynamic_cli11       |      2818 |     2793 |   248141   |
-| bm_dynamic_cxxopts     |      5800 |     5762 |   121146   |
-| bm_dynamic_taywee_args |       807 |      804 |   871004   |
-| **bm_dynamic_args**    |       542 |      539 |  1290237   |
-| bm_static_argparse     |      1361 |     1355 |   516353   |
-| bm_static_cli11        |      3978 |     3960 |   177150   |
-| bm_static_cxxopts      |      6913 |     6873 |   101897   |
-| bm_static_taywee_args  |      1323 |     1305 |   539586   |
-| **bm_static_args**     |       302 |      300 |  2344296   |
+| Benchmark                                                   | Time (ns) | CPU (ns) | Iterations |
+| :---------------------------------------------------------- | --------: | -------: | :--------: |
+| bm_dynamic_argparse                                         |      1082 |     1075 |   650057   |
+| bm_dynamic_cli11                                            |      2818 |     2793 |   248141   |
+| bm_dynamic_cxxopts                                          |      5800 |     5762 |   121146   |
+| bm_dynamic_taywee_args                                      |       807 |      804 |   871004   |
+| :small_red_triangle:**bm_dynamic_args**:small_red_triangle: |       542 |      539 |  1290237   |
+| bm_static_argparse                                          |      1361 |     1355 |   516353   |
+| bm_static_cli11                                             |      3978 |     3960 |   177150   |
+| bm_static_cxxopts                                           |      6913 |     6873 |   101897   |
+| bm_static_taywee_args                                       |      1323 |     1305 |   539586   |
+| :small_red_triangle:**bm_static_args**:small_red_triangle:  |       302 |      300 |  2344296   |
 
 These tests are no comprehensive in any way. I just wanted to see how the library performs with a couple of basic cases.
 
