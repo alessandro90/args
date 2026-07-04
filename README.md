@@ -8,17 +8,17 @@
 - Flags specified multiple times
 - Mutually exclusive flags and groups of mutually exclusive flags
 - Subcommands
-- Automatic help generation. _The quality of the help message is currenlty quite low. Needs to be improved_.
+- Automatic help generation. _The quality of the help message is currently quite low. Needs to be improved_.
 - Arbitrary argument validation
 - Optional and non-optional arguments
 - Groups of short flags like `-abc` and `-abc=3`/`-abc 3`
 - Parsing custom types directly into the final structure
-- Supports for non default intializable types
-- Parsing of common containers: `std::vector`, `std::set`, etc.. provided their contained types are supported
+- Support for non-default initializable types
+- Parsing of common containers: `std::vector`, `std::set`, etc. provided their contained types are supported
   - Concepts are used to parse the containers, therefore even custom containers are automatically supported provided they satisfy the necessary concepts defined in [`helpers.hpp`](./include/args/helpers.hpp).
-- the output of the parsing is compatible with `std::println`. If a parsed type is not printable its name will be printed instead.
+- The output of the parsing is compatible with `std::println`. If a parsed type is not printable its name will be printed instead.
 - _nargs_. Stuff like `--name 1 2 3 4` with the resulting parsed value being a vector of `1,2,3,4`.
-- flags with optional values, like `-j` and `-j 8`, see #optional-arguments
+- flags with optional values, like `-j` and `-j 8`, see [optional arguments](#stdoptional-arguments)
 
 To use the library define a set of constexpr objects for the expected command arguments. These objects are validated at compile-time and they define the structure of the parsed result. Meaning the result is a struct correctly typed based on the provided commands. See the [examples](./examples/) for more information.
 
@@ -63,7 +63,7 @@ Once the set of possible commands is defined they need to be gathered into a `op
 
 ### Default validation
 
-Defaults values are checked at compile time only if the container can be _default_ constructed in a constexpr context. `std::vector` can do that. As of C++26, `std::unordered_set` cannot for example. For such types the default validation is skipped and the library will blindly use the default you provide (or not provide) without any check. The library will also print a warning indicating the type that cannot be checked.
+Default values are checked at compile time only if the container can be _default_ constructed in a constexpr context. `std::vector` can do that. As of C++26, `std::unordered_set` cannot for example. For such types the default validation is skipped and the library will blindly use the default you provide (or not provide) without any check. The library will also print a warning indicating the type that cannot be checked.
 
 ### Default arguments
 
@@ -75,15 +75,15 @@ static constexpr auto vec = args::flag_with_value<std::vector<int>>()
                             .Default([] { return std::vector<int>{1, 2}; }); // You need a default only if it is different from the default provided by the type itself.
 ```
 
-The library understands that the lambda is there for the sole purpose of allowing a non trivial type as default.
+The library understands that the lambda is there for the sole purpose of allowing a non-trivial type as default.
 
 ### Non default-initializable types
 
-The library can handle non default-initializable types. Such types must be either have a default value set via `Default` or be explicitly _required_ with `Required(true)`. The result returned by the library is actally a static storage in which the value lives (see [`args::LazyStorage<T>`](./include/args/lazy_storage.hpp)). The inner type can be retrieved with `.as_ref()`. See [`05_non_default_intializable_arguments.cpp`](./examples/05_non_default_initializable_arguments.cpp).
+The library can handle non default-initializable types. Such types must either have a default value set via `Default` or be explicitly _required_ with `Required(true)`. The result returned by the library is actually a static storage in which the value lives (see [`args::LazyStorage<T>`](./include/args/lazy_storage.hpp)). The inner type can be retrieved with `.as_ref()`. See [`05_non_default_initializable_arguments.cpp`](./examples/05_non_default_initializable_arguments.cpp).
 
-### `std::optional` arguments (#optional-arguments)
+### `std::optional` arguments
 
-Arguments of type `std::optional` cannot a default value. Their default value is just an empty optional. If the argument is a `args::Positional`, it cannot have a default value (it is an empty `std::optional` by default). If the argument is a `args::flag_with_value` than it has a special logic such that the flag can be specifies both with and without its corresponding value. Meaning both `-j` and `-j8` are valid. In the first case the flag is used but its value is an empty `std::optional`. In the second case its value is an `std::optional{8}`.
+Arguments of type `std::optional` cannot have a default value. Their default value is just an empty optional. If the argument is a `args::Positional`, it cannot have a default value (it is an empty `std::optional` by default). If the argument is a `args::flag_with_value` than it has special logic such that the flag can be specified both with and without its corresponding value. Meaning both `-j` and `-j8` are valid. In the first case the flag is used but its value is an empty `std::optional`. In the second case its value is an `std::optional{8}`.
 
 ## Parsing
 
@@ -94,7 +94,7 @@ Provided the options are defined, the result can be obtained with either:
 
 Helpers are defined to inspect and read the result if `parse_or_exit` is not used.
 
-- `is_empty`. `true` if no arguments where provided.
+- `is_empty`. `true` if no arguments were provided.
 - `has_error`, `has_args`, `has_help`.
 - `get_error`, `get_args`, `get_help`. Calling a getter if the result actually contains that value will raise an exception.
 
@@ -102,7 +102,7 @@ Helpers are defined to inspect and read the result if `parse_or_exit` is not use
 
 The parse result is `args::Args`, the structure of which depends on the template arguments of the options provided. It exposes the following methods:
 
-- `get<cmd>()`: returns the parsed value associated with `cmd`. The default is provided if the command has not been set. Note that if `cmd` is requried but not provided, the parse will fail.
+- `get<cmd>()`: returns the parsed value associated with `cmd`. The default is provided if the command has not been set. Note that if `cmd` is required but not provided, the parse will fail.
 - `get_with_info<cmd>()`: Same as `get` but the value is wrapped inside a struct with additional data. The extra data depends on the type of `cmd`. For example for a repeatable flag it has `count` indicating the number of times the flag has been provided. `is_used` is also always provided indicating if `cmd` was provided as command line argument.
 - both `get` and `get_with_info` supports subcommands like this: `get<sub_cmd_1, sub_cmd_2, cmd>()`. That means we are retrieving the `cmd` from a subcommand nested inside another subcommand.
 - To get a subcommand itself, only `get_with_info<subcommand>()` can be used. A subcommand `get` would just return its name, which is not useful.
@@ -200,7 +200,7 @@ These tests are no comprehensive in any way. I just wanted to see how the librar
 
 ## Building from source
 
-The project builds with CMake. Tested only using gcc. _C++26 and reflection_ (via `-freflection`) support is required. At the moment there is really no support for other compilers. Many several warnings exists only for C++. However the code is fully portable and the CMakeLists could be adjusted to support multiple compilers. Default build is debug, use `CMAKE_BUILD_TYPE=Relase` for release version.
+The project builds with CMake. Tested only using gcc 16.1. _C++26 and reflection_ (via `-freflection`) support is required (reflection is used just to print type names in error messages). No other compiler has been tested at the moment. However the code is fully portable and the CMakeLists could be adjusted to support multiple compilers. Default build is debug, use `CMAKE_BUILD_TYPE=Release` for release version.
 
 ```bash
 mkdir build && cd build
@@ -221,5 +221,5 @@ The `make` command without any specific target builds tests and examples. Benchm
 ### Specific targets
 
 - _args_tests_ Build just the tests.
-- _args_examples_ Build just the examples. add `-DBUILD_CUSTOM_PARSER_EXAMPLE` to build `03_custom_parser`. It downlaods the `nlohman` json library. So disable the flag if do not want to download it.
+- _args_examples_ Build just the examples. add `-DBUILD_CUSTOM_PARSER_EXAMPLE` to build `03_custom_parser`. It downloads the `nlohman` json library. So disable the flag if do not want to download it.
 - _args_bench_ Build the benchmarks. You should configure cmake with `-DCMAKE_BUILD_TYPE=Release -DBUILD_BENCHMARKS=ON -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF`.
